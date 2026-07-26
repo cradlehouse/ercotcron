@@ -1,7 +1,11 @@
 # Handoff — state, risks, next steps
 
-Written 26 Jul 2026. Nothing is deployed and no live ERCOT call has ever been
-made.
+Written 26 Jul 2026.
+
+**Deployed:** dashboard is live at https://ercotcron.vercel.app (Vercel, green).
+Supabase is linked to this repo, and the migrations have been applied to the
+production database. **Not yet deployed:** the Render ingest service. No live
+ERCOT call has ever been made.
 
 ## Verified
 
@@ -13,26 +17,26 @@ made.
   including with no Supabase env vars set — which is how it will first deploy to
   Vercel. All three pages were loaded in a browser and render explanatory empty
   and error states rather than crashing.
-- **Migrations parse** under the real PostgreSQL parser (`pglast`), 47
-  statements across 4 files.
+- **Migrations applied to production.** All three live pages query Supabase and
+  return zero rows with no error, which means every table and view resolves:
+  `latest_prices`, `rt_spp`, `ingest_runs`, `feed_latency`, `rt_spp_gaps`,
+  `revision_counts`, `spp_vs_lmp_5min`. A missing relation would surface as a
+  PostgREST error on the page instead.
 
 ## Not verified — the real risks
 
-**1. The migrations have never been executed.** Parsing is not applying. Nothing
-has confirmed that the tables, monthly partitions, revision trigger, views, and
-RLS policies actually work together. The PL/pgSQL bodies —
-`capture_price_revision`, `ensure_month_partition`, `detach_partitions_before` —
-are opaque strings to a parser, so their logic is entirely unproven. This is the
-largest open risk.
+**1. The schema exists, but its behaviour is unproven.** The relations are
+there; what has never run is the logic inside them — `capture_price_revision`,
+`ensure_month_partition`, `detach_partitions_before`. No row has ever been
+inserted, so no partition has been routed and no revision has been captured.
 
-(I tried validating the PL/pgSQL with `pglast.parse_plpgsql`, but that function
-is broken in v8.4 — it fails a trivially valid `begin return new; end` body with
-a JSON decode error, so it proves nothing either way. Don't trust a green result
-from it.)
+**RLS is likewise unproven.** With RLS on and no policy, PostgREST returns an
+empty array rather than an error — identical to an empty table. Since there is
+no data, "policy permits the read" and "policy is missing" look exactly the
+same from the dashboard. This only becomes testable once rows exist.
 
-To close this: apply the four files in order to a scratch Supabase project, then
-insert a row, update its price, and confirm a `price_revisions` row appears with
-the old value.
+To close both: insert a price, update it, and confirm a `price_revisions` row
+appears with the old value and that the dashboard can still read the table.
 
 **2. The ERCOT endpoint paths and parameter names are unconfirmed.** They come
 from the API docs, not from a successful response. Field names in particular are
@@ -64,12 +68,22 @@ unexercised against live Postgres.
 
 ## Suggested order from here
 
-1. Create the Supabase project; apply migrations; confirm the revision trigger
-   fires (risk 1).
-2. Get ERCOT credentials into `.env`; run `scripts/describe_endpoint.py` and fix
+1. Get ERCOT credentials into `.env`; run `scripts/describe_endpoint.py` and fix
    the field mapping (risk 2).
-3. Run each job once by hand via `scripts/run_ingest.py`; check `ingest_runs`
-   for `ok` rather than `empty`.
-4. Deploy to Render, point the dashboard at Supabase, deploy to Vercel.
-5. Set the `HEARTBEAT_URL_*` variables. Without them, a job that silently stops
+2. Run one job by hand via `scripts/run_ingest.py`; check `ingest_runs` for `ok`
+   rather than `empty`. This is also what proves the revision trigger, partition
+   routing, and RLS policies (risk 1) — the first real rows exercise all three.
+3. Deploy the ingest service to Render as a **Web Service, not a Cron Job** —
+   the schedule lives inside the process. Not the free plan: free instances
+   spin down when idle, which stops the scheduler.
+4. Set the `HEARTBEAT_URL_*` variables. Without them, a job that silently stops
    returning rows will not tell anyone.
+
+## Notes
+
+`supabase/migrations/20260726120000_core.sql` creates the `pgcrypto` extension,
+which nothing uses — ids are `bigserial`. It is a harmless no-op on Supabase,
+where the extension already exists. It is left in place deliberately: that
+migration has already been applied to production, and editing an applied
+migration makes the file stop describing what actually ran. Drop the line only
+as part of a new migration, if it ever matters.
