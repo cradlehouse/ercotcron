@@ -92,6 +92,13 @@ env group with `ERCOT_USERNAME`, `ERCOT_PASSWORD`, `ERCOT_SUBSCRIPTION_KEY`,
 the service-role key or `DATABASE_URL`. Do not add a Vercel cron — that would
 double every ERCOT pull.
 
+`vercel.json` pins the install and build commands, and `.vercelignore` keeps the
+Python files out of the upload. Both are load-bearing: this repo holds a Python
+service and a Node dashboard side by side, and a bare `requirements.txt` at the
+root makes Vercel detect a Python project and run `uv pip install` before the
+Next.js build — which fails on any Python version lacking `psycopg-binary`
+wheels. Removing either file brings that back.
+
 ## Operating
 
 `GET /health` reports scheduler state and the last run per job. `GET /runs`

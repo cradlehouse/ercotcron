@@ -1,0 +1,15 @@
+# Vercel builds only the dashboard. The ingest service is a separate deploy on
+# Render, and shipping its files here is not merely wasteful: a requirements.txt
+# at the repo root makes Vercel detect a Python project and run `uv pip install`
+# before the Next.js build, which fails outright on a Python version with no
+# psycopg-binary wheels. vercel.json pins the install command; this keeps the
+# files out of the upload as well.
+ercot/
+scripts/
+tests/
+supabase/
+requirements.txt
+requirements-dev.txt
+pyproject.toml
+render.yaml
+.venv/
