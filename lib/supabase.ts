@@ -101,3 +101,34 @@ export interface RevisionCount {
   hour: string
   revisions: number
 }
+
+export interface DartRow {
+  settlement_point: string
+  interval_start: string
+  delivery_date: string
+  hour_ending: number
+  dam_price: number | string
+  rt_avg: number | string
+  rt_intervals: number
+  spread: number | string
+}
+
+export interface BatteryArbRow {
+  settlement_point: string
+  delivery_date: string
+  hours_observed: number
+  charge_avg: number | string | null
+  discharge_avg: number | string | null
+  gross_per_mw: number | string | null
+}
+
+export interface ExtremesRow {
+  settlement_point: string
+  delivery_date: string
+  intervals: number
+  negative_intervals: number
+  scarcity_intervals: number
+  min_price: number | string
+  max_price: number | string
+  avg_price: number | string
+}
