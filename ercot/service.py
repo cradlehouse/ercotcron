@@ -93,7 +93,21 @@ def health() -> dict[str, object]:
 
 @app.get("/runs")
 def runs(limit: int = 20) -> dict[str, object]:
-    return {"runs": db.recent_runs(min(limit, 200))}
+    """Recent ingest runs.
+
+    Reports a database failure as a message rather than a bare 500. This is the
+    endpoint reached for when something is already wrong, and an unexplained
+    500 here sends you looking for a bug in the service when the real answer is
+    usually an unset or malformed DATABASE_URL.
+    """
+    try:
+        return {"runs": db.recent_runs(min(limit, 200))}
+    except Exception as exc:  # noqa: BLE001
+        log.warning("/runs database read failed: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail=f"cannot read ingest_runs — check DATABASE_URL: {exc}",
+        ) from exc
 
 
 @app.get("/schedule")
