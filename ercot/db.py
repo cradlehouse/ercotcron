@@ -24,14 +24,32 @@ log = logging.getLogger(__name__)
 _pool: ConnectionPool | None = None
 
 
+def _through_transaction_pooler(url: str) -> bool:
+    """Whether the connection lands on a transaction-mode pooler.
+
+    Supabase's shared pooler (Supavisor) runs transaction mode on 6543 and
+    session mode on 5432; the dedicated pooler also uses 6543.
+    """
+    return ":6543" in url or "pooler.supabase.com" in url
+
+
 def pool() -> ConnectionPool:
     global _pool
     if _pool is None:
+        url = config.database_url()
+        kwargs: dict[str, object] = {"application_name": "ercotcron"}
+        if _through_transaction_pooler(url):
+            # Transaction mode hands out a different backend per statement, so a
+            # prepared statement is never found where it was created. psycopg
+            # prepares automatically after five executions, which makes this
+            # fail only once a job has been running a while — long after the
+            # deploy that introduced it looked successful.
+            kwargs["prepare_threshold"] = None
         _pool = ConnectionPool(
-            config.database_url(),
+            url,
             min_size=1,
             max_size=4,
-            kwargs={"application_name": "ercotcron"},
+            kwargs=kwargs,
             open=True,
         )
     return _pool
