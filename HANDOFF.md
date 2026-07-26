@@ -38,15 +38,22 @@ same from the dashboard. This only becomes testable once rows exist.
 To close both: insert a price, update it, and confirm a `price_revisions` row
 appears with the old value and that the dashboard can still read the table.
 
-**2. The ERCOT endpoint paths and parameter names are unconfirmed.** They come
-from the API docs, not from a successful response. Field names in particular are
-guesses at ERCOT's casing (`deliveryDate` vs `DeliveryDate`), which is why
-`ercot/ingest.py` reads through a `field()` helper that accepts several spellings
-and why `empty` is a first-class run status. The first real run is the test.
+**2. ~~The ERCOT endpoint paths and parameter names are unconfirmed.~~ CLOSED.**
+Verified against the live API on 26 Jul 2026:
 
-`scripts/describe_endpoint.py` exists for exactly this: it makes one authorized
-request and prints the response envelope and field names, so you can correct the
-mapping before running a full ingest.
+- All four endpoint paths confirmed from ERCOT's own product catalog
+  (`GET /api/public-reports` lists every product and its data endpoint).
+- All field names the code reads are correct.
+- All query parameters are honoured — checked via `_meta.query.parameterCount`,
+  which is the only way to tell an accepted filter from a silently ignored one.
+  A wrong parameter name is not an error; it returns unfiltered data.
+
+Two absences, both harmless because the columns are nullable: no endpoint
+returns a `postDatetime`, so `posted_at` is always null; and `np6-788-cd`
+returns only `LMP`, so the energy/congestion/loss component columns stay null.
+
+Fixed in the process: both Azure B2C auth constants were wrong (the policy name
+and the client id), so every request 404'd at the token step.
 
 **3. Nothing has run against a real database.** The tests use a fake connection.
 Constraint names, the ON CONFLICT targets, and the partition routing are all

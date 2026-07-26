@@ -105,12 +105,38 @@ def describe_parameters(client: ErcotClient, endpoint: str) -> None:
     )
 
 
+# Job names, so the probe takes the same argument as run_ingest.py. Passing
+# `dam` used to be sent as the literal path /dam, which ERCOT answers with a
+# 404 that reads like a dead endpoint rather than a mistyped argument.
+ALIASES = {
+    "dam": config.EP_DAM_SPP,
+    "rtm": config.EP_RT_SPP,
+    "lmp5": config.EP_LMP_5MIN,
+    "rtd": config.EP_RTD_LMP,
+}
+
+
+def resolve(value: str) -> str:
+    if value in ALIASES:
+        return ALIASES[value]
+    if not value.startswith("/"):
+        raise SystemExit(
+            f"unknown job {value!r} — use one of {', '.join(sorted(ALIASES))}, "
+            "or pass a full path beginning with '/'"
+        )
+    return value
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("endpoint", help="e.g. /np6-788-cd/lmp_node_zone_hub")
+    parser.add_argument(
+        "endpoint",
+        help="job name (dam, rtm, lmp5, rtd) or a full path like "
+        "/np6-788-cd/lmp_node_zone_hub",
+    )
     args = parser.parse_args()
 
-    endpoint = args.endpoint if args.endpoint.startswith("/") else f"/{args.endpoint}"
+    endpoint = resolve(args.endpoint)
     client = ErcotClient()
 
     describe_parameters(client, endpoint)

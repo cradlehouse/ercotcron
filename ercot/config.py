@@ -61,11 +61,13 @@ def heartbeat_url(job: str) -> str:
 
 # ---------------------------------------------------------------- ERCOT API --
 
+# Azure B2C ROPC. The policy name and client id are fixed by ERCOT and are the
+# same for every subscriber — they identify the public API, not the account.
 AUTH_URL = (
     "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/"
-    "B2C_1_PUBLIC-API-ROPC/oauth2/v2.0/token"
+    "B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"
 )
-AUTH_CLIENT_ID = "fec7d00d-778b-4d24-a2eb-4b12e0a20a86"
+AUTH_CLIENT_ID = "fec253ea-0d06-4272-a5e6-b478baeecd70"
 
 BASE_URL = "https://api.ercot.com/api/public-reports"
 
