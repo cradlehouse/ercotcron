@@ -2,10 +2,9 @@
 
 Written 26 Jul 2026.
 
-**Deployed:** dashboard is live at https://ercotcron.vercel.app (Vercel, green).
-Supabase is linked to this repo, and the migrations have been applied to the
-production database. **Not yet deployed:** the Render ingest service. No live
-ERCOT call has ever been made.
+**Running end to end.** Ingest is live on Render, the dashboard is live at
+https://ercotcron.vercel.app, and real ERCOT prices are flowing. All four feeds
+have completed successful runs against the production database.
 
 ## Verified
 
@@ -25,18 +24,21 @@ ERCOT call has ever been made.
 
 ## Not verified — the real risks
 
-**1. The schema exists, but its behaviour is unproven.** The relations are
-there; what has never run is the logic inside them — `capture_price_revision`,
-`ensure_month_partition`, `detach_partitions_before`. No row has ever been
-inserted, so no partition has been routed and no revision has been captured.
+**1. ~~The schema exists, but its behaviour is unproven.~~ MOSTLY CLOSED.**
+Partition routing and RLS are both proven — rows are landing in the monthly
+partitions, and the dashboard renders real prices through the anon key, which
+an empty table could never have demonstrated.
 
-**RLS is likewise unproven.** With RLS on and no policy, PostgREST returns an
-empty array rather than an error — identical to an empty table. Since there is
-no data, "policy permits the read" and "policy is missing" look exactly the
-same from the dashboard. This only becomes testable once rows exist.
+Still unproven: **`capture_price_revision`**. ERCOT has not restated a price
+since ingest began, so no revision has been captured. Confirmed only when
+`rows_revised` goes above zero on a run, or by hand — update a stored price and
+check `price_revisions` holds the old value.
 
-To close both: insert a price, update it, and confirm a `price_revisions` row
-appears with the old value and that the dashboard can still read the table.
+The failure that got here is worth remembering: the upsert detected
+insert-vs-update with `returning (xmax = 0)`, which Postgres refuses on
+partitioned tables. The test suite uses a fake connection, so it passed for
+weeks. Only live Postgres could catch it — see the "unexercised against live
+Postgres" warning that used to be in this section.
 
 **2. ~~The ERCOT endpoint paths and parameter names are unconfirmed.~~ CLOSED.**
 Verified against the live API on 26 Jul 2026:
@@ -86,7 +88,40 @@ unexercised against live Postgres.
 4. Set the `HEARTBEAT_URL_*` variables. Without them, a job that silently stops
    returning rows will not tell anyone.
 
+## Backfill: measured volumes
+
+Only the live feeds run today; no history has been loaded. Measured 26 Jul 2026,
+one day, **all** settlement points:
+
+| feed | rows/day | 2 years, unfiltered |
+| --- | --- | --- |
+| dam | 24,816 | 18.1M |
+| rtm (15-min) | 100,416 | 73.3M |
+| lmp5 (5-min) | 298,826 | 218M |
+| rtd | 3,275,712 | **2.4 billion** |
+
+**Filter server-side when backfilling.** `settlementPoint=HB_HUBAVG` returns 96
+rows/day on rtm and 289 on lmp5, against 100k and 299k unfiltered — roughly
+1,000× less per point. Two years of 5-minute data for the tracked points is then
+~3.2M rows in ~650 requests, about half an hour, rather than thirty hours.
+
+**Do not apply that to the live jobs.** For a 20-minute window, unfiltered is a
+single request; per-point filtering would be fifteen. Unfiltered wins live,
+filtered wins for backfill — opposite regimes.
+
+**Never backfill rtd wholesale.** It stores every forecast vintage, hence 3.3M
+rows a day. Scope it to specific points and a short window.
+
+Retention is not pinned down: 2025-01-01 returns data, 2019-01-01 returns none.
+The probes that would have bracketed it hit HTTP 429 — the rate limit is real,
+so backfill must go through the client's pacing, not an ad-hoc script.
+
 ## Notes
+
+**Deploys briefly double-run every job.** Render starts the new container before
+draining the old, so two schedulers overlap for a few seconds and both fire.
+Harmless — the primary keys make it idempotent — but it doubles the ERCOT
+request rate during the handover, which is enough to draw a 429.
 
 `supabase/migrations/20260726120000_core.sql` creates the `pgcrypto` extension,
 which nothing uses — ids are `bigserial`. It is a harmless no-op on Supabase,
