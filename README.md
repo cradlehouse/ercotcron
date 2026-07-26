@@ -102,8 +102,16 @@ wheels. Removing either file brings that back.
 ## Operating
 
 `GET /health` reports scheduler state and the last run per job. `GET /runs`
-returns recent run history. `POST /trigger/{job}` forces a run and requires the
-`TRIGGER_SECRET` bearer token, because it spends ERCOT rate-limit budget.
+returns recent run history. `POST /trigger/{job}` forces a run and is guarded
+because it spends ERCOT rate-limit budget — it takes the secret in an
+`X-Trigger-Secret` header, not as a bearer token:
+
+```bash
+curl -X POST -H "X-Trigger-Secret: $TRIGGER_SECRET" \
+  https://YOUR-SERVICE.onrender.com/trigger/dam
+```
+
+Jobs are `dam`, `rtm`, `lmp5`, `rtd`, `lmp5_catchup`, `partitions`, `points`.
 
 The dashboard's **health** page is the one to check: failed runs, empty runs,
 missing 15-minute intervals, publication lag, and revision counts. Gaps are
