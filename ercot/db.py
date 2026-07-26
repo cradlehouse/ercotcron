@@ -92,14 +92,27 @@ def upsert_rows(
     cols = sql.SQL(", ").join(ident(c) for c in columns)
     temp = f"tmp_{table}"
 
+    key_match = sql.SQL(" and ").join(
+        sql.SQL("{t}.{c} = {tmp}.{c}").format(t=ident(table), tmp=ident(temp), c=ident(c))
+        for c in conflict
+    )
     changed = sql.SQL(" or ").join(
-        sql.SQL("{t}.{c} is distinct from excluded.{c}").format(t=ident(table), c=ident(c))
+        sql.SQL("{t}.{c} is distinct from {tmp}.{c}").format(
+            t=ident(table), tmp=ident(temp), c=ident(c)
+        )
         for c in update
     )
     assignments = sql.SQL(", ").join(
-        sql.SQL("{c} = excluded.{c}").format(c=ident(c)) for c in update
+        sql.SQL("{c} = {tmp}.{c}").format(c=ident(c), tmp=ident(temp)) for c in update
     )
 
+    # Update-then-insert rather than ON CONFLICT with `returning xmax = 0`:
+    # Postgres refuses system columns on partitioned tables ("cannot retrieve a
+    # system column in this context"), and the 5-minute tables are partitioned
+    # by month. Two statements in one transaction give the same counts without
+    # touching a system column. Safe against concurrent writers only because
+    # there are none: APScheduler runs each job with max_instances=1, and each
+    # table has exactly one writing job.
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             sql.SQL(
@@ -117,24 +130,33 @@ def upsert_rows(
 
         cur.execute(
             sql.SQL(
+                "update {tbl} set {assignments} from {tmp} "
+                "where {key_match} and ({changed})"
+            ).format(
+                tbl=ident(table),
+                assignments=assignments,
+                tmp=ident(temp),
+                key_match=key_match,
+                changed=changed,
+            )
+        )
+        updated = cur.rowcount
+
+        cur.execute(
+            sql.SQL(
                 "insert into {tbl} ({cols}) select {cols} from {tmp} "
-                "on conflict ({conflict}) do update set {assignments} "
-                "where {changed} "
-                "returning (xmax = 0) as inserted"
+                "on conflict ({conflict}) do nothing"
             ).format(
                 tbl=ident(table),
                 cols=cols,
                 tmp=ident(temp),
                 conflict=sql.SQL(", ").join(ident(c) for c in conflict),
-                assignments=assignments,
-                changed=changed,
             )
         )
-        results = cur.fetchall()
+        inserted = cur.rowcount
         conn.commit()
 
-    inserted = sum(1 for r in results if r[0])
-    return inserted, len(results) - inserted
+    return inserted, updated
 
 
 def insert_rows_ignore_dupes(
