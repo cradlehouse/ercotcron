@@ -1,0 +1,44 @@
+# One long-lived service, not six cron jobs.
+#
+# A single process is what makes the shared bearer token, the shared rate
+# limiter and APScheduler's max_instances=1 overlap protection possible. Six
+# separate cron containers would each cold-start and re-authenticate on every
+# tick — roughly 288 needless token requests a day from the 5-minute job alone —
+# and Render's cron scheduler is UTC-only, which would drift the DAM job by an
+# hour at each DST transition.
+#
+# Schedules live in ercot/jobs.py, pinned to America/Chicago.
+
+services:
+  - type: web
+    name: ercotcron
+    runtime: python
+    plan: starter
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn ercot.service:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: TZ
+        value: UTC
+      - fromGroup: ercot-secrets
+
+# Create the env group in the Render dashboard with:
+#   ERCOT_USERNAME, ERCOT_PASSWORD, ERCOT_SUBSCRIPTION_KEY, DATABASE_URL,
+#   TRIGGER_SECRET, and optionally TRACKED_POINTS and HEARTBEAT_URL_<JOB>.
+envVarGroups:
+  - name: ercot-secrets
+    envVars:
+      - key: ERCOT_USERNAME
+        sync: false
+      - key: ERCOT_PASSWORD
+        sync: false
+      - key: ERCOT_SUBSCRIPTION_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: TRIGGER_SECRET
+        generateValue: true

@@ -1,0 +1,26 @@
+@import 'tailwindcss';
+
+/* An operations console, not a marketing page: dark, dense, monospace numerals,
+   colour reserved for data rather than chrome. */
+
+@theme {
+  --color-ink: #08090b;
+  --color-panel: #0e1013;
+  --color-panel-2: #14171c;
+  --color-line: #1f242c;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
+}
+
+html,
+body {
+  background: var(--color-ink);
+  color: #d4d8de;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tabular figures stop columns of prices from shifting as digits change. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}

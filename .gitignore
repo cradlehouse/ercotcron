@@ -1,0 +1,16 @@
+.env
+.env.local
+.env*.local
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+node_modules/
+.next/
+out/
+.vercel
+*.tsbuildinfo
+*.log
+.DS_Store
