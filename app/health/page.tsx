@@ -50,9 +50,13 @@ export default async function HealthPage() {
 
   const failedStat = runStat(failing, 'text-red-400', 'of the last 40')
   const emptyStat = runStat(emptyRuns, 'text-amber-300', 'zero rows — check endpoint params')
-  const gapStat = stat(
-    gaps.error, gaps.rows.length, 'text-emerald-300', 'text-amber-300', 'last 3 days',
-  )
+  // Before the first ingest there is nothing to have a gap in, and an empty
+  // gaps view then means "nothing checked", not "everything present" — the same
+  // trap as reporting a green zero for a query that failed.
+  const noData = !runs.error && runs.rows.length === 0
+  const gapStat = noData
+    ? { value: '—', tone: 'text-zinc-600', note: 'nothing ingested yet' }
+    : stat(gaps.error, gaps.rows.length, 'text-emerald-300', 'text-amber-300', 'last 3 days')
   const revisionStat = revisions.error
     ? unknown
     : { value: formatCount(totalRevisions), tone: 'text-zinc-200', note: 'last 7 days' }
@@ -167,6 +171,8 @@ export default async function HealthPage() {
         <Panel title="Missing 15-minute intervals" subtitle="last 3 days">
           {gaps.error ? (
             <ErrorNote error={gaps.error} />
+          ) : noData ? (
+            <Empty message="Nothing ingested yet — no intervals to check." />
           ) : gaps.rows.length === 0 ? (
             <Empty message="No gaps. Every expected interval is present." />
           ) : (
