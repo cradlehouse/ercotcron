@@ -81,17 +81,44 @@ const STYLES: Record<Tone, ToneStyle> = {
   },
 }
 
-export function toneOf(price: number | null | undefined): Tone {
+/** Band edges. Defaults here; the user's own levels come from lib/thresholds. */
+export interface Bands {
+  elevated: number
+  scarcity: number
+  extreme: number
+}
+
+const DEFAULT_BANDS: Bands = {
+  elevated: ELEVATED_ABOVE,
+  scarcity: SCARCITY_ABOVE,
+  extreme: EXTREME_ABOVE,
+}
+
+export function toneOf(price: number | null | undefined, bands: Bands = DEFAULT_BANDS): Tone {
   if (price === null || price === undefined || !Number.isFinite(price)) return 'unknown'
   if (price < NEGATIVE_BELOW) return 'negative'
-  if (price >= EXTREME_ABOVE) return 'extreme'
-  if (price >= SCARCITY_ABOVE) return 'scarcity'
-  if (price >= ELEVATED_ABOVE) return 'elevated'
+  if (price >= bands.extreme) return 'extreme'
+  if (price >= bands.scarcity) return 'scarcity'
+  if (price >= bands.elevated) return 'elevated'
   return 'normal'
 }
 
-export function styleFor(price: number | null | undefined): ToneStyle {
-  return STYLES[toneOf(price)]
+export function styleFor(
+  price: number | null | undefined,
+  bands: Bands = DEFAULT_BANDS,
+): ToneStyle {
+  return STYLES[toneOf(price, bands)]
+}
+
+/** Legend entries for a given set of band edges. */
+export function scaleFor(bands: Bands): ReadonlyArray<{ tone: Tone; range: string }> {
+  return [
+    { tone: 'negative', range: `< $${NEGATIVE_BELOW}` },
+    { tone: 'normal', range: `$0 – $${bands.elevated}` },
+    { tone: 'elevated', range: `$${bands.elevated} – $${bands.scarcity}` },
+    { tone: 'scarcity', range: `$${bands.scarcity} – $${bands.extreme}` },
+    { tone: 'extreme', range: `> $${bands.extreme}` },
+  ]
 }
 
 export function styleForTone(tone: Tone): ToneStyle {

@@ -6,14 +6,16 @@ import Link from 'next/link'
 import { Empty, ErrorNote, Freshness, Panel } from '@/app/components'
 import { PriceCurve } from '@/app/price-curve'
 import {
-  SCALE,
   formatDateTime,
   formatUsd,
   hoursAgoIso,
   num,
+  scaleFor,
   styleFor,
   styleForTone,
 } from '@/lib/prices'
+import { readThresholds, thresholdParams } from '@/lib/thresholds'
+import { ThresholdBar } from '@/app/threshold-bar'
 import { query, type FeedLatency, type LatestPrice, type RtPrice } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -29,11 +31,17 @@ const RANGES = [
 const POINT_RE = /^[A-Z0-9_]{2,30}$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
-interface Params {
+interface Params extends Record<string, string | undefined> {
   point?: string
   range?: string
   from?: string
   to?: string
+  reset?: string
+  cb?: string
+  da?: string
+  el?: string
+  sc?: string
+  ex?: string
 }
 
 export default async function MonitorPage({
@@ -51,12 +59,18 @@ export default async function MonitorPage({
   const custom = from && to && from <= to ? { from, to } : null
   const range = RANGES.find((r) => r.key === params.range) ?? RANGES[1]
 
+  // `reset` wins over any level params the reset button left in the form.
+  const thresholds = readThresholds(params.reset ? {} : params)
+  const bands = thresholds
+  const levelParams = thresholdParams(thresholds)
+
   const qs = (overrides: Record<string, string | undefined>) => {
     const merged: Record<string, string | undefined> = {
       point,
       range: custom ? undefined : range.key,
       from: custom?.from,
       to: custom?.to,
+      ...levelParams,
       ...overrides,
     }
     const parts = Object.entries(merged)
@@ -100,12 +114,22 @@ export default async function MonitorPage({
         ))}
       </div>
 
+      <Panel title="Your levels" subtitle="colour bands and trade triggers — shared in the URL">
+        <ThresholdBar
+          thresholds={thresholds}
+          hidden={{
+            point,
+            ...(custom ? { from: custom.from, to: custom.to } : { range: range.key }),
+          }}
+        />
+      </Panel>
+
       <Panel
         title="Latest settled price"
         subtitle="15-minute real-time SPP, $/MWh — click a point to chart it"
         right={
           <div className="flex flex-wrap gap-3">
-            {SCALE.map(({ tone, range: label }) => {
+            {scaleFor(bands).map(({ tone, range: label }) => {
               const s = styleForTone(tone)
               return (
                 <span key={tone} className="flex items-center gap-1.5 text-[11px] text-zinc-600">
@@ -128,8 +152,18 @@ export default async function MonitorPage({
           <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3 lg:grid-cols-5">
             {latest.rows.map((row) => {
               const price = num(row.price)
-              const s = styleFor(price)
+              const s = styleFor(price, bands)
               const active = row.settlement_point === point
+              // Trade triggers are independent of the colour bands: a price can
+              // be an ordinary green and still be below your charge level.
+              const signal =
+                price === null
+                  ? null
+                  : price < thresholds.chargeBelow
+                    ? 'charge'
+                    : price > thresholds.dischargeAbove
+                      ? 'discharge'
+                      : null
               return (
                 <Link
                   key={row.settlement_point}
@@ -141,7 +175,22 @@ export default async function MonitorPage({
                       : `${s.border} hover:border-zinc-400/60 hover:brightness-125`
                   }`}
                 >
-                  <div className="truncate text-[11px] text-zinc-500">{row.settlement_point}</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="truncate text-[11px] text-zinc-500">
+                      {row.settlement_point}
+                    </span>
+                    {signal && (
+                      <span
+                        className={`ml-auto shrink-0 rounded px-1 text-[9px] font-semibold uppercase tracking-wide ${
+                          signal === 'charge'
+                            ? 'bg-sky-500/20 text-sky-300'
+                            : 'bg-amber-500/20 text-amber-300'
+                        }`}
+                      >
+                        {signal}
+                      </span>
+                    )}
+                  </div>
                   <div className={`tnum mt-0.5 text-lg font-semibold ${s.text}`}>
                     {formatUsd(price)}
                   </div>
