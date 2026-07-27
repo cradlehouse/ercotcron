@@ -11,7 +11,7 @@ from typing import Callable
 
 import httpx
 
-from . import config, crr, db, fundamentals, ingest
+from . import config, crr, db, fundamentals, ingest, weather
 from .client import ErcotClient
 from .ingest import Result
 
@@ -85,6 +85,15 @@ JOBS: dict[str, Job] = {
         run=lambda c: fundamentals.ingest_load(c),
         description="Seven-day load forecast by weather zone",
         trigger={"minute": "28"},
+    ),
+    "weather": Job(
+        name="weather",
+        # Open-Meteo, not ERCOT: no shared auth and no shared rate limit, so
+        # this is safe to run alongside a price backfill. Hourly is plenty —
+        # the global models only produce new runs every 6 hours.
+        run=lambda c: weather.ingest_weather(c),
+        description="Independent wind forecasts (ECMWF/GFS/ICON) by region",
+        trigger={"minute": "42"},
     ),
     "crr": Job(
         name="crr",
