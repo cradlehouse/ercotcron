@@ -132,3 +132,25 @@ export interface ExtremesRow {
   max_price: number | string
   avg_price: number | string
 }
+
+export interface PathSpreadRow {
+  point_a: string
+  point_b: string
+  hours: number
+  avg_spread: number | string
+  spread_sd: number | string | null
+  pct_b_higher: number | string
+  max_spread: number | string
+  min_spread: number | string
+  avg_abs_spread: number | string
+}
+
+export interface PathDartRow {
+  point_a: string
+  point_b: string
+  hours: number
+  avg_dam_spread: number | string
+  avg_rt_spread: number | string
+  avg_miss: number | string
+  miss_sd: number | string | null
+}
