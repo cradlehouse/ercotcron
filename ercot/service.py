@@ -18,7 +18,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Header, HTTPException
 
-from . import backfill as backfill_mod, config, db
+from . import backfill as backfill_mod, config, crr as crr_mod, db
 from .jobs import JOBS, run_job
 
 logging.basicConfig(
@@ -174,3 +174,29 @@ def backfill_start(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post("/crr")
+def crr_ingest(
+    limit: int = 2,
+    report_type: str = "monthly",
+    x_trigger_secret: str = Header(default=""),
+) -> dict[str, object]:
+    """Load CRR auction results from ERCOT's MIS.
+
+    Separate from /trigger because it takes a count and a report type, and from
+    /backfill because it is not date-ranged — auctions are discrete events, so
+    the parameter is how many of the most recent to load.
+    """
+    secret = config.trigger_secret()
+    if not secret or x_trigger_secret != secret:
+        raise HTTPException(status_code=401, detail="invalid trigger secret")
+    if report_type not in crr_mod.REPORT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"report_type must be one of {sorted(crr_mod.REPORT_TYPES)}",
+        )
+    try:
+        return crr_mod.ingest_recent(limit=min(limit, 12), report_type=report_type)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"crr ingest failed: {exc}") from exc

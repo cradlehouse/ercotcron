@@ -11,7 +11,7 @@ from typing import Callable
 
 import httpx
 
-from . import config, db, ingest
+from . import config, crr, db, ingest
 from .client import ErcotClient
 from .ingest import Result
 
@@ -56,6 +56,14 @@ JOBS: dict[str, Job] = {
         run=lambda c: ingest.ingest_rtd(c, since_minutes=15),
         description="RTD forecast vintages, last 15 minutes",
         trigger={"minute": "2-59/5"},
+    ),
+    "crr": Job(
+        name="crr",
+        # Monthly auctions clear once a month, so a daily check is generous;
+        # it is cheap because an already-loaded auction upserts to no changes.
+        run=lambda c: crr.ingest_job(c, limit=2),
+        description="CRR auction results, newest 2 monthly auctions",
+        trigger={"hour": "8", "minute": "40"},
     ),
     "rtm": Job(
         name="rtm",

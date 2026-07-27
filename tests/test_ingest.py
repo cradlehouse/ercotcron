@@ -210,3 +210,35 @@ class TestExcludedPointType:
 
         assert excluded_type({}) is False
         assert excluded_type({"settlementPointType": None}) is False
+
+
+class TestCrrAuctionNames:
+    """Monthly and long-term auctions name their report files differently."""
+
+    def test_monthly(self):
+        from ercot.crr import _auction_name
+
+        assert _auction_name(
+            "rpt.00011201.0.20260723.080107728.AUG2026MonthlyCRRAuctionResults.zip"
+        ) == "AUG2026Monthly"
+
+    def test_long_term(self):
+        from ercot.crr import _auction_name
+
+        assert _auction_name(
+            "rpt.00011203.0.20260709.080132200.20272nd6AnnualAuctionSeq3CRRAuctionResults.zip"
+        ) == "20272nd6AnnualAuctionSeq3"
+
+    def test_unrecognised_falls_back_to_filename(self):
+        # A notice, not a results file — must not be mistaken for an auction.
+        from ercot.crr import _auction_name
+
+        name = "rpt.00011200.0.20260702.100552512.AUG2026MonthlyCRRAuctionNotice.zip"
+        assert _auction_name(name) == name
+
+    def test_dates_parse_us_format(self):
+        # The API returns ISO dates; these CSVs use MM/DD/YYYY.
+        from ercot.crr import _date
+
+        assert _date("08/01/2026") == "2026-08-01"
+        assert _date("") is None
