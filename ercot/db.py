@@ -325,3 +325,28 @@ def table_stats() -> dict[str, object]:
     out["database_bytes"] = total
     out["database_mb"] = round(total / 1_048_576, 1)
     return out
+
+
+def close_interrupted_runs(older_than_minutes: int = 5) -> int:
+    """Mark runs still 'running' from a previous process as interrupted.
+
+    A deploy replaces the container mid-run, so any in-flight job dies without
+    reaching finish_run and its row stays 'running' forever. Left alone those
+    rows accumulate and make the health page unreadable — and worse, they look
+    like a job that hung rather than one that was replaced.
+
+    The age guard matters: a job legitimately running in *this* process at
+    startup must not be clobbered, and 5 minutes is longer than any scheduled
+    job takes.
+    """
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "update ingest_runs set status = 'error', finished_at = now(), "
+            "error = 'interrupted by a restart or deploy' "
+            "where status = 'running' "
+            "and started_at < now() - make_interval(mins => %s)",
+            (older_than_minutes,),
+        )
+        count = cur.rowcount
+        conn.commit()
+    return count

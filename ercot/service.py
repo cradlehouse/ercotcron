@@ -55,6 +55,13 @@ async def lifespan(_app: FastAPI):
         log.info("scheduler started with %d jobs", len(JOBS))
 
         try:
+            stale = db.close_interrupted_runs()
+            if stale:
+                log.warning("closed %d run(s) interrupted by a restart", stale)
+        except Exception as exc:  # noqa: BLE001 — startup must not be fatal
+            log.warning("could not close interrupted runs: %s", exc)
+
+        try:
             created = db.ensure_partitions(months_ahead=3)
             log.info("partitions verified: %d", len(created))
         except Exception as exc:  # noqa: BLE001 — startup must not be fatal
