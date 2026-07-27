@@ -197,6 +197,12 @@ def ingest_job(_client: object = None, limit: int = 2,
     from .ingest import Result
 
     out = ingest_recent(limit=limit, report_type=report_type)
+    # The P&L view is materialised, so new awards are invisible until it is
+    # rebuilt. Refreshing here keeps "ingested" and "queryable" the same event.
+    try:
+        db.refresh_crr_pnl()
+    except Exception as exc:  # noqa: BLE001 — a stale view must not fail ingest
+        log.warning("crr_pnl refresh failed (data is loaded, view is stale): %s", exc)
     result = Result()
     result.rows_seen = int(out["awards_seen"])
     result.rows_inserted = int(out["awards_new"])

@@ -360,3 +360,15 @@ def close_interrupted_runs(older_than_minutes: int = 5) -> int:
         count = cur.rowcount
         conn.commit()
     return count
+
+
+def refresh_crr_pnl() -> None:
+    """Recompute the CRR P&L materialised view.
+
+    CONCURRENTLY so readers keep seeing the previous result while it rebuilds —
+    a plain REFRESH takes an exclusive lock and the dashboard would error for
+    the duration. It requires the unique index the migration creates.
+    """
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("refresh materialized view concurrently crr_pnl")
+        conn.commit()
