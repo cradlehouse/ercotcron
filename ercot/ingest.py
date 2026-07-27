@@ -40,6 +40,19 @@ DEFAULT_POINTS = [
 ]
 
 
+# Load zones publish two 15-minute series under one name: LZ (the settlement
+# price) and LZEW (energy-weighted). Both carry the same settlementPoint, so
+# with a (settlement_point, interval_start) key they collide and whichever
+# arrives first silently wins. Keep the settlement price and drop the other —
+# affects the 8 LZ_* points; hubs publish a single series.
+EXCLUDED_POINT_TYPES = {"LZEW"}
+
+
+def excluded_type(raw: dict) -> bool:
+    kind = field(raw, "settlementPointType", "settlementPointTypeName")
+    return bool(kind) and str(kind).strip().upper() in EXCLUDED_POINT_TYPES
+
+
 def tracked_points() -> set[str] | None:
     """None means keep every point the report returns."""
     raw = os.environ.get("TRACKED_POINTS", "")
@@ -157,6 +170,8 @@ def ingest_rtm(client: ErcotClient) -> Result:
     }):
         point = field(raw, "settlementPoint", "settlementPointName")
         if not point or (keep is not None and point.upper() not in keep):
+            continue
+        if excluded_type(raw):
             continue
         price = _num(field(raw, "settlementPointPrice", "spp", "price"))
         delivery = field(raw, "deliveryDate")

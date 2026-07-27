@@ -23,7 +23,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from . import config, db
 from .client import ErcotClient, field
-from .ingest import DEFAULT_POINTS, _hour_ending, _num, tracked_points
+from .ingest import DEFAULT_POINTS, _hour_ending, _num, excluded_type, tracked_points
 from .timeutil import (
     dam_interval_start,
     floor_to_5min,
@@ -87,6 +87,8 @@ def _load_rtm(client: ErcotClient, point: str, lo: date, hi: date) -> tuple[int,
         "deliveryDateTo": hi.isoformat(),
         "settlementPoint": point,
     }):
+        if excluded_type(raw):
+            continue
         price = _num(field(raw, "settlementPointPrice", "spp", "price"))
         delivery = field(raw, "deliveryDate")
         hour = field(raw, "deliveryHour", "hourEnding")

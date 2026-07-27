@@ -187,3 +187,26 @@ class TestHourEnding:
     ])
     def test_spellings(self, value, expected):
         assert ingest._hour_ending(value) == expected
+
+
+class TestExcludedPointType:
+    """Load zones publish LZ and LZEW under one name; only one may be stored."""
+
+    def test_lzew_is_excluded(self):
+        from ercot.ingest import excluded_type
+
+        assert excluded_type({"settlementPointType": "LZEW"}) is True
+        assert excluded_type({"settlementPointType": "lzew"}) is True
+
+    def test_settlement_types_are_kept(self):
+        from ercot.ingest import excluded_type
+
+        for kind in ("LZ", "HU", "AH", "SH", "RN"):
+            assert excluded_type({"settlementPointType": kind}) is False
+
+    def test_absent_type_is_kept(self):
+        # dam and lmp5 publish no type field at all; those rows must survive.
+        from ercot.ingest import excluded_type
+
+        assert excluded_type({}) is False
+        assert excluded_type({"settlementPointType": None}) is False
