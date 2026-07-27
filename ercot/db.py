@@ -293,8 +293,16 @@ def default_partition_rows() -> dict[str, int]:
     return counts
 
 
-def ping() -> bool:
-    with connection() as conn, conn.cursor() as cur:
+def ping(timeout: float = 2.0) -> bool:
+    """Cheap liveness probe with a hard deadline.
+
+    The deadline is the point. Render restarts a container whose health check
+    times out, so a ping that waits the pool's default 30s while a heavy job
+    holds the connections will fail the health check and kill the process —
+    taking any running backfill with it. Better to report the database as
+    briefly unavailable than to be restarted for saying nothing.
+    """
+    with pool().connection(timeout=timeout) as conn, conn.cursor() as cur:
         cur.execute("select 1")
         return cur.fetchone()[0] == 1
 
@@ -308,7 +316,9 @@ def table_stats() -> dict[str, object]:
     failing on a full disk.
     """
     tables = ("dam_spp", "rt_spp", "rt_lmp_5min", "rtd_lmp",
-              "dam_spp_history", "rt_spp_history", "ingest_runs")
+              "dam_spp_history", "rt_spp_history", "ingest_runs",
+              "wind_power", "solar_power", "load_forecast", "binding_constraints",
+              "crr_awards", "crr_auctions", "crr_point_prices")
     out: dict[str, object] = {}
     with connection() as conn, conn.cursor() as cur:
         for table in tables:

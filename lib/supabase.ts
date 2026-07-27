@@ -154,3 +154,40 @@ export interface PathDartRow {
   avg_miss: number | string
   miss_sd: number | string | null
 }
+
+export interface PriceStackRow {
+  bucket: number
+  net_load_from: number | string
+  net_load_to: number | string
+  hours: number
+  median_price: number | string
+  p95_price: number | string
+  avg_price: number | string
+  pct_scarcity: number | string
+  pct_negative: number | string
+}
+
+export interface WindSensitivityRow {
+  hour_ending: number
+  hours: number
+  price_per_mw_wind: number | string | null
+  r2: number | string | null
+  correlation: number | string | null
+  avg_wind_mw: number | string | null
+  avg_price: number | string
+}
+
+export interface CrrEdgeRow {
+  source: string
+  sink: string
+  time_of_use: string
+  hedge_type: string
+  auctions: number
+  avg_cost_per_mwh: number | string
+  avg_payoff_per_mwh: number | string
+  avg_edge_per_mwh: number | string
+  edge_sd: number | string | null
+  t_stat: number | string | null
+  net_total: number | string | null
+  pct_profitable: number | string
+}

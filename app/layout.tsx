@@ -13,6 +13,7 @@ const NAV = [
   { href: '/map', label: 'map' },
   { href: '/trades', label: 'trades' },
   { href: '/paths', label: 'paths' },
+  { href: '/why', label: 'why' },
   { href: '/spikes', label: 'spikes' },
   { href: '/health', label: 'health' },
 ]
