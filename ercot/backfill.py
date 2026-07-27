@@ -23,6 +23,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from . import config, db
 from .client import ErcotClient, field
+from . import fundamentals
 from .ingest import DEFAULT_POINTS, _hour_ending, _num, excluded_type, tracked_points
 from .timeutil import (
     dam_interval_start,
@@ -36,7 +37,7 @@ log = logging.getLogger(__name__)
 
 # Rows per point per day, measured against the live API: dam 24, rtm 96,
 # lmp5 289. Windows are sized to keep each request's page count small.
-CHUNK_DAYS = {"dam": 365, "rtm": 120, "lmp5": 45}
+CHUNK_DAYS = {"dam": 365, "rtm": 120, "lmp5": 45, "wind": 20, "solar": 20}
 
 
 def _windows(start: date, end: date, days: int):
@@ -155,7 +156,24 @@ def _load_lmp5(client: ErcotClient, point: str, lo: date, hi: date) -> tuple[int
     return len(rows), inserted, updated
 
 
-MARKETS = {"dam": _load_dam, "rtm": _load_rtm, "lmp5": _load_lmp5}
+def _load_wind(client: ErcotClient, _point: str, lo: date, hi: date) -> tuple[int, int, int]:
+    r = fundamentals._renewable(client, fundamentals.WIND_EP, "wind_power",
+                                fundamentals.WIND_REGIONS, fundamentals.WIND_METRICS, lo, hi)
+    return r.rows_seen, r.rows_inserted, r.rows_revised
+
+
+def _load_solar(client: ErcotClient, _point: str, lo: date, hi: date) -> tuple[int, int, int]:
+    r = fundamentals._renewable(client, fundamentals.SOLAR_EP, "solar_power",
+                                fundamentals.SOLAR_REGIONS, fundamentals.SOLAR_METRICS, lo, hi)
+    return r.rows_seen, r.rows_inserted, r.rows_revised
+
+
+MARKETS = {"dam": _load_dam, "rtm": _load_rtm, "lmp5": _load_lmp5,
+           "wind": _load_wind, "solar": _load_solar}
+
+# System-wide feeds have no per-point dimension; the loader ignores the point,
+# so a single placeholder keeps the (points x windows) loop shape intact.
+SYSTEM_MARKETS = {"wind", "solar"}
 
 # One backfill at a time. Two concurrent loads would race the live jobs for the
 # same ERCOT rate-limit budget and start drawing 429s, which is how a backfill
@@ -168,7 +186,9 @@ def status() -> dict[str, object]:
     return dict(_state)
 
 
-def resolve_points(raw: str | None) -> list[str]:
+def resolve_points(raw: str | None, market: str | None = None) -> list[str]:
+    if market in SYSTEM_MARKETS:
+        return ["SYSTEM"]
     if raw:
         return [p.strip().upper() for p in raw.split(",") if p.strip()]
     tracked = tracked_points()

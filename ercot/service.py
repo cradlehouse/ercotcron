@@ -169,7 +169,7 @@ def backfill_start(
     try:
         lo = date.fromisoformat(start)
         hi = date.fromisoformat(end)
-        return backfill_mod.start(market, backfill_mod.resolve_points(points), lo, hi)
+        return backfill_mod.start(market, backfill_mod.resolve_points(points, market), lo, hi)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:

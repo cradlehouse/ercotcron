@@ -11,7 +11,7 @@ from typing import Callable
 
 import httpx
 
-from . import config, crr, db, ingest
+from . import config, crr, db, fundamentals, ingest
 from .client import ErcotClient
 from .ingest import Result
 
@@ -56,6 +56,31 @@ JOBS: dict[str, Job] = {
         run=lambda c: ingest.ingest_rtd(c, since_minutes=15),
         description="RTD forecast vintages, last 15 minutes",
         trigger={"minute": "2-59/5"},
+    ),
+    "constraints": Job(
+        name="constraints",
+        run=lambda c: fundamentals.ingest_constraints(c, since_minutes=20),
+        description="Binding transmission constraints and shadow prices",
+        trigger={"minute": "6-59/10"},
+    ),
+    "wind": Job(
+        name="wind",
+        # Forecasts post near the top of the hour; :20 avoids racing publication.
+        run=lambda c: fundamentals.ingest_wind(c),
+        description="Regional wind actual and forecast, 8-day window",
+        trigger={"minute": "20"},
+    ),
+    "solar": Job(
+        name="solar",
+        run=lambda c: fundamentals.ingest_solar(c),
+        description="Regional solar actual and forecast, 8-day window",
+        trigger={"minute": "24"},
+    ),
+    "load_fcast": Job(
+        name="load_fcast",
+        run=lambda c: fundamentals.ingest_load(c),
+        description="Seven-day load forecast by weather zone",
+        trigger={"minute": "28"},
     ),
     "crr": Job(
         name="crr",
