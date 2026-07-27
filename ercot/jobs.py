@@ -59,7 +59,11 @@ JOBS: dict[str, Job] = {
     ),
     "constraints": Job(
         name="constraints",
-        run=lambda c: fundamentals.ingest_constraints(c, since_minutes=20),
+        # A 60-minute lookback on a 10-minute cadence, so runs overlap heavily.
+        # Constraints only exist while something is actually congested — at 6am
+        # a 20-minute window is legitimately empty, and a job that reports
+        # 'empty' most nights teaches you to ignore the one night it matters.
+        run=lambda c: fundamentals.ingest_constraints(c, since_minutes=60),
         description="Binding transmission constraints and shadow prices",
         trigger={"minute": "6-59/10"},
     ),
