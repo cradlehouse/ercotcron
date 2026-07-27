@@ -37,7 +37,7 @@ log = logging.getLogger(__name__)
 
 # Rows per point per day, measured against the live API: dam 24, rtm 96,
 # lmp5 289. Windows are sized to keep each request's page count small.
-CHUNK_DAYS = {"dam": 365, "rtm": 120, "lmp5": 45, "wind": 20, "solar": 20}
+CHUNK_DAYS = {"dam": 365, "rtm": 120, "lmp5": 45, "wind": 20, "solar": 20, "load": 60}
 
 
 def _windows(start: date, end: date, days: int):
@@ -168,12 +168,17 @@ def _load_solar(client: ErcotClient, _point: str, lo: date, hi: date) -> tuple[i
     return r.rows_seen, r.rows_inserted, r.rows_revised
 
 
+def _load_load(client: ErcotClient, _point: str, lo: date, hi: date) -> tuple[int, int, int]:
+    r = fundamentals.load_range(client, lo, hi)
+    return r.rows_seen, r.rows_inserted, r.rows_revised
+
+
 MARKETS = {"dam": _load_dam, "rtm": _load_rtm, "lmp5": _load_lmp5,
-           "wind": _load_wind, "solar": _load_solar}
+           "wind": _load_wind, "solar": _load_solar, "load": _load_load}
 
 # System-wide feeds have no per-point dimension; the loader ignores the point,
 # so a single placeholder keeps the (points x windows) loop shape intact.
-SYSTEM_MARKETS = {"wind", "solar"}
+SYSTEM_MARKETS = {"wind", "solar", "load"}
 
 # One backfill at a time. Two concurrent loads would race the live jobs for the
 # same ERCOT rate-limit budget and start drawing 429s, which is how a backfill

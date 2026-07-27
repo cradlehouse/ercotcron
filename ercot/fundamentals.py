@@ -114,7 +114,11 @@ def ingest_solar(client: ErcotClient, days_back: int = 1, days_ahead: int = 7) -
 
 def ingest_load(client: ErcotClient, days_back: int = 1, days_ahead: int = 7) -> Result:
     now = datetime.now(timezone.utc).astimezone(config.CENTRAL).date()
-    start, end = now - timedelta(days=days_back), now + timedelta(days=days_ahead)
+    return load_range(client, now - timedelta(days=days_back), now + timedelta(days=days_ahead))
+
+
+def load_range(client: ErcotClient, start: date, end: date) -> Result:
+    """Seven-day load forecast by weather zone over an explicit date range."""
     result = Result()
     latest: dict[tuple[datetime, str], tuple] = {}
 

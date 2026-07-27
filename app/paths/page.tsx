@@ -47,7 +47,7 @@ export default async function PathsPage() {
 
   return (
     <div className="space-y-5">
-      <Panel title="Path spreads" subtitle="day-ahead congestion between settlement points, last 365 days">
+      <Panel title="Path spreads" subtitle="day-ahead congestion between settlement points, last 90 days">
         <p className="border-b border-line px-4 py-2.5 text-[12px] leading-relaxed text-zinc-500">
           A congestion revenue right pays the price difference between a source and
           a sink, so these are the paths that paid. They are <em>not</em> ranked by
