@@ -11,13 +11,14 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import date
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Header, HTTPException
 
-from . import config, db
+from . import backfill as backfill_mod, config, db
 from .jobs import JOBS, run_job
 
 logging.basicConfig(
@@ -133,3 +134,43 @@ def trigger(job_name: str, x_trigger_secret: str = Header(default="")) -> dict[s
     if job_name not in JOBS:
         raise HTTPException(status_code=404, detail=f"unknown job: {job_name}")
     return run_job(job_name)
+
+
+@app.get("/stats")
+def stats() -> dict[str, object]:
+    """Row counts and database size — the guard rail before a large backfill."""
+    try:
+        return db.table_stats()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"cannot read table stats: {exc}") from exc
+
+
+@app.get("/backfill")
+def backfill_status() -> dict[str, object]:
+    return backfill_mod.status()
+
+
+@app.post("/backfill/{market}")
+def backfill_start(
+    market: str,
+    start: str,
+    end: str,
+    points: str | None = None,
+    x_trigger_secret: str = Header(default=""),
+) -> dict[str, object]:
+    """Load history for one market over a date range, in the background.
+
+    Guarded like /trigger: a backfill spends far more ERCOT rate-limit budget
+    than a scheduled run, and an unguarded one could starve live ingest.
+    """
+    secret = config.trigger_secret()
+    if not secret or x_trigger_secret != secret:
+        raise HTTPException(status_code=401, detail="invalid trigger secret")
+    try:
+        lo = date.fromisoformat(start)
+        hi = date.fromisoformat(end)
+        return backfill_mod.start(market, backfill_mod.resolve_points(points), lo, hi)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

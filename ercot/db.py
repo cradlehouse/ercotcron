@@ -297,3 +297,31 @@ def ping() -> bool:
     with connection() as conn, conn.cursor() as cur:
         cur.execute("select 1")
         return cur.fetchone()[0] == 1
+
+
+def table_stats() -> dict[str, object]:
+    """Row counts and on-disk size per price table, plus the database total.
+
+    Supabase's free tier caps the database at 500MB, and a backfill is the one
+    operation that can approach it. Knowing the size before loading more is the
+    difference between stopping deliberately and having live ingest start
+    failing on a full disk.
+    """
+    tables = ("dam_spp", "rt_spp", "rt_lmp_5min", "rtd_lmp",
+              "dam_spp_history", "rt_spp_history", "ingest_runs")
+    out: dict[str, object] = {}
+    with connection() as conn, conn.cursor() as cur:
+        for table in tables:
+            if cur.execute(
+                "select to_regclass(%s) is not null", (table,)
+            ).fetchone()[0] is not True:
+                continue
+            cur.execute(sql.SQL("select count(*) from {}").format(sql.Identifier(table)))
+            rows = cur.fetchone()[0]
+            cur.execute("select pg_total_relation_size(%s)", (table,))
+            out[table] = {"rows": rows, "bytes": cur.fetchone()[0]}
+        cur.execute("select pg_database_size(current_database())")
+        total = cur.fetchone()[0]
+    out["database_bytes"] = total
+    out["database_mb"] = round(total / 1_048_576, 1)
+    return out
