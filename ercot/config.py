@@ -88,7 +88,12 @@ MAX_PAGES = 40               # a single job should never need more
 REQUESTS_PER_MINUTE = 24     # ERCOT allows 30; leave headroom for retries
 MAX_RETRIES = 4
 BACKOFF_BASE_SECONDS = 2.0
-HTTP_TIMEOUT_SECONDS = 60.0
+# 120s, not 60. The wind and solar reports are 29 fields wide, so a 5,000-row
+# page is a large response for ERCOT to generate; sustained paging against them
+# times out at 60s and kills a backfill mid-run. Twice this happened and was
+# wrongly blamed on competing requests — it reproduces with nothing else
+# touching the API.
+HTTP_TIMEOUT_SECONDS = 120.0
 
 # Token lifetime is about an hour; refresh early rather than racing expiry.
 TOKEN_REFRESH_MARGIN_SECONDS = 300
