@@ -1,5 +1,13 @@
 -- Independent weather forecasts, and how much the models disagree.
 --
+-- Re-stamped from 20260727100000. That version deployed with the application
+-- code but never created its table, while every migration before and after it
+-- applied cleanly. No fault was found in the SQL — it parses, and nothing in it
+-- is unusual — so the likeliest explanation is that the integration did not
+-- pick the file up. Versions are tracked by the filename timestamp, so a new
+-- one presents it as a migration not yet seen. Every statement is idempotent,
+-- which is what makes re-presenting it safe rather than a gamble.
+--
 -- ERCOT publishes one wind forecast and no measure of its own confidence. Three
 -- global models (ECMWF, GFS, ICON) forecasting the same hour give that missing
 -- number: when they diverge, the atmosphere is genuinely uncertain, and so is
