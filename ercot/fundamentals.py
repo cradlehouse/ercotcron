@@ -58,9 +58,14 @@ def _renewable(client: ErcotClient, endpoint: str, table: str,
                start: date, end: date) -> Result:
     """Wind or solar: same row shape, different regions and metric names."""
     result = Result()
-    # Newest vintage wins. ERCOT returns oldest-first within a page, so a plain
-    # dict assignment keeps the last seen — which is the most recently posted.
+    # Newest vintage wins — decided by comparing postedDatetime, never by row
+    # order. The first backfill trusted arrival order on a comment claiming
+    # ERCOT returns oldest-first; this endpoint returns newest-first, so it
+    # kept the oldest pre-delivery vintage for every hour and every stored
+    # actual_mw was NULL. An assumption about ordering is a bug waiting for a
+    # different sort; the timestamp is in the row, so use it.
     latest: dict[tuple[datetime, str], tuple] = {}
+    best_posted: dict[tuple[datetime, str], object] = {}
 
     for raw in client.rows(endpoint, {
         "deliveryDateFrom": start.isoformat(),
@@ -80,7 +85,12 @@ def _renewable(client: ErcotClient, endpoint: str, table: str,
             cop = _num(field(raw, f"COPHSL{region}"))
             if actual is None and forecast is None and p80 is None and cop is None:
                 continue
-            latest[(interval_start, region)] = (
+            key = (interval_start, region)
+            prev = best_posted.get(key)
+            if prev is not None and posted_at is not None and posted_at <= prev:
+                continue
+            best_posted[key] = posted_at
+            latest[key] = (
                 interval_start, day, he, region, actual, forecast, p80, cop, posted_at,
             )
         result.rows_seen += 1
@@ -121,6 +131,7 @@ def load_range(client: ErcotClient, start: date, end: date) -> Result:
     """Seven-day load forecast by weather zone over an explicit date range."""
     result = Result()
     latest: dict[tuple[datetime, str], tuple] = {}
+    best_posted: dict[tuple[datetime, str], object] = {}
 
     for raw in client.rows(LOAD_EP, {
         "deliveryDateFrom": start.isoformat(),
@@ -136,7 +147,12 @@ def load_range(client: ErcotClient, start: date, end: date) -> Result:
             mw = _num(field(raw, zone))
             if mw is None:
                 continue
-            latest[(interval_start, zone)] = (interval_start, day, he, zone, mw, posted_at)
+            key = (interval_start, zone)
+            prev = best_posted.get(key)
+            if prev is not None and posted_at is not None and posted_at <= prev:
+                continue
+            best_posted[key] = posted_at
+            latest[key] = (interval_start, day, he, zone, mw, posted_at)
         result.rows_seen += 1
 
     inserted, updated = db.upsert_rows(

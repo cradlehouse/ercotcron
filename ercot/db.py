@@ -391,8 +391,10 @@ def refresh_signal_views() -> dict[str, float]:
     """
     import time as _time
     out: dict[str, float] = {}
-    for view in ("spread_zscore", "node_hour_spread", "spread_duration",
-                 "basis_correlation"):
+    # rt_hourly first: the other three read it, so a stale base would publish
+    # three views built from yesterday's real-time data.
+    for view in ("rt_hourly", "spread_zscore", "node_hour_spread",
+                 "spread_duration", "basis_correlation"):
         began = _time.monotonic()
         with connection() as conn, conn.cursor() as cur:
             cur.execute(
@@ -402,6 +404,11 @@ def refresh_signal_views() -> dict[str, float]:
                 out[view] = -1.0          # not created yet; nothing to refresh
                 continue
             mode = "concurrently " if row[0] else ""
+            # Every Supabase execution path carries a statement ceiling — anon,
+            # the migration runner, and this role's default. The build is the
+            # one query allowed to be slow, so lift the ceiling for exactly
+            # this transaction and nothing else.
+            cur.execute("set local statement_timeout = '30min'")
             cur.execute(sql.SQL("refresh materialized view " + mode + "{}").format(
                 sql.Identifier(view)))
             conn.commit()
