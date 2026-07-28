@@ -73,7 +73,13 @@ class TestPaging:
             200, json=page(["settlementPoint"], [], total_pages=5)))
         assert list(client.rows("/x", {})) == []
 
-    def test_respects_page_cap(self, monkeypatch):
+    def test_page_cap_raises_rather_than_truncating(self, monkeypatch):
+        """A short window must not look like a quiet period.
+
+        Every row that arrives before the cap is valid, so nothing downstream
+        can tell that the rest is missing. This silently loaded 26% of the
+        day-ahead map and reported success on every window.
+        """
         monkeypatch.setattr(config, "MAX_PAGES", 2)
         calls = []
 
@@ -81,7 +87,8 @@ class TestPaging:
             calls.append(1)
             return httpx.Response(200, json=page(["settlementPoint"], [["P"]], total_pages=99))
 
-        list(make_client(handler).rows("/x", {}))
+        with pytest.raises(ErcotError, match="page cap"):
+            list(make_client(handler).rows("/x", {}))
         assert len(calls) == 2
 
 

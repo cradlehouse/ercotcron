@@ -168,7 +168,13 @@ class ErcotClient:
                 return
             page += 1
 
-        log.warning("%s hit the %d page cap — window is too wide", endpoint, config.MAX_PAGES)
+        # Raising beats warning. A truncated window looks exactly like a quiet
+        # period downstream: the rows that arrive are all valid, so nothing else
+        # can tell that three quarters of the data is missing.
+        raise ErcotError(
+            f"{endpoint} hit the {config.MAX_PAGES}-page cap "
+            f"({config.MAX_PAGES * config.PAGE_SIZE:,} rows) — narrow the window"
+        )
 
     def request_count_estimate(self, row_count: int) -> int:
         return max(1, -(-row_count // config.PAGE_SIZE))

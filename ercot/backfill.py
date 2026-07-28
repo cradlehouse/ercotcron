@@ -190,9 +190,12 @@ MARKETS = {"dam": _load_dam, "rtm": _load_rtm, "lmp5": _load_lmp5,
 # so a single placeholder keeps the (points x windows) loop shape intact.
 SYSTEM_MARKETS = {"wind", "solar", "load"}
 
-# Unfiltered day-ahead is ~25k rows a day across every settlement point, so a
-# narrower window keeps each request's page count sane.
-ALL_POINTS_CHUNK_DAYS = 30
+# Unfiltered day-ahead is ~24,800 rows a day across every settlement point.
+# MAX_PAGES (40) x PAGE_SIZE (5,000) caps a single window at 200,000 rows, so
+# anything past ~8 days is silently truncated — the client logs a warning and
+# the loader keeps going, which is worse than failing. Seven days leaves
+# headroom for a heavy day.
+ALL_POINTS_CHUNK_DAYS = 7
 
 # One backfill at a time. Two concurrent loads would race the live jobs for the
 # same ERCOT rate-limit budget and start drawing 429s, which is how a backfill

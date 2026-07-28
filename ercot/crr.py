@@ -174,13 +174,25 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
 
 def ingest_recent(limit: int = 3, report_type: str = "monthly") -> dict[str, object]:
     """Load the newest `limit` auctions. The scheduled entry point."""
-    docs = list_documents(report_type)[:limit]
-    results = [ingest_auction(d, report_type) for d in docs]
+    docs = [d for d in list_documents(report_type)
+            if "CRRAuctionResults" in d.file_name][:limit]
+    results, failures = [], []
+    for d in docs:
+        try:
+            results.append(ingest_auction(d, report_type))
+        except Exception as exc:  # noqa: BLE001
+            # One unreadable download must not discard the auctions that did
+            # load. The long-term batch failed entirely on a single file that
+            # came back as something other than a zip.
+            log.warning("crr %s failed: %s", d.auction_name, exc)
+            failures.append({"auction": d.auction_name, "error": str(exc)})
     return {
         "auctions": len(results),
+        "failed": len(failures),
         "awards_seen": sum(r["awards_seen"] for r in results),
         "awards_new": sum(r["awards_new"] for r in results),
         "detail": results,
+        "failures": failures,
     }
 
 
