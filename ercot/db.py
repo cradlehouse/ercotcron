@@ -392,8 +392,16 @@ def refresh_signal_views() -> dict[str, float]:
                  "basis_correlation"):
         began = _time.monotonic()
         with connection() as conn, conn.cursor() as cur:
-            cur.execute(
-                sql.SQL("refresh materialized view concurrently {}").format(
+            try:
+                cur.execute(
+                    sql.SQL("refresh materialized view concurrently {}").format(
+                        sql.Identifier(view)))
+            except psycopg.errors.ObjectNotInPrerequisiteState:
+                # First populate: the views are created WITH NO DATA because
+                # building them inside the migration hit the runner's statement
+                # timeout, and CONCURRENTLY requires an already-populated view.
+                conn.rollback()
+                cur.execute(sql.SQL("refresh materialized view {}").format(
                     sql.Identifier(view)))
             conn.commit()
         out[view] = round(_time.monotonic() - began, 1)

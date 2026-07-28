@@ -1,3 +1,10 @@
+-- Re-stamped from 20260728180000 (this file replaces it in the same push —
+-- the original never applied, so no version mismatch). Built WITH NO DATA: the
+-- migration runner has its own statement timeout, and populating these against
+-- 18M rows inside the migration rolled the whole file back. The service's
+-- hourly signals job does the first populate over a direct connection, where
+-- no anon-role timeout applies.
+--
 -- Materialise the scanner views: at 18M day-ahead rows they cannot be computed
 -- per page load. Anon requests get a statement timeout of a few seconds, and
 -- these views now join dam_spp against rt_spp with window functions — every
@@ -60,7 +67,8 @@ select settlement_point,
        case when trailing_sd > 0 and trailing_n >= 48
             then round(((spread - trailing_mean) / trailing_sd)::numeric, 2)
        end                                    as z
-  from scored;
+  from scored
+with no data;
 
 create unique index if not exists spread_zscore_key
   on spread_zscore (settlement_point, interval_start);
@@ -93,7 +101,8 @@ select settlement_point,
                                                        as pct_dam_over
   from hourly
  group by 1, 2
-having count(*) >= 30;
+having count(*) >= 30
+with no data;
 
 create unique index if not exists node_hour_key
   on node_hour_spread (settlement_point, hour_ending);
@@ -129,7 +138,8 @@ select settlement_point,
                                                                          as tail_ratio
   from hourly
  group by 1
-having count(*) >= 100;
+having count(*) >= 100
+with no data;
 
 create unique index if not exists spread_duration_key
   on spread_duration (settlement_point);
@@ -149,7 +159,8 @@ select a.settlement_point                         as point_a,
    and (a.settlement_point like 'HB\_%' or a.settlement_point like 'LZ\_%')
    and (b.settlement_point like 'HB\_%' or b.settlement_point like 'LZ\_%')
  group by 1, 2
-having count(*) >= 100;
+having count(*) >= 100
+with no data;
 
 create unique index if not exists basis_correlation_key
   on basis_correlation (point_a, point_b);
