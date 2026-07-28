@@ -382,9 +382,12 @@ def refresh_crr_pnl() -> None:
 def refresh_signal_views() -> dict[str, float]:
     """Rebuild the scanner materialised views. Called on a schedule.
 
-    CONCURRENTLY, so the dashboard keeps reading the previous result during the
-    rebuild. Each view is refreshed separately and timed — when one of them
-    starts taking minutes, the timing in the log is what says which.
+    Asks pg_matviews whether each view is populated rather than catching the
+    error from getting it wrong. CONCURRENTLY needs an already-populated view,
+    and the views are created empty because building them inside the migration
+    hit the runner's statement timeout — so the first refresh must be plain and
+    every later one concurrent, which is a fact to look up, not an exception to
+    handle.
     """
     import time as _time
     out: dict[str, float] = {}
@@ -392,17 +395,15 @@ def refresh_signal_views() -> dict[str, float]:
                  "basis_correlation"):
         began = _time.monotonic()
         with connection() as conn, conn.cursor() as cur:
-            try:
-                cur.execute(
-                    sql.SQL("refresh materialized view concurrently {}").format(
-                        sql.Identifier(view)))
-            except psycopg.errors.ObjectNotInPrerequisiteState:
-                # First populate: the views are created WITH NO DATA because
-                # building them inside the migration hit the runner's statement
-                # timeout, and CONCURRENTLY requires an already-populated view.
-                conn.rollback()
-                cur.execute(sql.SQL("refresh materialized view {}").format(
-                    sql.Identifier(view)))
+            cur.execute(
+                "select ispopulated from pg_matviews where matviewname = %s", (view,))
+            row = cur.fetchone()
+            if row is None:
+                out[view] = -1.0          # not created yet; nothing to refresh
+                continue
+            mode = "concurrently " if row[0] else ""
+            cur.execute(sql.SQL("refresh materialized view " + mode + "{}").format(
+                sql.Identifier(view)))
             conn.commit()
         out[view] = round(_time.monotonic() - began, 1)
     return out
