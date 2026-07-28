@@ -22,7 +22,7 @@ from datetime import datetime
 
 import httpx
 
-from . import db
+from . import config, db
 
 log = logging.getLogger(__name__)
 
