@@ -318,13 +318,18 @@ def table_stats() -> dict[str, object]:
     tables = ("dam_spp", "rt_spp", "rt_lmp_5min", "rtd_lmp",
               "dam_spp_history", "rt_spp_history", "ingest_runs",
               "wind_power", "solar_power", "load_forecast", "binding_constraints",
-              "crr_awards", "crr_auctions", "crr_point_prices")
+              "crr_awards", "crr_auctions", "crr_point_prices", "weather_forecast")
     out: dict[str, object] = {}
     with connection() as conn, conn.cursor() as cur:
         for table in tables:
+            # Report a missing table explicitly rather than omitting it. An
+            # absent key is indistinguishable from a table nobody asked about,
+            # and weather_forecast was missing from this list for a day while
+            # being reported as a failed migration on that basis.
             if cur.execute(
                 "select to_regclass(%s) is not null", (table,)
             ).fetchone()[0] is not True:
+                out[table] = {"rows": None, "bytes": None, "missing": True}
                 continue
             cur.execute(sql.SQL("select count(*) from {}").format(sql.Identifier(table)))
             rows = cur.fetchone()[0]
