@@ -49,12 +49,22 @@ def _windows(start: date, end: date, days: int):
 
 
 def _load_dam(client: ErcotClient, point: str, lo: date, hi: date) -> tuple[int, int, int]:
+    # ALL means every settlement point ERCOT publishes, not the tracked subset.
+    # Filtering per point is right for a handful; for the full map an
+    # unfiltered pull is one request stream instead of ~987, and the day-ahead
+    # report is only ~25k rows a day even unfiltered.
+    params = {"deliveryDateFrom": lo.isoformat(), "deliveryDateTo": hi.isoformat()}
+    if point != "ALL":
+        params["settlementPoint"] = point
     rows = []
-    for raw in client.rows(config.EP_DAM_SPP, {
-        "deliveryDateFrom": lo.isoformat(),
-        "deliveryDateTo": hi.isoformat(),
-        "settlementPoint": point,
-    }):
+    for raw in client.rows(config.EP_DAM_SPP, params):
+        if point == "ALL":
+            name = field(raw, "settlementPoint", "settlementPointName")
+            if not name:
+                continue
+            point_name = name.upper()
+        else:
+            point_name = point
         price = _num(field(raw, "settlementPointPrice", "spp", "price"))
         delivery = field(raw, "deliveryDate")
         hour = field(raw, "hourEnding", "deliveryHour")
@@ -68,7 +78,7 @@ def _load_dam(client: ErcotClient, point: str, lo: date, hi: date) -> tuple[int,
         except ValueError as exc:
             log.warning("dam: skipping %s %s HE%s — %s", point, delivery, hour, exc)
             continue
-        rows.append((point, start, day, he, price, repeat, None))
+        rows.append((point_name, start, day, he, price, repeat, None))
 
     inserted, updated = db.upsert_rows(
         "dam_spp",
@@ -180,6 +190,10 @@ MARKETS = {"dam": _load_dam, "rtm": _load_rtm, "lmp5": _load_lmp5,
 # so a single placeholder keeps the (points x windows) loop shape intact.
 SYSTEM_MARKETS = {"wind", "solar", "load"}
 
+# Unfiltered day-ahead is ~25k rows a day across every settlement point, so a
+# narrower window keeps each request's page count sane.
+ALL_POINTS_CHUNK_DAYS = 30
+
 # One backfill at a time. Two concurrent loads would race the live jobs for the
 # same ERCOT rate-limit budget and start drawing 429s, which is how a backfill
 # turns into a live-ingest outage.
@@ -194,6 +208,8 @@ def status() -> dict[str, object]:
 def resolve_points(raw: str | None, market: str | None = None) -> list[str]:
     if market in SYSTEM_MARKETS:
         return ["SYSTEM"]
+    if raw and raw.strip().upper() == "ALL":
+        return ["ALL"]
     if raw:
         return [p.strip().upper() for p in raw.split(",") if p.strip()]
     tracked = tracked_points()
@@ -206,7 +222,8 @@ def resolve_points(raw: str | None, market: str | None = None) -> list[str]:
 
 def _run(market: str, points: list[str], start: date, end: date) -> None:
     loader = MARKETS[market]
-    windows = list(_windows(start, end, CHUNK_DAYS[market]))
+    span = ALL_POINTS_CHUNK_DAYS if points == ["ALL"] else CHUNK_DAYS[market]
+    windows = list(_windows(start, end, span))
     total = len(points) * len(windows)
     seen = new = changed = 0
     began = time.monotonic()
@@ -256,7 +273,8 @@ def start(market: str, points: list[str], start_date: date, end_date: date) -> d
     if not _lock.acquire(blocking=False):
         raise RuntimeError(f"a backfill is already running: {_state.get('progress')}")
 
-    windows = len(list(_windows(start_date, end_date, CHUNK_DAYS[market])))
+    span = ALL_POINTS_CHUNK_DAYS if points == ["ALL"] else CHUNK_DAYS[market]
+    windows = len(list(_windows(start_date, end_date, span)))
     _state.clear()
     _state.update(running=True, market=market, points=len(points),
                   windows=windows, progress=f"0/{len(points) * windows}",
