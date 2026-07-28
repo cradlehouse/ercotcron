@@ -102,3 +102,14 @@ HTTP_TIMEOUT_SECONDS = 120.0
 
 # Token lifetime is about an hour; refresh early rather than racing expiry.
 TOKEN_REFRESH_MARGIN_SECONDS = 300
+
+
+# --- Supabase Storage (raw auction archive) ------------------------------------
+# Service key, not the publishable one: writing to a private bucket is a
+# server-side operation and the browser key is deliberately read-only.
+def supabase_url() -> str:
+    return _opt("SUPABASE_URL").rstrip("/")
+
+
+def supabase_service_key() -> str:
+    return _opt("SUPABASE_SERVICE_KEY")

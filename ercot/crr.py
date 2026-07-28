@@ -35,10 +35,16 @@ REPORT_TYPES = {"monthly": "11201", "long_term": "11203"}
 
 TIMEOUT = httpx.Timeout(180.0, connect=30.0)
 
-# The zip carries several CSVs; these are the two worth storing. Bids-and-offers
-# is 26MB of losing bids per auction and answers nothing the awards do not.
 AWARDS_FILE = "MarketResults"
 POINT_PRICE_FILE = "SourceAndSinkShadowPrices"
+BIDS_FILE = "AuctionBidsAndOffers"
+
+# Every auction's raw zip is archived before parsing, because the source
+# expires: the MIS listing returns exactly 12 monthly auctions, so each month
+# silently deletes the oldest one and it cannot be recovered afterwards. Parsed
+# rows are not a substitute — the column mapping was chosen before anyone knew
+# what the analysis would need, and re-parsing requires the original file.
+ARCHIVE_BUCKET = "crr-raw"
 
 
 @dataclass
@@ -80,11 +86,15 @@ def list_documents(report_type: str = "monthly") -> list[Document]:
     return docs
 
 
-def fetch_zip(doc_id: str) -> zipfile.ZipFile:
+def fetch_bytes(doc_id: str) -> bytes:
     resp = httpx.get(DOWNLOAD, params={"doclookupId": doc_id}, timeout=TIMEOUT,
                      follow_redirects=True)
     resp.raise_for_status()
-    return zipfile.ZipFile(io.BytesIO(resp.content))
+    return resp.content
+
+
+def fetch_zip(doc_id: str) -> zipfile.ZipFile:
+    return zipfile.ZipFile(io.BytesIO(fetch_bytes(doc_id)))
 
 
 def _read_csv(zf: zipfile.ZipFile, marker: str) -> list[dict[str, str]]:
@@ -110,9 +120,35 @@ def _num(value: str) -> float | None:
         return None
 
 
+def archive_zip(doc: Document, blob: bytes) -> bool:
+    """Store the raw zip. Failure must not stop the ingest."""
+    url = config.supabase_url()
+    key = config.supabase_service_key()
+    if not url or not key:
+        return False
+    try:
+        resp = httpx.post(
+            f"{url}/storage/v1/object/{ARCHIVE_BUCKET}/{doc.file_name}",
+            headers={"Authorization": f"Bearer {key}",
+                     "Content-Type": "application/zip",
+                     "x-upsert": "true"},
+            content=blob, timeout=TIMEOUT,
+        )
+        if resp.status_code >= 400:
+            log.warning("archive %s failed: %s %s", doc.file_name,
+                        resp.status_code, resp.text[:160])
+            return False
+        return True
+    except Exception as exc:  # noqa: BLE001
+        log.warning("archive %s failed: %s", doc.file_name, exc)
+        return False
+
+
 def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int]:
-    """Load one auction's awards and nodal prices. Idempotent."""
-    zf = fetch_zip(doc.doc_id)
+    """Load one auction's awards, bids and nodal prices. Idempotent."""
+    blob = fetch_bytes(doc.doc_id)
+    archived = archive_zip(doc, blob)
+    zf = zipfile.ZipFile(io.BytesIO(blob))
     awards = _read_csv(zf, AWARDS_FILE)
     prices = _read_csv(zf, POINT_PRICE_FILE)
 
@@ -162,10 +198,39 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
         update=["calendar_period", "shadow_price"],
     )
 
-    log.info("crr %s: %d awards (%d new), %d point prices (%d new)",
-             doc.auction_name, len(award_rows), inserted, len(price_rows), p_ins)
+    # Losing bids are the behavioural record: what each firm was willing to pay,
+    # not merely what cleared. Awards alone cannot separate a price-insensitive
+    # hedger from an opportunist who happened to win.
+    bid_rows = []
+    for r in _read_csv(zf, BIDS_FILE):
+        start, end = _date(r.get("StartDate", "")), _date(r.get("EndDate", ""))
+        if not start or not end:
+            continue
+        bid_rows.append((
+            doc.auction_name, r.get("AccountHolder"), r.get("HedgeType") or "",
+            r.get("BidType") or "", r.get("Source") or "", r.get("Sink") or "",
+            start, end, r.get("TimeOfUse") or "",
+            _num(r.get("MW", "")), _num(r.get("BidPrice", r.get("Price", ""))),
+            _num(r.get("AwardedMW", "")),
+        ))
+    b_ins, _ = db.upsert_rows(
+        "crr_bids",
+        ["auction_name", "account_holder", "hedge_type", "bid_type", "source",
+         "sink", "start_date", "end_date", "time_of_use", "mw", "bid_price",
+         "awarded_mw"],
+        bid_rows,
+        conflict=["auction_name", "account_holder", "source", "sink",
+                  "time_of_use", "hedge_type", "bid_type", "bid_price"],
+        update=["mw", "awarded_mw", "start_date", "end_date"],
+    ) if bid_rows else (0, 0)
+
+    log.info("crr %s: %d awards (%d new), %d prices, %d bids, archived=%s",
+             doc.auction_name, len(award_rows), inserted, len(price_rows),
+             len(bid_rows), archived)
     return {
         "auction": doc.auction_name,
+        "archived": archived,
+        "bids_seen": len(bid_rows), "bids_new": b_ins,
         "awards_seen": len(award_rows), "awards_new": inserted, "awards_updated": updated,
         "point_prices_seen": len(price_rows), "point_prices_new": p_ins,
         "point_prices_updated": p_upd,
