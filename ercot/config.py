@@ -84,7 +84,12 @@ EP_RTD_LMP = "/np6-970-cd/rtd_lmp_node_zone_hub"
 # ------------------------------------------------------------------ pacing --
 
 PAGE_SIZE = 5_000            # ERCOT caps page size at 1,000,000 but paces on volume
-MAX_PAGES = 40               # a single job should never need more
+# 250, not 40. This is a runaway guard, not a correctness bound, and the cap
+# times PAGE_SIZE decides how wide a backfill window may be: at 40 pages a
+# window held 200k rows, which silently truncated the all-points day-ahead load
+# to a quarter of its range. 250 x 5,000 = 1.25M rows, enough that windows are
+# chosen for pacing rather than to dodge the ceiling.
+MAX_PAGES = 250
 REQUESTS_PER_MINUTE = 24     # ERCOT allows 30; leave headroom for retries
 MAX_RETRIES = 4
 BACKOFF_BASE_SECONDS = 2.0

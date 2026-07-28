@@ -92,14 +92,20 @@ def _load_dam(client: ErcotClient, point: str, lo: date, hi: date) -> tuple[int,
 
 
 def _load_rtm(client: ErcotClient, point: str, lo: date, hi: date) -> tuple[int, int, int]:
+    params = {"deliveryDateFrom": lo.isoformat(), "deliveryDateTo": hi.isoformat()}
+    if point != "ALL":
+        params["settlementPoint"] = point
     rows = []
-    for raw in client.rows(config.EP_RT_SPP, {
-        "deliveryDateFrom": lo.isoformat(),
-        "deliveryDateTo": hi.isoformat(),
-        "settlementPoint": point,
-    }):
+    for raw in client.rows(config.EP_RT_SPP, params):
         if excluded_type(raw):
             continue
+        if point == "ALL":
+            name = field(raw, "settlementPoint", "settlementPointName")
+            if not name:
+                continue
+            point_name = name.upper()
+        else:
+            point_name = point
         price = _num(field(raw, "settlementPointPrice", "spp", "price"))
         delivery = field(raw, "deliveryDate")
         hour = field(raw, "deliveryHour", "hourEnding")
@@ -115,7 +121,7 @@ def _load_rtm(client: ErcotClient, point: str, lo: date, hi: date) -> tuple[int,
         except ValueError as exc:
             log.warning("rtm: skipping %s %s HE%s — %s", point, delivery, hour, exc)
             continue
-        rows.append((point, start, day, he, iv, price, repeat, None))
+        rows.append((point_name, start, day, he, iv, price, repeat, None))
 
     inserted, updated = db.upsert_rows(
         "rt_spp",
@@ -195,7 +201,10 @@ SYSTEM_MARKETS = {"wind", "solar", "load"}
 # anything past ~8 days is silently truncated — the client logs a warning and
 # the loader keeps going, which is worse than failing. Seven days leaves
 # headroom for a heavy day.
-ALL_POINTS_CHUNK_DAYS = 7
+# Rows per day unfiltered: day-ahead ~24,800, real-time 15-minute ~100,400.
+# Sized so a window stays well inside MAX_PAGES x PAGE_SIZE.
+ALL_POINTS_CHUNK_DAYS = {"dam": 7, "rtm": 7}
+DEFAULT_ALL_CHUNK = 7
 
 # One backfill at a time. Two concurrent loads would race the live jobs for the
 # same ERCOT rate-limit budget and start drawing 429s, which is how a backfill
@@ -225,7 +234,8 @@ def resolve_points(raw: str | None, market: str | None = None) -> list[str]:
 
 def _run(market: str, points: list[str], start: date, end: date) -> None:
     loader = MARKETS[market]
-    span = ALL_POINTS_CHUNK_DAYS if points == ["ALL"] else CHUNK_DAYS[market]
+    span = (ALL_POINTS_CHUNK_DAYS.get(market, DEFAULT_ALL_CHUNK)
+            if points == ["ALL"] else CHUNK_DAYS[market])
     windows = list(_windows(start, end, span))
     total = len(points) * len(windows)
     seen = new = changed = 0
@@ -276,7 +286,8 @@ def start(market: str, points: list[str], start_date: date, end_date: date) -> d
     if not _lock.acquire(blocking=False):
         raise RuntimeError(f"a backfill is already running: {_state.get('progress')}")
 
-    span = ALL_POINTS_CHUNK_DAYS if points == ["ALL"] else CHUNK_DAYS[market]
+    span = (ALL_POINTS_CHUNK_DAYS.get(market, DEFAULT_ALL_CHUNK)
+            if points == ["ALL"] else CHUNK_DAYS[market])
     windows = len(list(_windows(start_date, end_date, span)))
     _state.clear()
     _state.update(running=True, market=market, points=len(points),
