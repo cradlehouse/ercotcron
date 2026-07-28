@@ -191,3 +191,50 @@ export interface CrrEdgeRow {
   net_total: number | string | null
   pct_profitable: number | string
 }
+
+export interface SpreadZRow {
+  settlement_point: string
+  interval_start: string
+  hour_ending: number
+  dam_price: number | string
+  rt_price: number | string
+  spread: number | string
+  z: number | string | null
+}
+
+export interface NodeHourRow {
+  settlement_point: string
+  hour_ending: number
+  observations: number
+  mean_spread: number | string
+  sd_spread: number | string | null
+  t_stat: number | string | null
+  pct_dam_over: number | string
+}
+
+export interface DurationRow {
+  settlement_point: string
+  hours: number
+  p01: number | string
+  p05: number | string
+  p25: number | string
+  p50: number | string
+  p75: number | string
+  p95: number | string
+  p99: number | string
+  mean: number | string
+  tail_ratio: number | string | null
+}
+
+export interface ImpliedVolRow {
+  source: string
+  sink: string
+  time_of_use: string
+  auctions: number
+  avg_premium: number | string
+  premium_sd: number | string | null
+  avg_premium_ratio: number | string | null
+  avg_option_price: number | string
+  avg_obligation_price: number | string
+  total_mw: number | string
+}
