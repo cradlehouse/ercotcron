@@ -377,3 +377,24 @@ def refresh_crr_pnl() -> None:
     with connection() as conn, conn.cursor() as cur:
         cur.execute("refresh materialized view concurrently crr_pnl")
         conn.commit()
+
+
+def refresh_signal_views() -> dict[str, float]:
+    """Rebuild the scanner materialised views. Called on a schedule.
+
+    CONCURRENTLY, so the dashboard keeps reading the previous result during the
+    rebuild. Each view is refreshed separately and timed — when one of them
+    starts taking minutes, the timing in the log is what says which.
+    """
+    import time as _time
+    out: dict[str, float] = {}
+    for view in ("spread_zscore", "node_hour_spread", "spread_duration",
+                 "basis_correlation"):
+        began = _time.monotonic()
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                sql.SQL("refresh materialized view concurrently {}").format(
+                    sql.Identifier(view)))
+            conn.commit()
+        out[view] = round(_time.monotonic() - began, 1)
+    return out

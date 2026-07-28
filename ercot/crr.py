@@ -201,36 +201,56 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
     # Losing bids are the behavioural record: what each firm was willing to pay,
     # not merely what cleared. Awards alone cannot separate a price-insensitive
     # hedger from an opportunist who happened to win.
-    bid_rows = []
-    for r in _read_csv(zf, BIDS_FILE):
-        start, end = _date(r.get("StartDate", "")), _date(r.get("EndDate", ""))
-        if not start or not end:
-            continue
-        bid_rows.append((
-            doc.auction_name, r.get("AccountHolder"), r.get("HedgeType") or "",
-            r.get("BidType") or "", r.get("Source") or "", r.get("Sink") or "",
-            start, end, r.get("TimeOfUse") or "",
-            _num(r.get("MW", "")), _num(r.get("BidPrice", r.get("Price", ""))),
-            _num(r.get("AwardedMW", "")),
-        ))
-    b_ins, _ = db.upsert_rows(
-        "crr_bids",
-        ["auction_name", "account_holder", "hedge_type", "bid_type", "source",
-         "sink", "start_date", "end_date", "time_of_use", "mw", "bid_price",
-         "awarded_mw"],
-        bid_rows,
-        conflict=["auction_name", "account_holder", "source", "sink",
-                  "time_of_use", "hedge_type", "bid_type", "bid_price"],
-        update=["mw", "awarded_mw", "start_date", "end_date"],
-    ) if bid_rows else (0, 0)
+    # Streamed in batches: the bids file is ~26MB and ~500k rows per auction,
+    # and materialising it as Python dicts is several hundred MB — which is an
+    # OOM kill on a 512MB instance, observed as a 502 fourteen seconds into the
+    # request with a healthy service just before.
+    BID_COLS = ["auction_name", "account_holder", "hedge_type", "bid_type",
+                "source", "sink", "start_date", "end_date", "time_of_use",
+                "mw", "bid_price", "awarded_mw"]
+    BID_KEY = ["auction_name", "account_holder", "source", "sink",
+               "time_of_use", "hedge_type", "bid_type", "bid_price"]
+    b_seen = b_ins = 0
+    names = [n for n in zf.namelist() if BIDS_FILE in n and n.lower().endswith(".csv")]
+    if names:
+        import csv as _csv
+        with zf.open(names[0]) as fh:
+            reader = _csv.DictReader(io.TextIOWrapper(fh, encoding="utf-8-sig"))
+            batch: list[tuple] = []
+            # Duplicate keys within one batch break the upsert's temp-table
+            # copy, so dedupe per batch; last one wins, matching the upsert.
+            for r in reader:
+                start, end = _date(r.get("StartDate", "")), _date(r.get("EndDate", ""))
+                if not start or not end:
+                    continue
+                batch.append((
+                    doc.auction_name, r.get("AccountHolder") or "",
+                    r.get("HedgeType") or "", r.get("BidType") or "",
+                    r.get("Source") or "", r.get("Sink") or "",
+                    start, end, r.get("TimeOfUse") or "",
+                    _num(r.get("MW", "")), _num(r.get("BidPrice", r.get("Price", ""))),
+                    _num(r.get("AwardedMW", "")),
+                ))
+                if len(batch) >= 50_000:
+                    uniq = {(b[0], b[1], b[4], b[5], b[8], b[2], b[3], b[10]): b for b in batch}
+                    ins, _ = db.upsert_rows("crr_bids", BID_COLS, list(uniq.values()),
+                                            conflict=BID_KEY,
+                                            update=["mw", "awarded_mw", "start_date", "end_date"])
+                    b_seen += len(batch); b_ins += ins; batch = []
+            if batch:
+                uniq = {(b[0], b[1], b[4], b[5], b[8], b[2], b[3], b[10]): b for b in batch}
+                ins, _ = db.upsert_rows("crr_bids", BID_COLS, list(uniq.values()),
+                                        conflict=BID_KEY,
+                                        update=["mw", "awarded_mw", "start_date", "end_date"])
+                b_seen += len(batch); b_ins += ins
 
     log.info("crr %s: %d awards (%d new), %d prices, %d bids, archived=%s",
              doc.auction_name, len(award_rows), inserted, len(price_rows),
-             len(bid_rows), archived)
+             b_seen, archived)
     return {
         "auction": doc.auction_name,
         "archived": archived,
-        "bids_seen": len(bid_rows), "bids_new": b_ins,
+        "bids_seen": b_seen, "bids_new": b_ins,
         "awards_seen": len(award_rows), "awards_new": inserted, "awards_updated": updated,
         "point_prices_seen": len(price_rows), "point_prices_new": p_ins,
         "point_prices_updated": p_upd,

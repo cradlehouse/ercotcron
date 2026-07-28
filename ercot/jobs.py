@@ -44,6 +44,14 @@ class Job:
     timezone: str = "America/Chicago"
 
 
+def _refresh_signals() -> ingest.Result:
+    timings = db.refresh_signal_views()
+    result = ingest.Result()
+    result.rows_seen = len(timings)
+    log.info("signal views refreshed: %s", timings)
+    return result
+
+
 JOBS: dict[str, Job] = {
     "lmp5": Job(
         name="lmp5",
@@ -85,6 +93,15 @@ JOBS: dict[str, Job] = {
         run=lambda c: fundamentals.ingest_load(c),
         description="Seven-day load forecast by weather zone",
         trigger={"minute": "28"},
+    ),
+    "signals": Job(
+        name="signals",
+        # Hourly, offset from everything else. The scanner reads these
+        # materialised views; without the refresh they silently go stale, which
+        # on a monitoring page is worse than being slow.
+        run=lambda c: _refresh_signals(),
+        description="Rebuild scanner materialised views",
+        trigger={"minute": "34"},
     ),
     "weather": Job(
         name="weather",
