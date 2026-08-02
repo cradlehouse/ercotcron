@@ -63,6 +63,34 @@ def stat(v):
     return m, (m / se if se else 0.0), len(v)
 
 
+def shape(v):
+    """Distribution, not just its centre.
+
+    A mean hides the difference between a steady earner and a trade that wins
+    small constantly then loses everything twice — which is precisely how the
+    DART fade strategy showed a 62% hit rate while losing $54k/MW. Reported per
+    fold so a fold carried by one lucky hour is visible as such.
+    """
+    if len(v) < 30:
+        return None
+    wins = [x for x in v if x > 0]
+    losses = [x for x in v if x < 0]
+    sv = sorted(v)
+    tot = sum(v)
+    best = max(v)
+    return {
+        "win_rate": round(100 * len(wins) / len(v), 1),
+        "median": round(statistics.median(v), 3),
+        "avg_win": round(statistics.fmean(wins), 3) if wins else 0.0,
+        "avg_loss": round(statistics.fmean(losses), 3) if losses else 0.0,
+        "worst": round(sv[0], 2),
+        "p5": round(sv[int(0.05 * len(sv))], 2),
+        "p95": round(sv[int(0.95 * len(sv))], 2),
+        "profit_factor": round(sum(wins) / abs(sum(losses)), 2) if losses else None,
+        "best_hour_share": round(100 * best / tot, 1) if tot > 0 else None,
+    }
+
+
 def main() -> int:
     pairs, allnodes = {}, set()
     for cname, card in CARDS.items():
@@ -169,14 +197,21 @@ def main() -> int:
 
         r_test, b_test = score(train_end, test_end)
         s, bs = stat(r_test), stat(b_test)
+        sh = shape(r_test)
         if s:
             folds.append({"fold": i, "train_end": str(train_end), "test_end": str(test_end),
                           "rule": round(s[0], 3), "t": round(s[1], 2), "n": s[2],
                           "baseline": round(bs[0], 3) if bs else None,
-                          "edge": round(s[0] - (bs[0] if bs else 0), 3)})
+                          "edge": round(s[0] - (bs[0] if bs else 0), 3),
+                          "shape": sh})
             print(f"{i:<5}{f'{start}..{train_end}':<24}{f'{train_end}..{test_end}':<20}"
                   f"{s[0]:>+12.3f}{s[1]:>7.2f}{s[2]:>8,}"
                   f"{(bs[0] if bs else 0):>+10.3f}{s[0]-(bs[0] if bs else 0):>+9.3f}")
+            if sh:
+                print(f"{'':5}  win {sh['win_rate']}%  med {sh['median']:+.3f}  "
+                      f"avgW {sh['avg_win']:+.2f} avgL {sh['avg_loss']:+.2f}  "
+                      f"worst {sh['worst']:+.1f}  PF {sh['profit_factor']}  "
+                      f"best-hour {sh['best_hour_share']}% of P&L")
         else:
             print(f"{i:<5}{f'{start}..{train_end}':<24}{f'{train_end}..{test_end}':<20}"
                   f"{'too few flagged hours':>36}")
@@ -196,6 +231,22 @@ def main() -> int:
             h2 = statistics.fmean(edges[len(edges)//2:])
             print(f"decay check: first half {h1:+.3f} -> second half {h2:+.3f} "
                   f"({h2-h1:+.3f})")
+        shapes = [f["shape"] for f in folds if f.get("shape")]
+        if shapes:
+            print(f"\nTRADE SHAPE across folds:")
+            print(f"  win rate      {statistics.fmean(s['win_rate'] for s in shapes):.1f}% "
+                  f"(range {min(s['win_rate'] for s in shapes):.0f}-"
+                  f"{max(s['win_rate'] for s in shapes):.0f})")
+            pf = [s["profit_factor"] for s in shapes if s["profit_factor"]]
+            if pf:
+                print(f"  profit factor {statistics.fmean(pf):.2f} "
+                      f"(>1.3 is tradeable, <1.1 is noise after costs)")
+            print(f"  worst hour    {min(s['worst'] for s in shapes):+.1f} $/MWh")
+            bh = [s["best_hour_share"] for s in shapes if s["best_hour_share"]]
+            if bh:
+                worst_conc = max(bh)
+                print(f"  max single-hour share of a fold's P&L: {worst_conc:.0f}%"
+                      f"{'  <-- LOTTERY TICKET, not a strategy' if worst_conc > 30 else ''}")
         json.dump(folds, open(REF / "walk_forward_folds.json", "w"), indent=1)
         print("wrote", REF / "walk_forward_folds.json")
     return 0
