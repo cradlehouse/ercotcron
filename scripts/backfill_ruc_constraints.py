@@ -99,7 +99,11 @@ def main() -> int:
         arcs = d.get("archives") or []
         docs.extend(a for a in arcs
                     if datetime.fromisoformat(a["postDatetime"]).replace(tzinfo=timezone.utc) >= cutoff)
-        if not arcs or datetime.fromisoformat(arcs[-1]["postDatetime"]).replace(tzinfo=timezone.utc) < cutoff:
+        # The API 400s on pages beyond totalPages instead of returning an empty
+        # list, so honour the meta rather than probing past the end.
+        total_pages = (d.get("_meta") or {}).get("totalPages") or page
+        if (not arcs or page >= total_pages
+                or datetime.fromisoformat(arcs[-1]["postDatetime"]).replace(tzinfo=timezone.utc) < cutoff):
             break
         page += 1
     print(f"daily files in window: {len(docs)}", flush=True)
