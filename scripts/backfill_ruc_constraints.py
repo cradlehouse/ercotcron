@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Backfill RUC binding transmission constraints (NP5-755-CD).
 
+NOTE: NP5-755 publishes NO shadow price — unlike NP4-191 (DAM) and NP6-86
+(SCED), it reports which constraints RUC held active plus Limit/Value, not
+what they cost. Presence is the signal. Column names also differ from the DAM
+report (`Limit`/`Value`, not `ConstraintLimit`/`ConstraintValue`), and there is
+a RUCTimeStamp giving the actual run time, which matters for decision timing.
+
     python scripts/backfill_ruc_constraints.py --days 365
 
 RUC reruns commitment AFTER the DAM clears, on fresher load/wind forecasts.
@@ -132,8 +138,8 @@ def main() -> int:
                 rows.append((dd, he, int(num(r.get("ConstraintID")) or 0),
                              (r.get("ConstraintName") or "").strip(),
                              (r.get("ContingencyName") or "").strip(),
-                             num(r.get("ConstraintLimit")), num(r.get("ConstraintValue")),
-                             num(r.get("ViolationAmount")), num(r.get("ShadowPrice")),
+                             num(r.get("Limit")), num(r.get("Value")),
+                             num(r.get("ViolationAmount")), None,
                              (r.get("FromStation") or "").strip() or None,
                              (r.get("ToStation") or "").strip() or None,
                              num(r.get("FromStationkV")), num(r.get("ToStationkV"))))
