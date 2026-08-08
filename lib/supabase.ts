@@ -238,3 +238,27 @@ export interface ImpliedVolRow {
   avg_obligation_price: number | string
   total_mw: number | string
 }
+
+/** A path's realised worth versus what was bid — see app/bids. */
+export interface PathValuation {
+  book: string
+  source: string
+  sink: string
+  time_of_use: string
+  hedge_type: string
+  mw: number | string | null
+  bids: number | null
+  bid_price: number | string | null
+  value_mean: number | string | null
+  value_median: number | string | null
+  value_p05: number | string | null
+  value_p95: number | string | null
+  pct_hours_pos: number | string | null
+  hours: number | null
+  edge: number | string | null
+  drivers: string | null
+  warnings: string | null
+  window_start: string | null
+  window_end: string | null
+  computed_at: string
+}
