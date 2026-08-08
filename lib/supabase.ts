@@ -256,6 +256,9 @@ export interface PathValuation {
   pct_hours_pos: number | string | null
   hours: number | null
   edge: number | string | null
+  ceiling: number | string | null
+  cleared_price: number | string | null
+  trim_pct: number | string | null
   drivers: string | null
   warnings: string | null
   window_start: string | null

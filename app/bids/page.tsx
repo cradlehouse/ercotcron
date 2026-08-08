@@ -53,17 +53,23 @@ function Path({ row }: { row: PathValuation }) {
 }
 
 export default async function BidsPage() {
-  const { rows, error } = await query<PathValuation>((db) =>
+  const { rows: allRows, error } = await query<PathValuation>((db) =>
     db.from('path_valuations').select('*').order('edge', { ascending: false }),
   )
+  // Discovery rows are candidates mined from winning firms' books and re-priced
+  // by our own method — rendered separately so they never blend into the
+  // holder's own book.
+  const rows = allRows.filter((r) => r.book !== 'Discovery')
+  const discovery = allRows.filter((r) => r.book === 'Discovery')
 
-  // A path is worth bidding when its ceiling clears what the auction usually
-  // charges. Everything else is the market pricing it above its own history.
-  const priced = rows.filter((r) => num(r.value_mean) !== null)
+  // A path is worth bidding when its CEILING (value less the uncertainty trim)
+  // clears what the auction has actually charged — not what the book happened
+  // to bid, which is a fact about the bidder rather than the market.
+  const priced = rows.filter((r) => num(r.ceiling) !== null)
   const bid = priced.filter((r) => {
-    const c = num(r.value_mean)
-    const cl = num(r.bid_price)
-    return c !== null && (cl === null || c > cl)
+    const c = num(r.ceiling)
+    const cl = num(r.cleared_price)
+    return c !== null && c > 0.01 && (cl === null || c > cl)
   })
   const skip = priced.filter((r) => !bid.includes(r))
   const unpriced = rows.filter((r) => num(r.value_mean) === null)
@@ -113,6 +119,7 @@ export default async function BidsPage() {
                   <th className="px-3 py-2 text-right font-medium">Bid up to</th>
                   <th className="px-3 py-2 text-right font-medium">Was bid</th>
                   <th className="px-3 py-2 text-right font-medium">Worth</th>
+                  <th className="px-3 py-2 text-right font-medium">Usually clears</th>
                   <th className="px-3 py-2 text-right font-medium">Typical hour</th>
                   <th className="px-3 py-2 text-right font-medium">% hrs paid</th>
                   <th className="px-3 py-2 font-medium">Margin</th>
@@ -127,16 +134,17 @@ export default async function BidsPage() {
                   >
                     <td className="px-3 py-2.5"><Path row={r} /></td>
                     <td className="px-3 py-2.5 text-right tnum text-[15px] font-semibold text-emerald-300">
-                      {usd(r.value_mean)}
+                      {usd(r.ceiling)}
                     </td>
                     <td className="px-3 py-2.5 text-right tnum text-zinc-500">{usd(r.bid_price)}</td>
                     <td className="px-3 py-2.5 text-right tnum text-zinc-300">{usd(r.value_mean)}</td>
+                    <td className="px-3 py-2.5 text-right tnum text-zinc-400">{usd(r.cleared_price)}</td>
                     <td className="px-3 py-2.5 text-right tnum text-zinc-400">{usd(r.value_median)}</td>
                     <td className="px-3 py-2.5 text-right tnum text-zinc-400">
                       {num(r.pct_hours_pos)?.toFixed(0) ?? '—'}%
                     </td>
                     <td className="px-3 py-2.5">
-                      <Margin ceiling={num(r.value_mean)} clears={num(r.bid_price)} />
+                      <Margin ceiling={num(r.ceiling)} clears={num(r.cleared_price)} />
                     </td>
                     <td className="px-3 py-2.5 text-[11px] text-zinc-500">
                       {r.warnings ? (
@@ -195,6 +203,63 @@ export default async function BidsPage() {
               showing the 25 largest of {skip.length}
             </p>
           )}
+        </Panel>
+      )}
+
+      {discovery.length > 0 && (
+        <Panel
+          title="Beyond the book"
+          subtitle="paths the winning firms hold that this book does not — re-priced by our method"
+        >
+          <p className="mb-3 max-w-[70ch] text-[12.5px] text-zinc-500">
+            Candidates come from the four firms that beat the CRR market over nine measured
+            months. Holding a path is not evidence it pays — positions can be hedges or offsets —
+            so every candidate was valued from scratch and kept only where the ceiling clears
+            1.5× its usual auction price on at least 2,000 hours of history.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] border-collapse">
+              <thead>
+                <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-zinc-500">
+                  <th className="px-3 py-2 font-medium">Path</th>
+                  <th className="px-3 py-2 text-right font-medium">Bid up to</th>
+                  <th className="px-3 py-2 text-right font-medium">Usually clears</th>
+                  <th className="px-3 py-2 text-right font-medium">% hrs paid</th>
+                  <th className="px-3 py-2 text-right font-medium">Winning firms holding</th>
+                  <th className="px-3 py-2 font-medium">Margin</th>
+                  <th className="px-3 py-2 font-medium">Confidence</th>
+                </tr>
+              </thead>
+              <tbody>
+                {discovery.map((r) => (
+                  <tr
+                    key={`d-${r.source}-${r.sink}-${r.time_of_use}-${r.hedge_type}`}
+                    className="border-b border-line/60 last:border-0 hover:bg-zinc-900/40"
+                  >
+                    <td className="px-3 py-2.5"><Path row={r} /></td>
+                    <td className="px-3 py-2.5 text-right tnum text-[15px] font-semibold text-sky-300">
+                      {usd(r.ceiling)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tnum text-zinc-400">{usd(r.cleared_price)}</td>
+                    <td className="px-3 py-2.5 text-right tnum text-zinc-400">
+                      {num(r.pct_hours_pos)?.toFixed(0) ?? '—'}%
+                    </td>
+                    <td className="px-3 py-2.5 text-right tnum text-zinc-400">{r.bids ?? '—'}</td>
+                    <td className="px-3 py-2.5">
+                      <Margin ceiling={num(r.ceiling)} clears={num(r.cleared_price)} />
+                    </td>
+                    <td className="px-3 py-2.5 text-[11px] text-zinc-500">
+                      {r.warnings ? (
+                        <span className="text-amber-400/90">{r.warnings}</span>
+                      ) : (
+                        'no flags'
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Panel>
       )}
 

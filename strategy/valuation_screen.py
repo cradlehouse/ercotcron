@@ -173,6 +173,14 @@ def main() -> int:
 
         nodes = {n for b in book for n in (b["source"], b["sink"])}
         risk = constraint_risk(cur, nodes)
+        # What these paths have ACTUALLY cleared at. Distinct from what the
+        # book bid — conflating the two makes any margin figure meaningless.
+        nl = sorted(nodes)
+        cur.execute("""select source, sink, time_of_use, hedge_type, avg(clearing_price)
+                         from crr_awards where source = any(%s) and sink = any(%s)
+                        group by 1,2,3,4""", (nl, nl))
+        cleared = {(r[0], r[1], r[2], r[3]): float(r[4] or 0) for r in cur.fetchall()}
+        print(f"paths with auction clearing history: {len(cleared)}")
         print(f"endpoints with a known constraint driver: {len(risk)}/{len(nodes)}")
 
     # ---- aggregate to path level
@@ -189,6 +197,19 @@ def main() -> int:
         src, snk, tou, hedge = k
         v = vals.get(k)
         wavg_bid = a["cost"] / a["mw"] if a["mw"] else 0
+        # Trim the raw value for uncertainty; the result is the bid ceiling.
+        trim, why = 0.0, []
+        if v:
+            w = (risk.get(src, {}).get("warnings", []) +
+                 risk.get(snk, {}).get("warnings", []))
+            if w:
+                trim += 0.30; why.append(w[0])
+            if v["hours"] < 1500:
+                trim += 0.20; why.append(f"{v['hours']} hrs only")
+            if v["median"] > 0 and v["mean"] > 3 * v["median"]:
+                trim += 0.25; why.append("spike-driven")
+            trim = min(trim, 0.75)
+        ceiling = v["mean"] * (1 - trim) if v else None
         rows.append({
             "source": src, "sink": snk, "tou": tou, "hedge": hedge,
             "mw": a["mw"], "bids": a["bids"], "bid": wavg_bid,
@@ -199,6 +220,9 @@ def main() -> int:
             "pct_pos": v["pct_positive"] if v else None,
             "hours": v["hours"] if v else 0,
             "edge": (v["mean"] - wavg_bid) if v else None,
+            "ceiling": ceiling,
+            "cleared": cleared.get(k),
+            "trim": trim if v else None,
             "drivers": "; ".join(risk.get(snk, {}).get("drivers", [])[:2]) or "—",
             "warnings": "; ".join(
                 (risk.get(src, {}).get("warnings", []) +
@@ -289,12 +313,13 @@ def main() -> int:
                       (book, source, sink, time_of_use, hedge_type, mw, bids,
                        bid_price, value_mean, value_median, value_p05, value_p95,
                        pct_hours_pos, hours, edge, drivers, warnings,
-                       window_start, window_end)
-                    values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                       window_start, window_end, ceiling, cleared_price, trim_pct)
+                    values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """, [(book_name, r["source"], r["sink"], r["tou"], r["hedge"],
                        r["mw"], r["bids"], r["bid"], r["value"], r["median"],
                        r["p05"], r["p95"], r["pct_pos"], r["hours"], r["edge"],
-                       r["drivers"], r["warnings"] or None, start, end)
+                       r["drivers"], r["warnings"] or None, start, end,
+                       r.get("ceiling"), r.get("cleared"), r.get("trim"))
                       for r in rows])
             c.commit()
         print(f"published {len(rows)} rows to path_valuations as book '{book_name}'")
