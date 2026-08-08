@@ -144,6 +144,11 @@ def main() -> int:
                     continue
                 if not r or not r[0]:
                     continue
+                # Older vintages (2022) interleave summary/date rows and can
+                # omit the start timestamp; a null start breaks the PK and a
+                # datetime in col 0 is not a resource. Skip both quietly.
+                if isinstance(r[0], datetime) or ts(r[7]) is None:
+                    continue
                 rows.append((rd, str(r[0]).strip(), str(r[1] or "").strip(),
                              str(r[2] or "").strip() or None,
                              str(r[3] or "").strip() or None,

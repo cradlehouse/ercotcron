@@ -145,6 +145,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--book", required=True)
     ap.add_argument("--months", type=int, default=12, help="trailing window for valuation")
+    ap.add_argument("--book-name", default=None,
+                    help="label for this book in path_valuations; defaults to the filename")
+    ap.add_argument("--no-publish", action="store_true",
+                    help="skip writing to Supabase, workbook only")
     args = ap.parse_args()
 
     book = read_book(pathlib.Path(args.book).expanduser())
@@ -273,6 +277,27 @@ def main() -> int:
 
     OUT.parent.mkdir(exist_ok=True)
     wb.save(OUT)
+
+    # ---- publish to the platform
+    if not args.no_publish:
+        book_name = args.book_name or pathlib.Path(args.book).stem
+        with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=30) as c:
+            with c.cursor() as cur:
+                cur.execute("delete from path_valuations where book = %s", (book_name,))
+                cur.executemany("""
+                    insert into path_valuations
+                      (book, source, sink, time_of_use, hedge_type, mw, bids,
+                       bid_price, value_mean, value_median, value_p05, value_p95,
+                       pct_hours_pos, hours, edge, drivers, warnings,
+                       window_start, window_end)
+                    values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, [(book_name, r["source"], r["sink"], r["tou"], r["hedge"],
+                       r["mw"], r["bids"], r["bid"], r["value"], r["median"],
+                       r["p05"], r["p95"], r["pct_pos"], r["hours"], r["edge"],
+                       r["drivers"], r["warnings"] or None, start, end)
+                      for r in rows])
+            c.commit()
+        print(f"published {len(rows)} rows to path_valuations as book '{book_name}'")
 
     valued = [r for r in rows if r["edge"] is not None]
     if valued:
