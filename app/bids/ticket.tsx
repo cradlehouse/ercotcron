@@ -57,6 +57,35 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   const [checked, setChecked] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(rows.map((r) => [r.key, r.tier === 'green'])),
   )
+  const [budget, setBudget] = useState(20000)
+  const [riskBudget, setRiskBudget] = useState(5000)
+
+  // Portfolio allocation, Tim's way: state the pot and the slice you are
+  // willing to gamble, and let the sheet size every row. Verified rows share
+  // the safe slice; speculative rows share the risk slice, weighted by margin,
+  // each capped by real liquidity (half the most MW any auction awarded) —
+  // past that size your own bid becomes the clearing price.
+  function allocate() {
+    const g = rows.filter((r) => r.tier === 'green')
+    const a = rows.filter((r) => r.tier === 'amber')
+    const nextQty: Record<string, number> = { ...qty }
+    const nextChecked: Record<string, boolean> = { ...checked }
+    for (const [bucket, amt] of [[g, Math.max(budget - riskBudget, 0)], [a, riskBudget]] as const) {
+      const wsum = bucket.reduce((s, r) => s + Math.min(r.marginX ?? 1, 20), 0) || 1
+      for (const r of bucket) {
+        const h = auction.hours[r.tou] ?? 0
+        const rate = r.cleared ?? r.ceiling
+        const share = (amt * Math.min(r.marginX ?? 1, 20)) / wsum
+        let q = h > 0 ? Math.floor(share / Math.max(h * rate, 1)) : 0
+        if (r.maxMw) q = Math.min(q, Math.floor(r.maxMw / 2))
+        q = Math.min(q, 500)
+        nextQty[r.key] = Math.max(q, 0)
+        nextChecked[r.key] = q > 0
+      }
+    }
+    setQty(nextQty)
+    setChecked(nextChecked)
+  }
 
   const derived = useMemo(() => {
     const out: Record<string, { hours: number; maxCost: number; likelyCost: number; histReturn: number }> = {}
@@ -183,6 +212,28 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   return (
     <div className="space-y-5">
       <div className="sticky top-0 z-10 -mx-1 rounded-lg border border-line bg-panel/95 px-4 py-3 backdrop-blur">
+        <div className="mb-2 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-line pb-2">
+          <label className="block">
+            <div className="text-[10px] uppercase tracking-wider text-zinc-500">total to deploy ($)</div>
+            <input type="number" min={0} step={500} value={budget}
+              onChange={(e) => setBudget(Math.max(0, Number(e.target.value)))}
+              className="mt-0.5 w-28 rounded border border-line bg-transparent px-2 py-1 text-right tnum text-[13px] text-zinc-200" />
+          </label>
+          <label className="block">
+            <div className="text-[10px] uppercase tracking-wider text-zinc-500">of which at risk ($)</div>
+            <input type="number" min={0} step={500} value={riskBudget}
+              onChange={(e) => setRiskBudget(Math.max(0, Math.min(budget, Number(e.target.value))))}
+              className="mt-0.5 w-28 rounded border border-line bg-transparent px-2 py-1 text-right tnum text-[13px] text-amber-300" />
+          </label>
+          <button onClick={allocate}
+            className="rounded-md border border-emerald-600/60 px-3 py-1.5 text-[12px] font-semibold text-emerald-300 transition-colors hover:bg-emerald-600/15">
+            Size the book for me
+          </button>
+          <span className="text-[11px] text-zinc-600">
+            ${'{'}(budget - riskBudget).toLocaleString(){'}'} across verified rows · ${'{'}riskBudget.toLocaleString(){'}'} across
+            speculative rows, margin-weighted, liquidity-capped
+          </span>
+        </div>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div>
             <div className="text-[10px] uppercase tracking-wider text-zinc-500">selected</div>
@@ -213,7 +264,8 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
         <p className="mt-2 text-[11px] text-zinc-600">
           CSV matches ERCOT&apos;s CRR upload format · account {auction.holder} · delivery{' '}
           {auction.deliveryLabel} · max outlay is what you pay only if every path clears at your
-          full bid — the historical norm is the likely column.
+          full bid — the historical norm is the likely column. On OPT rows the premium is the
+          most you can lose; OBL rows can pay out in bad months beyond it.
         </p>
       </div>
 
