@@ -90,11 +90,23 @@ def main() -> int:
     with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as c:
         c.execute("set statement_timeout='10min'")
         cur = c.cursor()
+        # Clearing basis = the RECENT monthly auctions only, and never a signed
+        # average: OBL clears straddle zero (FERMI->AMISTAD ranged -15.94 to
+        # +5.59), so an all-time mean nets to a tiny "cost" no auction ever
+        # charged and margins explode against it.
         cur.execute("""
+            with ranked as (
+              select source, sink, time_of_use, hedge_type, auction_name,
+                     avg(clearing_price) cp, sum(mw) mw,
+                     row_number() over (partition by source, sink, time_of_use, hedge_type
+                                        order by max(ingested_at) desc) rn
+                from crr_awards
+               where auction_name like '%%Monthly'
+               group by 1,2,3,4,5)
             select source, sink, time_of_use, hedge_type,
-                   avg(clearing_price), count(distinct auction_name), sum(mw)
-              from crr_awards
-             group by 1, 2, 3, 4""")
+                   avg(cp) filter (where rn <= 3),
+                   count(*), sum(mw)
+              from ranked group by 1,2,3,4""")
         universe = cur.fetchall()
         # staleness flags for the confidence column
         exp = json.loads((REF / "constraint_exposure.json").read_text())
@@ -135,6 +147,13 @@ def main() -> int:
         mmask = month_arr[masks[tou]][~np.isnan(M[masks[tou], ki] - M[masks[tou], si])]
         permonth = [float(pay[mmask == m].mean()) for m in months if (mmask == m).sum() >= 100]
         typical = float(np.median(permonth)) if len(permonth) >= 6 else worth
+        # A regime that has already collapsed must not be priced off its fat
+        # past: three scan headliners went NEGATIVE in the held-out July while
+        # their medians still read $2-7. Price off the smaller of typical and
+        # the recent three months, and flag the decay.
+        recent = float(np.mean(permonth[-3:])) if len(permonth) >= 3 else typical
+        fading = len(permonth) >= 6 and recent < 0.3 * typical
+        typical = min(typical, max(recent, 0.0))
         cleared_f = float(cleared or 0)
         trim, why = 0.0, []
         s = stale_nodes.get(src) or stale_nodes.get(snk)
@@ -144,13 +163,15 @@ def main() -> int:
         if med > 0 and worth > 3 * med:
             trim += 0.25
             why.append("spike-driven")
+        if fading:
+            why.append("congestion fading — recent months far below the average")
         ceiling = typical * (1 - min(trim, 0.75))
         # Near-zero clearing prices make margin ratios explode into nonsense
         # (a $4 path over a $0.00 clear is "1600x"), and one-auction paths are
         # a single observation. Floors: the auction must have priced it at
         # least a nickel, across >= 3 auctions, and the absolute gap must be
         # worth collecting, not just the ratio.
-        if ceiling < MATERIALITY or cleared_f < 0.05 or int(n_auc) < 3:
+        if fading or ceiling < MATERIALITY or cleared_f < 0.05 or int(n_auc) < 3:
             continue
         margin = ceiling / cleared_f
         if margin <= 1.25 or (ceiling - cleared_f) < 0.10:

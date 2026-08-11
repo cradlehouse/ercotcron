@@ -127,7 +127,11 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
         </td>
         <td className="px-2 py-2.5 text-right align-top">
           <div className="tnum text-[16px] font-bold text-emerald-300">{usd(r.ceiling)}</div>
-          <div className="text-[10px] text-zinc-600">enter as your bid</div>
+          <div className="text-[10px] text-zinc-600">
+            {r.cleared !== null
+              ? `going rate ~${usd(r.cleared)}${r.marginX !== null ? ` (${r.marginX.toFixed(0)}× under your limit)` : ''}`
+              : 'no clearing history'}
+          </div>
         </td>
         <td className="px-2 py-2.5 text-right align-top">
           <input
@@ -140,21 +144,19 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
             {r.prevMw ? `you held ${r.prevMw.toFixed(0)}` : 'new path'}
           </div>
         </td>
-        <td className="px-2 py-2.5 text-right align-top tnum text-zinc-400">
-          {r.cleared !== null ? usd(r.cleared) : <span className="italic text-zinc-600">unknown</span>}
-          {r.marginX !== null && (
-            <div className={`text-[10px] ${r.marginX >= 1.5 ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {r.marginX.toFixed(1)}× room
-            </div>
-          )}
+        <td className="px-2 py-2.5 text-right align-top tnum text-zinc-300">{money(d.likelyCost)}
+          <div className="text-[10px] text-zinc-600 tnum">
+            {qty[r.key] ?? 0} MW × {d.hours} h × {r.cleared !== null ? usd(r.cleared) : usd(r.ceiling)}
+          </div>
         </td>
-        <td className="px-2 py-2.5 text-right align-top tnum text-zinc-300">{money(d.likelyCost)}</td>
         <td className="px-2 py-2.5 text-right align-top tnum text-zinc-300">{money(d.histReturn)}
           <div className={`text-[10px] tnum ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {net >= 0 ? '+' : ''}{money(net).replace('$', '$')} net
           </div>
         </td>
-        <td className="px-2 py-2.5 text-right align-top tnum text-zinc-500">{money(d.maxCost)}</td>
+        <td className="px-2 py-2.5 text-right align-top tnum text-zinc-500">{money(d.maxCost)}
+          <div className="text-[10px] text-zinc-600 tnum">× {usd(r.ceiling)}</div>
+        </td>
       </tr>
     )
   }
@@ -164,12 +166,11 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
       <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-zinc-500">
         <th className="w-8 px-2 py-2" />
         <th className="px-2 py-2 font-medium">Path</th>
-        <th className="px-2 py-2 text-right font-medium">Bid price</th>
+        <th className="px-2 py-2 text-right font-medium">Your limit<br /><span className="normal-case text-zinc-600">$/MWh — not what you pay</span></th>
         <th className="px-2 py-2 text-right font-medium">MW</th>
-        <th className="px-2 py-2 text-right font-medium">Usually costs</th>
-        <th className="px-2 py-2 text-right font-medium">Likely outlay</th>
-        <th className="px-2 py-2 text-right font-medium">History returned</th>
-        <th className="px-2 py-2 text-right font-medium">Max outlay</th>
+        <th className="px-2 py-2 text-right font-medium">Likely cost<br /><span className="normal-case text-zinc-600">at its going rate</span></th>
+        <th className="px-2 py-2 text-right font-medium">If the past year repeats</th>
+        <th className="px-2 py-2 text-right font-medium">Worst case<br /><span className="normal-case text-zinc-600">clears at your limit</span></th>
       </tr>
     </thead>
   )
@@ -210,6 +211,26 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
           full bid — the historical norm is the likely column.
         </p>
       </div>
+
+      {rows.length > 0 && (() => {
+        const ex = green[0] ?? amber[0]
+        const eh = auction.hours[ex.tou] ?? 0
+        const eq = ex.suggestedMw
+        return (
+          <div className="rounded-lg border border-line bg-panel px-4 py-3 text-[12.5px] text-zinc-400">
+            <span className="font-semibold text-zinc-200">How to read a row, using the first one: </span>
+            a CRR here is a strip of {eh} {ex.tou} hours in September. {eq} MW means you are
+            buying {eq} × {eh} = {(eq * eh).toLocaleString()} MWh. Your limit of {usd(ex.ceiling)}
+            /MWh is the most you authorise — <span className="text-zinc-200">everyone pays the
+            same clearing price, not their bid</span>, and this path has recently cleared
+            around {ex.cleared !== null ? usd(ex.cleared) : 'unknown'}, so you would likely pay
+            about {money(eq * eh * (ex.cleared ?? ex.ceiling))} in total. The worst case —
+            it clears exactly at your limit — is {money(eq * eh * ex.ceiling)}. Bidding a low
+            number instead does not save money; it only loses you the path in any month someone
+            else spots it too.
+          </div>
+        )
+      })()}
 
       {green.length > 0 && (
         <section>

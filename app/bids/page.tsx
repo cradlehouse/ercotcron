@@ -41,6 +41,7 @@ const MATERIALITY = 0.1 // ceilings below 10c are noise, not trades
 
 function plainFlag(w: string | null): string {
   if (!w) return ''
+  if (w.includes('fading')) return 'Congestion fading — recent months are far below the average this price is built on.' ''
   if (w.includes('spike')) return 'Pays rarely but big — expect long waits between payoffs.'
   if (w.includes('re-rated')) return `Grid changed near this path in the last 90 days (${w.split(':')[0]}) — history is less reliable.`
   if (w.includes('silent')) return `A driving constraint has gone quiet (${w.split(':')[0]}) — the congestion may be gone.`
@@ -124,7 +125,9 @@ export default async function BidsPage() {
               : ''),
       overbidNote: overbid
         ? `Your last bid ($${prevBid!.toFixed(2)}) was ABOVE this ceiling — cut it.`
-        : '',
+        : r.hedge_type === 'OBL' && (isMarket || isDiscovery)
+          ? 'Obligation: pays BOTH directions — a bad month can cost you, unlike your options.'
+          : '',
     })
   }
   // Widest verified margin first: conviction order, not raw-edge order.
