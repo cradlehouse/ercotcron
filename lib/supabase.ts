@@ -265,3 +265,8 @@ export interface PathValuation {
   window_end: string | null
   computed_at: string
 }
+
+export interface SettlementPoint {
+  name: string
+  active: boolean
+}
