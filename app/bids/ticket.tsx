@@ -28,6 +28,7 @@ export interface TicketRow {
   prevMw: number | null
   suggestedMw: number
   holders: number | null   // winning firms holding (discovery only)
+  maxMw?: number | null    // most MW any single auction awarded — liquidity cap
   flag: string             // plain-english caution, '' if none
   overbidNote: string      // '' unless his old bid exceeded the ceiling
 }
@@ -141,7 +142,11 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
             aria-label="MW quantity"
           />
           <div className="mt-0.5 text-[10px] text-zinc-600">
-            {r.prevMw ? `you held ${r.prevMw.toFixed(0)}` : 'new path'}
+            {r.prevMw
+              ? `you held ${r.prevMw.toFixed(0)}`
+              : r.maxMw
+                ? `auction max ~${r.maxMw.toFixed(0)} MW`
+                : 'new path'}
           </div>
         </td>
         <td className="px-2 py-2.5 text-right align-top tnum text-zinc-300">{money(d.likelyCost)}

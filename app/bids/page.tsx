@@ -38,10 +38,14 @@ const AUCTION: Omit<AuctionMeta, 'daysLeft'> = {
 }
 
 const MATERIALITY = 0.1 // ceilings below 10c are noise, not trades
+// Never bid to breakeven: the limit is value/1.5, so a worst-case fill at the
+// full limit still leaves ~50% expected margin. (Trader's rule, and doubly
+// right here: our magnitude estimates are only ~61% within 2x.)
+const REQUIRED_MARGIN = 1.5
 
 function plainFlag(w: string | null): string {
   if (!w) return ''
-  if (w.includes('fading')) return 'Congestion fading — recent months are far below the average this price is built on.' ''
+  if (w.includes('fading')) return 'Congestion fading — recent months are far below the average this price is built on.'
   if (w.includes('spike')) return 'Pays rarely but big — expect long waits between payoffs.'
   if (w.includes('re-rated')) return `Grid changed near this path in the last 90 days (${w.split(':')[0]}) — history is less reliable.`
   if (w.includes('silent')) return `A driving constraint has gone quiet (${w.split(':')[0]}) — the congestion may be gone.`
@@ -70,7 +74,15 @@ export default async function BidsPage() {
   const unpriced: PathValuation[] = []
 
   for (const r of allRows) {
-    const ceiling = num(r.ceiling)
+    const rawCeiling = num(r.ceiling)
+    const marginLimit = rawCeiling === null ? null : rawCeiling / REQUIRED_MARGIN
+    const isScanRow = r.book === 'Market' || r.book === 'Discovery'
+    const clearedEarly = num(r.cleared_price)
+    // Cheap lottery paths: cap the limit at 3x the going rate. You are trying
+    // to own a LOT of something at ~10c, not a little of it at any price.
+    const ceiling = marginLimit !== null && isScanRow && clearedEarly !== null && clearedEarly < 0.5
+      ? Math.min(marginLimit, Math.max(3 * clearedEarly, 0.1))
+      : marginLimit
     const worth = num(r.value_mean)
     const cleared = num(r.cleared_price)
     const prevBid = num(r.bid_price)
@@ -114,7 +126,21 @@ export default async function BidsPage() {
       pctHours: num(r.pct_hours_pos),
       prevBid: isDiscovery || isMarket ? null : prevBid,
       prevMw: isDiscovery || isMarket ? null : prevMw,
-      suggestedMw: isMarket ? 5 : isDiscovery ? 10 : Math.max(1, Math.min(50, Math.round(prevMw ?? 1))),
+      // Lottery sizing (Tim's rule): on cheap high-margin paths, scale the MW
+      // and LOWER the limit rather than the reverse — margin x volume is where
+      // the money is, and Steve's own history is right calls at unpaid size.
+      // Caps: half the most MW any auction ever awarded (you cannot buy what
+      // is not sold, and past that size your own bid sets the price), and
+      // ~$250 of likely outlay per ticket.
+      maxMw: isMarket || isDiscovery ? (num(r.mw) || null) : null,
+      suggestedMw: (() => {
+        if (!isMarket && !isDiscovery) return Math.max(1, Math.min(50, Math.round(prevMw ?? 1)))
+        const hours = AUCTION.hours[r.time_of_use] ?? 300
+        const rate = cleared ?? ceiling ?? 0.1
+        const byBudget = Math.floor(250 / Math.max(hours * rate, 1))
+        const byLiquidity = Math.floor((num(r.mw) ?? 10) / 2)
+        return Math.max(1, Math.min(byBudget, Math.max(byLiquidity, 1), 200))
+      })(),
       holders: isDiscovery || isMarket ? (r.bids ?? null) : null,
       flag:
         tier === 'amber' && !hasHistory
@@ -149,8 +175,9 @@ export default async function BidsPage() {
             <p className="max-w-[70ch]">
               One rule: <span className="font-semibold text-zinc-200">enter the shown price as
               your bid and never more</span>. The auction charges the clearing price, not your
-              bid — bidding the full ceiling wins more paths at no extra cost. Bidding a timid
-              fraction of it only loses auctions you should have won.
+              bid, so bidding your full limit wins more paths at no extra cost — and every limit
+              here is already set at two-thirds of the path&apos;s valued payout, so even a
+              worst-case fill at your full limit keeps a ~50% margin.
             </p>
             <p className="text-[11px] text-zinc-600">
               valued on 12 months of day-ahead prices to {allRows[0]?.window_end ?? ''} (trailing

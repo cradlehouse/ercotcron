@@ -37,8 +37,9 @@ import psycopg  # noqa: E402
 
 REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 CACHES = [pathlib.Path.home() / "ercotcron-archive" / "cache", pathlib.Path("/tmp")]
-MONTH_TAGS = ["sep25", "oct25", "nov25", "dec25", "jan26", "feb26",
+MONTH_TAGS = ["sep24", "sep25", "oct25", "nov25", "dec25", "jan26", "feb26",
               "mar26", "apr26", "may26", "jun26"]
+TARGET_MONTHS = ("2024-09", "2025-09")   # the delivery month being bid: September
 MIN_HOURS = 2000
 MATERIALITY = 0.10
 CAP = 400          # rows written to the platform
@@ -61,9 +62,21 @@ def main() -> int:
     for tag in MONTH_TAGS:
         path = next((d / f"dam_{tag}.json" for d in CACHES if (d / f"dam_{tag}.json").exists()), None)
         if path is None:
-            print(f"  {tag}: MISSING cache — window shrinks accordingly")
-            continue
-        rows = json.loads(path.read_text())
+            # one bounded pull, then cached forever
+            mon = {"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,"jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12}[tag[:3]]
+            yr = 2000 + int(tag[3:])
+            lo = dt.date(yr, mon, 1); hi = dt.date(yr + (mon == 12), (mon % 12) + 1, 1)
+            print(f"  {tag}: pulling from dam_spp ({lo}..{hi})...", flush=True)
+            with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as cdb:
+                cdb.execute("set statement_timeout='10min'")
+                cur = cdb.cursor()
+                cur.execute("""select settlement_point, delivery_date::text, hour_ending, price
+                                 from dam_spp where delivery_date >= %s and delivery_date < %s""", (lo, hi))
+                rows = [{"settlement_point": r[0], "delivery_date": r[1],
+                         "hour_ending": r[2], "price": float(r[3])} for r in cur.fetchall()]
+            (CACHES[0] / f"dam_{tag}.json").write_text(json.dumps(rows))
+        else:
+            rows = json.loads(path.read_text())
         by_hour: dict[tuple[str, int], dict[int, float]] = collections.defaultdict(dict)
         for r in rows:
             sp = r["settlement_point"]
@@ -105,7 +118,7 @@ def main() -> int:
                group by 1,2,3,4,5)
             select source, sink, time_of_use, hedge_type,
                    avg(cp) filter (where rn <= 3),
-                   count(*), sum(mw)
+                   count(*), max(mw)
               from ranked group by 1,2,3,4""")
         universe = cur.fetchall()
         # staleness flags for the confidence column
@@ -154,6 +167,12 @@ def main() -> int:
         recent = float(np.mean(permonth[-3:])) if len(permonth) >= 3 else typical
         fading = len(permonth) >= 6 and recent < 0.3 * typical
         typical = min(typical, max(recent, 0.0))
+        # The product being bid delivers in SEPTEMBER. A year-round blend is
+        # nonsense for a seasonal quantity, so cap the value at what actual
+        # Septembers paid (2024 and 2025) where that history exists.
+        sep_hist = [float(pay[mmask == m].mean()) for m in TARGET_MONTHS if (mmask == m).sum() >= 100]
+        if sep_hist:
+            typical = min(typical, max(float(np.mean(sep_hist)), 0.0))
         cleared_f = float(cleared or 0)
         trim, why = 0.0, []
         s = stale_nodes.get(src) or stale_nodes.get(snk)
@@ -185,7 +204,7 @@ def main() -> int:
             "typical_month": round(typical, 4),
             "hours": int(diff.size), "ceiling": round(ceiling, 4),
             "cleared": round(cleared_f, 4), "margin": round(margin, 3),
-            "n_auctions": int(n_auc), "mw_ever": float(mw or 0),
+            "n_auctions": int(n_auc), "mw_max_auction": float(mw or 0),
             "trim": round(trim, 2), "warnings": "; ".join(why) or None,
         })
         if (i + 1) % 10000 == 0:
@@ -212,7 +231,7 @@ def main() -> int:
                 values ('Market',%s,%s,%s,%s,%s,%s,null,%s,%s,%s,%s,%s,%s,%s,null,%s,
                         '2025-09-01','2026-07-01',%s,%s,%s)
             """, [(r["source"], r["sink"], r["tou"], r["hedge"],
-                   r["mw_ever"], r["n_auctions"], r["worth"], r["median"],
+                   r["mw_max_auction"], r["n_auctions"], r["worth"], r["median"],
                    r["p05"], r["p95"], r["pct_pos"], r["hours"],
                    r["margin"], r["warnings"], r["ceiling"], r["cleared"], r["trim"])
                   for r in top])
