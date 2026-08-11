@@ -75,6 +75,7 @@ export default async function BidsPage() {
     const prevBid = num(r.bid_price)
     const prevMw = num(r.mw)
     const isDiscovery = r.book === 'Discovery'
+    const isMarket = r.book === 'Market'
     if (worth === null || ceiling === null) {
       unpriced.push(r)
       continue
@@ -96,8 +97,11 @@ export default async function BidsPage() {
       hasHistory && !flagged && marginX !== null && marginX > 1.05 ? 'green' : 'amber'
     ticket.push({
       key: `${r.book}|${r.source}|${r.sink}|${r.time_of_use}|${r.hedge_type}`,
-      origin: isDiscovery ? 'discovery' : 'book',
-      tier,
+      origin: isMarket ? 'market' : isDiscovery ? 'discovery' : 'book',
+      // Market-scan rows are ranked well but magnitude-unproven (July holdout:
+      // top-50 beat clearing 64%, yet paid ~10% of annual-mean worth) — never
+      // green until a bid has been validated end to end.
+      tier: isMarket ? 'amber' : tier,
       source: r.source,
       sink: r.sink,
       tou: r.time_of_use,
@@ -107,10 +111,10 @@ export default async function BidsPage() {
       cleared,
       marginX,
       pctHours: num(r.pct_hours_pos),
-      prevBid: isDiscovery ? null : prevBid,
-      prevMw: isDiscovery ? null : prevMw,
-      suggestedMw: isDiscovery ? 10 : Math.max(1, Math.min(50, Math.round(prevMw ?? 1))),
-      holders: isDiscovery ? (r.bids ?? null) : null,
+      prevBid: isDiscovery || isMarket ? null : prevBid,
+      prevMw: isDiscovery || isMarket ? null : prevMw,
+      suggestedMw: isMarket ? 5 : isDiscovery ? 10 : Math.max(1, Math.min(50, Math.round(prevMw ?? 1))),
+      holders: isDiscovery || isMarket ? (r.bids ?? null) : null,
       flag:
         tier === 'amber' && !hasHistory
           ? 'Never seen clearing an auction — the price cannot be verified as cheap.'

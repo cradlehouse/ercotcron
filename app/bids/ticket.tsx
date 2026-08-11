@@ -13,7 +13,7 @@ import { useMemo, useState } from 'react'
 
 export interface TicketRow {
   key: string
-  origin: 'book' | 'discovery'
+  origin: 'book' | 'discovery' | 'market'
   tier: 'green' | 'amber'
   source: string
   sink: string
@@ -120,7 +120,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
           </div>
           <div className="mt-0.5 text-[11px] text-zinc-600">
             {r.tou} · {r.hedge} · {d.hours} hrs in Sep
-            {r.origin === 'discovery' && r.holders ? ` · held by ${r.holders} winning firm${r.holders > 1 ? 's' : ''}` : ''}
+            {r.origin === 'discovery' && r.holders ? ` · held by ${r.holders} winning firm${r.holders > 1 ? 's' : ''}` : r.origin === 'market' ? ` · market scan · cleared in ${r.holders ?? '?'} auctions` : ''}
           </div>
           {r.overbidNote && <div className="mt-1 text-[11px] text-amber-400">{r.overbidNote}</div>}
           {r.flag && <div className="mt-1 text-[11px] text-zinc-500">{r.flag}</div>}
