@@ -223,6 +223,12 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
                 start, end = _date(r.get("StartDate", "")), _date(r.get("EndDate", ""))
                 if not start or not end:
                     continue
+                # Older annual files carry bid rows without a price; bid_price
+                # is part of the primary key, so one null aborts the whole
+                # auction's ingest. A priceless bid carries no information for
+                # us — skip the row, keep the auction.
+                if _num(r.get("BidPrice", r.get("Price", ""))) is None:
+                    continue
                 batch.append((
                     doc.auction_name, r.get("AccountHolder") or "",
                     r.get("HedgeType") or "", r.get("BidType") or "",
