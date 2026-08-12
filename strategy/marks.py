@@ -77,13 +77,19 @@ masks = {t: tou_arr == t for t in ("Off-peak", "PeakWD", "PeakWE")}
 print(f"matrix {len(hour_keys):,} x {len(point_idx):,}", flush=True)
 
 with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as c:
-    c.execute("set statement_timeout='10min'")
+    c.execute("set statement_timeout=0")
+    # Server-side cursor: stream raw rows and aggregate here — the Micro-tier
+    # instance can't finish the grouped aggregate inside any statement timeout.
+    agg = collections.defaultdict(float)
+    with c.cursor(name="live_positions") as scur:
+        scur.itersize = 50_000
+        scur.execute("""select account_holder, source, sink, time_of_use, hedge_type,
+                               start_date, end_date, mw
+                          from crr_awards where end_date >= '2026-09-01'""")
+        for r in scur:
+            agg[r[:7]] += float(r[7])
+    live = [k + (v,) for k, v in agg.items()]
     cur = c.cursor()
-    cur.execute("""select account_holder, source, sink, time_of_use, hedge_type,
-                          start_date, end_date, sum(mw)
-                     from crr_awards where end_date >= '2026-09-01'
-                    group by 1,2,3,4,5,6,7""")
-    live = cur.fetchall()
     exp = json.loads((REF / "constraint_exposure.json").read_text())
     cur.execute("select constraint_name, recent_rerate, possibly_retired from constraint_novelty")
     nov = {r[0]: (r[1], r[2]) for r in cur.fetchall()}

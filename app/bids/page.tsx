@@ -106,8 +106,18 @@ export default async function BidsPage() {
       red.push(r)
       continue
     }
+    // Whole-market study (588k monthly BUY positions, 17 delivery months):
+    // aggregate ROI by cleared price is +38% under 10c, +16-21% to 50c, +5.5%
+    // to 75c, then negative-to-zero above 75c and -13% above $5. Expensive
+    // paths are competitively bid and winner's-cursed; the durable edge lives
+    // under ~75c. A high limit alone therefore never earns green: above 75c
+    // demand a 2x margin, and above $5 the market's aggregate record is a loss.
+    const px = cleared ?? ceiling
+    const priceEdge =
+      px < 0.75 ? 'cheap' : px <= 5 && marginX !== null && marginX >= 2.0 ? 'ok' : 'rich'
     const tier: TicketRow['tier'] =
-      hasHistory && !flagged && marginX !== null && marginX > 1.05 ? 'green' : 'amber'
+      hasHistory && !flagged && marginX !== null && marginX > 1.05 && priceEdge !== 'rich'
+        ? 'green' : 'amber'
     ticket.push({
       key: `${r.book}|${r.source}|${r.sink}|${r.time_of_use}|${r.hedge_type}`,
       origin: isMarket ? 'market' : isDiscovery ? 'discovery' : 'book',
