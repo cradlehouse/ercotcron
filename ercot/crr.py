@@ -120,6 +120,19 @@ def _num(value: str) -> float | None:
         return None
 
 
+def _bid_price(r: dict[str, str]) -> float | None:
+    """Bid price with tolerance for the column-name drift ERCOT has shown.
+
+    Current files write BidPricePerMWH; BidPrice/Price are kept as fallbacks
+    for older vintages. Reading only the fallbacks is what left crr_bids
+    empty — no current file carries either.
+    """
+    for key in ("BidPricePerMWH", "BidPrice", "Price"):
+        if key in r:
+            return _num(r[key])
+    return None
+
+
 def archive_zip(doc: Document, blob: bytes) -> bool:
     """Store the raw zip. Failure must not stop the ingest."""
     url = config.supabase_url()
@@ -198,18 +211,20 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
         update=["calendar_period", "shadow_price"],
     )
 
-    # Losing bids are the behavioural record: what each firm was willing to pay,
-    # not merely what cleared. Awards alone cannot separate a price-insensitive
-    # hedger from an opportunist who happened to win.
-    # Streamed in batches: the bids file is ~26MB and ~500k rows per auction,
+    # Losing bids are the behavioural record: what the market was willing to
+    # pay for each path, not merely what cleared. The rows are anonymous curve
+    # segments — no AccountHolder, no AwardedMW in this file — so identity is
+    # position among BUY rows in file order, mirroring crr_offers, which takes
+    # the same file's SELL rows (scripts/ingest_crr_offers.py).
+    # Streamed in batches: the bids file is ~26MB and ~330k rows per auction,
     # and materialising it as Python dicts is several hundred MB — which is an
     # OOM kill on a 512MB instance, observed as a 502 fourteen seconds into the
     # request with a healthy service just before.
-    BID_COLS = ["auction_name", "account_holder", "hedge_type", "bid_type",
-                "source", "sink", "start_date", "end_date", "time_of_use",
-                "mw", "bid_price", "awarded_mw"]
-    BID_KEY = ["auction_name", "account_holder", "source", "sink",
-               "time_of_use", "hedge_type", "bid_type", "bid_price"]
+    BID_COLS = ["auction_name", "row_num", "source", "sink", "time_of_use",
+                "hedge_type", "start_date", "end_date", "mw", "bid_price",
+                "shadow_price"]
+    BID_UPDATE = ["source", "sink", "time_of_use", "hedge_type", "start_date",
+                  "end_date", "mw", "bid_price", "shadow_price"]
     b_seen = b_ins = 0
     names = [n for n in zf.namelist() if BIDS_FILE in n and n.lower().endswith(".csv")]
     if names:
@@ -217,37 +232,32 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
         with zf.open(names[0]) as fh:
             reader = _csv.DictReader(io.TextIOWrapper(fh, encoding="utf-8-sig"))
             batch: list[tuple] = []
-            # Duplicate keys within one batch break the upsert's temp-table
-            # copy, so dedupe per batch; last one wins, matching the upsert.
+            row_num = 0
             for r in reader:
+                if (r.get("BidType") or "").strip().upper() != "BUY":
+                    continue
+                # Counts every BUY row, skipped or not, so identity does not
+                # shift if a currently-unparseable row ever starts parsing.
+                row_num += 1
                 start, end = _date(r.get("StartDate", "")), _date(r.get("EndDate", ""))
                 if not start or not end:
                     continue
-                # Older annual files carry bid rows without a price; bid_price
-                # is part of the primary key, so one null aborts the whole
-                # auction's ingest. A priceless bid carries no information for
-                # us — skip the row, keep the auction.
-                if _num(r.get("BidPrice", r.get("Price", ""))) is None:
-                    continue
                 batch.append((
-                    doc.auction_name, r.get("AccountHolder") or "",
-                    r.get("HedgeType") or "", r.get("BidType") or "",
+                    doc.auction_name, row_num,
                     r.get("Source") or "", r.get("Sink") or "",
-                    start, end, r.get("TimeOfUse") or "",
-                    _num(r.get("MW", "")), _num(r.get("BidPrice", r.get("Price", ""))),
-                    _num(r.get("AwardedMW", "")),
+                    r.get("TimeOfUse") or "", r.get("HedgeType") or "",
+                    start, end, _num(r.get("MW", "")), _bid_price(r),
+                    _num(r.get("ShadowPricePerMWH", "")),
                 ))
                 if len(batch) >= 50_000:
-                    uniq = {(b[0], b[1], b[4], b[5], b[8], b[2], b[3], b[10]): b for b in batch}
-                    ins, _ = db.upsert_rows("crr_bids", BID_COLS, list(uniq.values()),
-                                            conflict=BID_KEY,
-                                            update=["mw", "awarded_mw", "start_date", "end_date"])
+                    ins, _ = db.upsert_rows("crr_bids", BID_COLS, batch,
+                                            conflict=["auction_name", "row_num"],
+                                            update=BID_UPDATE)
                     b_seen += len(batch); b_ins += ins; batch = []
             if batch:
-                uniq = {(b[0], b[1], b[4], b[5], b[8], b[2], b[3], b[10]): b for b in batch}
-                ins, _ = db.upsert_rows("crr_bids", BID_COLS, list(uniq.values()),
-                                        conflict=BID_KEY,
-                                        update=["mw", "awarded_mw", "start_date", "end_date"])
+                ins, _ = db.upsert_rows("crr_bids", BID_COLS, batch,
+                                        conflict=["auction_name", "row_num"],
+                                        update=BID_UPDATE)
                 b_seen += len(batch); b_ins += ins
 
     log.info("crr %s: %d awards (%d new), %d prices, %d bids, archived=%s",
