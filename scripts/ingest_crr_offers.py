@@ -16,10 +16,10 @@ AccountHolder, no AwardedMW — offers are anonymous curve segments, so there
 is no natural key; row_num (position among SELL rows in file order) is the
 identity, stable for a published auction file.
 
-NOTE while building this it emerged that crr_bids is empty: ercot/crr.py
-reads a "BidPrice"/"Price" column that these files do not have (it is
-"BidPricePerMWH"), so every bid row is skipped as priceless. Same fix
-applies there.
+NOTE while building this it emerged that crr_bids was empty: ercot/crr.py
+read a "BidPrice"/"Price" column that these files do not have (it is
+"BidPricePerMWH"), so every bid row was skipped as priceless. Fixed since —
+crr.py now ingests the BUY rows keyed by row_num, mirroring this script.
 
 Streamed and batched like crr.py's bid path — materialising the 26MB CSV as
 dicts is an OOM on a small instance.
