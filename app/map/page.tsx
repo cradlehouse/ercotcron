@@ -14,10 +14,96 @@ const KINDS: Record<string, { label: string; color: string }> = {
 
 type Link = { source: string; target: string; kind: string; value: number; label?: string }
 type Graph = { tree: any; links: Link[]; asOf: string; points: number }
+type GeoLayer = {
+  nodes: { name: string; lat: number; lon: number; mw: number; tier: string }[]
+  grid: [number, number][][]
+  crr: { a: [number, number]; b: [number, number]; v: number; label: string }[]
+  constraints: { name: string; lat: number; lon: number }[]
+  asOf: string
+}
+
+function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
+  const [hover, setHover] = useState<string | null>(null)
+  const W = 860, H = 820
+  const proj = useMemo(() => {
+    const p = d3.geoMercator()
+    p.fitExtent([[10, 10], [W - 10, H - 10]], tx)
+    return p
+  }, [tx])
+  const path = useMemo(() => d3.geoPath(proj), [proj])
+  const pt = (lat: number, lon: number) => proj([lon, lat]) ?? [0, 0]
+  const mwMax = Math.max(...geo.nodes.map(n => n.mw), 1)
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" className="block select-none"
+           onMouseLeave={() => setHover(null)}>
+        <path d={path(tx as any) ?? undefined} fill="#111113" stroke="#3f3f46" strokeWidth={1} />
+        <g stroke="#27272a" strokeWidth={0.6}>
+          {geo.grid.map((e, i) => {
+            const [a, b] = [pt(e[0][0], e[0][1]), pt(e[1][0], e[1][1])]
+            return <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
+          })}
+        </g>
+        <g>
+          {geo.crr.map((c, i) => {
+            const [a, b] = [pt(c.a[0], c.a[1]), pt(c.b[0], c.b[1])]
+            const lit = !hover || c.label.includes(hover)
+            return (
+              <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
+                stroke="#22d3ee" strokeWidth={Math.max(1, c.v / 3)}
+                strokeOpacity={lit ? 0.55 : 0.08} strokeLinecap="round" />
+            )
+          })}
+        </g>
+        <g>
+          {geo.constraints.map((c, i) => {
+            const [x, y] = pt(c.lat, c.lon)
+            return (
+              <g key={i} onMouseEnter={() => setHover(c.name)}>
+                <circle cx={x} cy={y} r={5} fill="none" stroke="#f43f5e" strokeWidth={1.5} />
+                <circle cx={x} cy={y} r={1.5} fill="#f43f5e" />
+              </g>
+            )
+          })}
+        </g>
+        <g>
+          {geo.nodes.map((n, i) => {
+            const [x, y] = pt(n.lat, n.lon)
+            const r = 2 + 8 * Math.sqrt(n.mw / mwMax)
+            const isH = hover === n.name
+            return (
+              <g key={i} onMouseEnter={() => setHover(n.name)} style={{ cursor: 'pointer' }}>
+                <circle cx={x} cy={y} r={r}
+                  fill={isH ? '#e4e4e7' : n.tier === 'A' ? '#34d399' : n.tier === 'B' ? '#71717a' : '#3f3f46'}
+                  fillOpacity={isH ? 1 : 0.8} stroke="#18181b" strokeWidth={0.5} />
+                {(isH || r > 8) && (
+                  <text x={x} y={y - r - 3} textAnchor="middle" fontSize={9}
+                    fill={isH ? '#fafafa' : '#a1a1aa'} pointerEvents="none">{n.name}</text>
+                )}
+              </g>
+            )
+          })}
+        </g>
+      </svg>
+      <div className="mt-2 flex items-center gap-4 text-[11px] text-neutral-500">
+        <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-400" />exact location</span>
+        <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-neutral-500" />name-matched</span>
+        <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-neutral-700" />approximate</span>
+        <span className="text-cyan-400">— live CRR paths</span>
+        <span className="text-rose-400">◦ placeable constraints</span>
+        <span className="ml-auto">{hover ?? 'grid edges derive from line-flow topology'}</span>
+      </div>
+    </div>
+  )
+}
 
 export default function NodeMapPage() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [graph, setGraph] = useState<Graph | null>(null)
+  const [geo, setGeo] = useState<GeoLayer | null>(null)
+  const [tx, setTx] = useState<any>(null)
+  const [view, setView] = useState<'grid' | 'rel'>('grid')
   const [size, setSize] = useState(760)
   const [hover, setHover] = useState<string | null>(null)
   const [off, setOff] = useState<Set<string>>(() => new Set())
@@ -25,6 +111,8 @@ export default function NodeMapPage() {
 
   useEffect(() => {
     fetch('/node_graph.json').then(r => r.json()).then(setGraph).catch(() => setGraph(null))
+    fetch('/grid_geo.json').then(r => r.json()).then(setGeo).catch(() => setGeo(null))
+    fetch('/tx.json').then(r => r.json()).then(setTx).catch(() => setTx(null))
   }, [])
 
   useEffect(() => {
@@ -74,9 +162,24 @@ export default function NodeMapPage() {
   return (
     <div className="min-h-screen w-full bg-neutral-950 text-neutral-100 p-4 font-sans">
       <div className="mb-1 flex items-baseline gap-3">
-        <span className="text-sm font-semibold tracking-tight">Settlement point relationships</span>
-        <a href="/bids" className="text-xs text-neutral-500 hover:text-neutral-300">← bid screen</a>
+        <span className="text-sm font-semibold tracking-tight">
+          {view === 'grid' ? 'The grid — nodes, lines, live paths' : 'Settlement point relationships'}
+        </span>
+        <span className="flex gap-1 text-xs">
+          {([['grid', 'Grid'], ['rel', 'Relationships']] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setView(k)}
+              className="rounded px-1.5 py-0.5"
+              style={{ background: view === k ? '#27272a' : 'transparent',
+                       color: view === k ? '#fafafa' : '#71717a' }}>
+              {label}
+            </button>
+          ))}
+        </span>
+        <a href="/bids" className="ml-auto text-xs text-neutral-500 hover:text-neutral-300">← bid screen</a>
       </div>
+      {view === 'grid' && geo && tx ? <GridView geo={geo} tx={tx} /> : null}
+      {view === 'grid' && (!geo || !tx) ? <div className="p-6 text-xs text-neutral-500">loading grid…</div> : null}
+      <div style={{ display: view === 'rel' ? undefined : 'none' }}>
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-neutral-400">
         {Object.entries(KINDS).map(([k, v]) => (
           <button key={k} onClick={() => toggle(k)}
@@ -145,6 +248,7 @@ export default function NodeMapPage() {
             ))}
           </>
         ) : 'Hover a node to isolate its relationships; click legend entries to toggle layers'}
+      </div>
       </div>
     </div>
   )
