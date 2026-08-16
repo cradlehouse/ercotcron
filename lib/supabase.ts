@@ -270,3 +270,7 @@ export interface SettlementPoint {
   name: string
   active: boolean
 }
+
+// --- browser auth client (member area: session persists, unlike the
+// read-only dashboard client above) ---
+export const sb: SupabaseClient = createClient(url ?? '', anonKey ?? '')

@@ -8,7 +8,17 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
+// Public product surface: landing, auth, member area (which does its own
+// Supabase session gate client-side), and static graph data. Everything else
+// (the ops pages) stays behind the basic-auth password.
+const PUBLIC_EXACT = new Set(['/', '/node_graph.json', '/favicon.ico'])
+const PUBLIC_PREFIX = ['/signin', '/signup', '/app', '/api/health']
+
 export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl
+  if (PUBLIC_EXACT.has(pathname) || PUBLIC_PREFIX.some(p => pathname.startsWith(p))) {
+    return NextResponse.next()
+  }
   const expected = process.env.DASH_PASSWORD
   if (!expected) {
     return new NextResponse(
