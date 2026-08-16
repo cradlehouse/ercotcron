@@ -47,6 +47,8 @@ for a, b in edges:
 
 # CRR paths from the relationship layer, with coords
 pos = {n["name"]: (n["lat"], n["lon"]) for n in nodes}
+loc = {k: (r["lat"], r["lon"]) for k, r in v3.items()
+       if r.get("lat") and r.get("lon") and in_tx(r["lat"], r["lon"])}
 crr = []
 for l in graph["links"]:
     if l["kind"] != "crr": continue
@@ -54,6 +56,45 @@ for l in graph["links"]:
     if a and b:
         crr.append({"a": a, "b": b, "v": l["value"],
                     "label": f'{l["source"]} → {l["target"]}'})
+
+# scoped, month-bucketed path layers (market / steve / suggestions) when the
+# DB is reachable; skipped silently otherwise so the static layers still build
+paths = {}
+if os.environ.get("DATABASE_URL"):
+    import psycopg
+    with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as c:
+        c.execute("set statement_timeout=0")
+        cur = c.cursor()
+        for scope, cond in [("market", ""), ("steve", "and account_holder='XSAAIC'")]:
+            cur.execute(f"""
+                with m as (
+                  select to_char(gs, 'YYYY-MM') mo, source, sink, sum(mw) mw
+                    from crr_awards,
+                         generate_series(date_trunc('month', start_date),
+                                         date_trunc('month', end_date), '1 month') gs
+                   where end_date >= now()::date {cond}
+                   group by 1, 2, 3)
+                select mo, source, sink, mw from (
+                  select *, row_number() over (partition by mo order by mw desc) rn
+                    from m) x
+                 where rn <= 40""")
+            by_mo = {}
+            for mo, s, k, mwv in cur.fetchall():
+                a, b = loc.get(s), loc.get(k)
+                if a and b:
+                    by_mo.setdefault(mo, []).append(
+                        {"a": a, "b": b, "v": round(float(mwv) ** 0.5 / 3, 1),
+                         "label": f"{s} → {k} ({round(float(mwv))} MW)"})
+            paths[scope] = by_mo
+        cur.execute("""select book, source, sink, coalesce(mw, 0) from path_valuations
+                        where ceiling is not null order by ceiling desc limit 200""")
+        sugg = []
+        for book, s, k, mwv in cur.fetchall():
+            a, b = loc.get(s), loc.get(k)
+            if a and b:
+                sugg.append({"a": a, "b": b, "v": 2.5,
+                             "label": f"{s} → {k} [{book}]"})
+        paths["suggestions"] = {"all": sugg}
 
 # constraints: decode station tokens out of constraint names, place at the
 # midpoint of matched stations
@@ -75,7 +116,9 @@ for cname in exp:
         cons.append({"name": cname, "lat": p[0], "lon": p[1]})
 
 out = {"nodes": nodes, "grid": grid, "crr": crr, "constraints": cons,
-       "asOf": graph.get("asOf")}
+       "paths": paths, "asOf": graph.get("asOf")}
 json.dump(out, open(f"{PUB}/grid_geo.json", "w"))
-print(f"grid_geo: {len(nodes)} nodes, {len(grid)} grid edges, "
-      f"{len(crr)} crr paths, {len(cons)} constraints placed")
+months = sorted(paths.get("market", {}))
+print(f"grid_geo: {len(nodes)} nodes, {len(grid)} grid edges, {len(crr)} crr paths, "
+      f"{len(cons)} constraints; scoped months {months[:1]}..{months[-1:]} "
+      f"steve-months={len(paths.get('steve', {}))} sugg={len(paths.get('suggestions', {}).get('all', []))}")

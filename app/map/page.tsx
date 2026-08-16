@@ -14,16 +14,37 @@ const KINDS: Record<string, { label: string; color: string }> = {
 
 type Link = { source: string; target: string; kind: string; value: number; label?: string }
 type Graph = { tree: any; links: Link[]; asOf: string; points: number }
+type GeoPath = { a: [number, number]; b: [number, number]; v: number; label: string }
 type GeoLayer = {
   nodes: { name: string; lat: number; lon: number; mw: number; tier: string }[]
   grid: [number, number][][]
-  crr: { a: [number, number]; b: [number, number]; v: number; label: string }[]
+  crr: GeoPath[]
   constraints: { name: string; lat: number; lon: number }[]
+  paths?: { market?: Record<string, GeoPath[]>; steve?: Record<string, GeoPath[]>;
+            suggestions?: Record<string, GeoPath[]> }
   asOf: string
 }
 
+const SCOPES = [
+  ['market', 'Whole market'],
+  ['steve', "Steve's book"],
+  ['suggestions', 'Bid-sheet picks'],
+] as const
+
 function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
   const [hover, setHover] = useState<string | null>(null)
+  const [scope, setScope] = useState<'market' | 'steve' | 'suggestions'>('market')
+  const months = useMemo(
+    () => Object.keys(geo.paths?.market ?? {}).sort(),
+    [geo])
+  const [month, setMonth] = useState<string>('')
+  useEffect(() => { if (!month && months.length) setMonth(months[0]) }, [months, month])
+
+  const shown: GeoPath[] = useMemo(() => {
+    if (!geo.paths) return geo.crr
+    if (scope === 'suggestions') return geo.paths.suggestions?.all ?? []
+    return geo.paths[scope]?.[month] ?? []
+  }, [geo, scope, month])
   const W = 860, H = 820
   const proj = useMemo(() => {
     const p = d3.geoMercator()
@@ -36,6 +57,25 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
 
   return (
     <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+        {SCOPES.map(([k, label]) => (
+          <button key={k} onClick={() => setScope(k)}
+            className="rounded px-1.5 py-0.5"
+            style={{ background: scope === k ? '#27272a' : 'transparent',
+                     color: scope === k ? '#fafafa' : '#71717a' }}>
+            {label}
+          </button>
+        ))}
+        {scope !== 'suggestions' && months.length > 0 && (
+          <select value={month} onChange={e => setMonth(e.target.value)}
+            className="rounded border border-neutral-800 bg-neutral-900 px-1.5 py-0.5 text-neutral-200">
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        )}
+        <span className="text-neutral-600">
+          {shown.length} paths{scope === 'suggestions' ? ' (current auction scan)' : month ? ` live in ${month}` : ''}
+        </span>
+      </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" className="block select-none"
            onMouseLeave={() => setHover(null)}>
         <path d={path(tx as any) ?? undefined} fill="#111113" stroke="#3f3f46" strokeWidth={1} />
@@ -46,12 +86,13 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
           })}
         </g>
         <g>
-          {geo.crr.map((c, i) => {
+          {shown.map((c, i) => {
             const [a, b] = [pt(c.a[0], c.a[1]), pt(c.b[0], c.b[1])]
             const lit = !hover || c.label.includes(hover)
+            const color = scope === 'steve' ? '#fbbf24' : scope === 'suggestions' ? '#a78bfa' : '#22d3ee'
             return (
               <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
-                stroke="#22d3ee" strokeWidth={Math.max(1, c.v / 3)}
+                stroke={color} strokeWidth={Math.max(1, c.v / 3)}
                 strokeOpacity={lit ? 0.55 : 0.08} strokeLinecap="round" />
             )
           })}
