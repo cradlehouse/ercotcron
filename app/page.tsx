@@ -5,15 +5,15 @@ export const metadata = { title: 'Shadowprice — pricing discipline for ERCOT C
 
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-ink text-[#f2f6f6]">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
         <span className="text-sm font-semibold tracking-tight">shadowprice</span>
-        <nav className="flex items-center gap-4 text-xs text-neutral-400">
-          <a href="#products" className="hover:text-neutral-200">Products</a>
-          <a href="#method" className="hover:text-neutral-200">Method</a>
-          <Link href="/signin" className="hover:text-neutral-200">Sign in</Link>
+        <nav className="flex items-center gap-4 text-xs text-[#93a6ab]">
+          <a href="#products" className="hover:text-[#dbe4e6]">Products</a>
+          <a href="#method" className="hover:text-[#dbe4e6]">Method</a>
+          <Link href="/signin" className="hover:text-[#dbe4e6]">Sign in</Link>
           <Link href="/signup"
-            className="rounded bg-neutral-100 px-3 py-1.5 font-medium text-neutral-900 hover:bg-white">
+            className="rounded bg-[#e8eef0] px-3 py-1.5 font-medium text-[#15242c] hover:bg-[#f6fafb]">
             Start free trial
           </Link>
         </nav>
@@ -23,7 +23,7 @@ export default function Landing() {
         <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
           Know what a CRR path is worth before you bid on it.
         </h1>
-        <p className="mt-4 max-w-xl text-sm leading-relaxed text-neutral-400">
+        <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#93a6ab]">
           Shadowprice prices every path in the ERCOT CRR auctions against two
           years of settlement history — what it actually paid, what it cleared
           at, and whether the constraints behind it still exist. Bid limits
@@ -32,18 +32,18 @@ export default function Landing() {
         </p>
         <div className="mt-7 flex items-center gap-3">
           <Link href="/signup"
-            className="rounded bg-cyan-400 px-4 py-2 text-sm font-medium text-neutral-950 hover:bg-cyan-300">
+            className="rounded bg-[#eda63a] px-4 py-2 text-sm font-medium text-[#15242c] hover:bg-[#f5b95c]">
             Start free trial
           </Link>
-          <span className="text-xs text-neutral-500">$250/mo after · cancel anytime</span>
+          <span className="text-xs text-[#7d9096]">$250/mo after · cancel anytime</span>
         </div>
       </section>
 
-      <section id="products" className="border-t border-neutral-900">
+      <section id="products" className="border-t border-line">
         <div className="mx-auto grid max-w-5xl gap-8 px-6 py-12 sm:grid-cols-3">
           <div>
             <div className="text-sm font-medium">Auction bid sheets</div>
-            <p className="mt-2 text-xs leading-relaxed text-neutral-400">
+            <p className="mt-2 text-xs leading-relaxed text-[#93a6ab]">
               Before every monthly and long-term auction: every path scored on
               its delivery-month history, a bid ceiling with a 50% margin rule,
               lottery sizing capped by real traded volume, and a one-click CSV
@@ -52,7 +52,7 @@ export default function Landing() {
           </div>
           <div>
             <div className="text-sm font-medium">Constraint alerts</div>
-            <p className="mt-2 text-xs leading-relaxed text-neutral-400">
+            <p className="mt-2 text-xs leading-relaxed text-[#93a6ab]">
               A third of ERCOT&apos;s actively-binding constraints changed rating in
               the last 90 days. When a constraint behind your position is
               re-rated, retired, or scheduled for a relief project, you hear
@@ -61,7 +61,7 @@ export default function Landing() {
           </div>
           <div>
             <div className="text-sm font-medium">Exit &amp; book valuation</div>
-            <p className="mt-2 text-xs leading-relaxed text-neutral-400">
+            <p className="mt-2 text-xs leading-relaxed text-[#93a6ab]">
               Winding down a book, or valuing one for a transaction? We produce
               defended, settlement-reconciled valuations — every number
               traceable to an immutable run and public data. Priced per
@@ -71,24 +71,24 @@ export default function Landing() {
         </div>
       </section>
 
-      <section id="method" className="border-t border-neutral-900">
+      <section id="method" className="border-t border-line">
         <div className="mx-auto max-w-5xl px-6 py-12">
           <div className="text-sm font-medium">Why trust the numbers</div>
-          <div className="mt-4 grid gap-6 text-xs leading-relaxed text-neutral-400 sm:grid-cols-3">
+          <div className="mt-4 grid gap-6 text-xs leading-relaxed text-[#93a6ab] sm:grid-cols-3">
             <p>
-              <span className="text-neutral-200">Settlement-validated.</span>{' '}
+              <span className="text-[#dbe4e6]">Settlement-validated.</span>{' '}
               Our engine reproduces a cooperating account holder&apos;s actual ERCOT
               settlement statements within 2% on 91% of independently tested
               positions.
             </p>
             <p>
-              <span className="text-neutral-200">Self-scored in public.</span>{' '}
+              <span className="text-[#dbe4e6]">Self-scored in public.</span>{' '}
               Every sheet we publish is scored against what the auction and the
               settlement actually did — hits and misses, never edited. Marks
               are struck append-only; corrections are new runs.
             </p>
             <p>
-              <span className="text-neutral-200">Neutral by charter.</span>{' '}
+              <span className="text-[#dbe4e6]">Neutral by charter.</span>{' '}
               We hold no CRR positions and sell no exit intelligence. Your book
               data goes to you and nobody else.
             </p>
@@ -96,8 +96,8 @@ export default function Landing() {
         </div>
       </section>
 
-      <footer className="border-t border-neutral-900">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 text-xs text-neutral-600">
+      <footer className="border-t border-line">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 text-xs text-[#61767e]">
           <span>© {new Date().getFullYear()} Shadowprice</span>
           <span>All analytics derive from public ERCOT data. Not investment advice.</span>
         </div>

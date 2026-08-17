@@ -4,17 +4,17 @@
    colour reserved for data rather than chrome. */
 
 @theme {
-  --color-ink: #08090b;
-  --color-panel: #0e1013;
-  --color-panel-2: #14171c;
-  --color-line: #1f242c;
+  --color-ink: #15242c;
+  --color-panel: #1e3038;
+  --color-panel-2: #24404b;
+  --color-line: #2c424c;
   --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace;
 }
 
 html,
 body {
   background: var(--color-ink);
-  color: #d4d8de;
+  color: #dbe4e6;
   font-family: var(--font-mono);
   font-size: 13px;
   -webkit-font-smoothing: antialiased;

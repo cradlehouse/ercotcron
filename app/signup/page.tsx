@@ -20,28 +20,28 @@ export default function SignUp() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-950 px-4 text-neutral-100">
+    <div className="flex min-h-screen items-center justify-center bg-ink px-4 text-[#f2f6f6]">
       <div className="w-full max-w-sm">
         <Link href="/" className="text-sm font-semibold tracking-tight">shadowprice</Link>
         <h1 className="mt-6 text-lg font-medium">Start your free trial</h1>
-        <p className="mt-1 text-xs text-neutral-500">
+        <p className="mt-1 text-xs text-[#7d9096]">
           30 days free. Every auction sheet while it lasts. No card required.
         </p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
             placeholder="work email"
-            className="w-full rounded border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-neutral-600" />
+            className="w-full rounded border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-[#eda63a]" />
           <input type="password" required minLength={8} value={password}
             onChange={e => setPassword(e.target.value)} placeholder="password (8+ characters)"
-            className="w-full rounded border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-neutral-600" />
+            className="w-full rounded border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-[#eda63a]" />
           <button disabled={busy}
-            className="w-full rounded bg-cyan-400 px-3 py-2 text-sm font-medium text-neutral-950 hover:bg-cyan-300 disabled:opacity-50">
+            className="w-full rounded bg-[#eda63a] px-3 py-2 text-sm font-medium text-[#15242c] hover:bg-[#f5b95c] disabled:opacity-50">
             {busy ? 'creating…' : 'Create account'}
           </button>
         </form>
         {msg && <p className="mt-3 text-xs text-amber-400">{msg}</p>}
-        <p className="mt-6 text-xs text-neutral-500">
-          Already have an account? <Link href="/signin" className="text-neutral-300 hover:text-white">Sign in</Link>
+        <p className="mt-6 text-xs text-[#7d9096]">
+          Already have an account? <Link href="/signin" className="text-[#dbe4e6] hover:text-white">Sign in</Link>
         </p>
       </div>
     </div>

@@ -61,25 +61,25 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
         {SCOPES.map(([k, label]) => (
           <button key={k} onClick={() => setScope(k)}
             className="rounded px-1.5 py-0.5"
-            style={{ background: scope === k ? '#27272a' : 'transparent',
-                     color: scope === k ? '#fafafa' : '#71717a' }}>
+            style={{ background: scope === k ? '#1e3038' : 'transparent',
+                     color: scope === k ? '#f2f6f6' : '#7d9096' }}>
             {label}
           </button>
         ))}
         {scope !== 'suggestions' && months.length > 0 && (
           <select value={month} onChange={e => setMonth(e.target.value)}
-            className="rounded border border-neutral-800 bg-neutral-900 px-1.5 py-0.5 text-neutral-200">
+            className="rounded border border-line bg-panel px-1.5 py-0.5 text-[#dbe4e6]">
             {months.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         )}
-        <span className="text-neutral-600">
+        <span className="text-[#61767e]">
           {shown.length} paths{scope === 'suggestions' ? ' (current auction scan)' : month ? ` live in ${month}` : ''}
         </span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" className="block select-none"
            onMouseLeave={() => setHover(null)}>
-        <path d={path(tx as any) ?? undefined} fill="#111113" stroke="#3f3f46" strokeWidth={1} />
-        <g stroke="#27272a" strokeWidth={0.6}>
+        <path d={path(tx as any) ?? undefined} fill="#101c22" stroke="#2c424c" strokeWidth={1} />
+        <g stroke="#24404b" strokeWidth={0.6}>
           {geo.grid.map((e, i) => {
             const [a, b] = [pt(e[0][0], e[0][1]), pt(e[1][0], e[1][1])]
             return <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} />
@@ -116,8 +116,8 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
             return (
               <g key={i} onMouseEnter={() => setHover(n.name)} style={{ cursor: 'pointer' }}>
                 <circle cx={x} cy={y} r={r}
-                  fill={isH ? '#e4e4e7' : n.tier === 'A' ? '#34d399' : n.tier === 'B' ? '#71717a' : '#3f3f46'}
-                  fillOpacity={isH ? 1 : 0.8} stroke="#18181b" strokeWidth={0.5} />
+                  fill={isH ? '#f2f6f6' : n.tier === 'A' ? '#34d399' : n.tier === 'B' ? '#93a6ab' : '#3a4f58'}
+                  fillOpacity={isH ? 1 : 0.8} stroke="#101c22" strokeWidth={0.5} />
                 {(isH || r > 8) && (
                   <text x={x} y={y - r - 3} textAnchor="middle" fontSize={9}
                     fill={isH ? '#fafafa' : '#a1a1aa'} pointerEvents="none">{n.name}</text>
@@ -127,7 +127,7 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
           })}
         </g>
       </svg>
-      <div className="mt-2 flex items-center gap-4 text-[11px] text-neutral-500">
+      <div className="mt-2 flex items-center gap-4 text-[11px] text-[#7d9096]">
         <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-400" />exact location</span>
         <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-neutral-500" />name-matched</span>
         <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-neutral-700" />approximate</span>
@@ -195,13 +195,13 @@ export default function NodeMapPage() {
     const next = new Set(prev); next.has(k) ? next.delete(k) : next.add(k); return next
   })
 
-  if (!graph) return <div className="p-6 text-neutral-400 text-sm">loading node graph…</div>
+  if (!graph) return <div className="p-6 text-[#93a6ab] text-sm">loading node graph…</div>
 
   const hoverNode = leaves.find(n => n.data.name === hover)
   const hoverLinks = paths.filter(p => visible(p) && (p.source === hover || p.target === hover))
 
   return (
-    <div className="min-h-screen w-full bg-neutral-950 text-neutral-100 p-4 font-sans">
+    <div className="min-h-screen w-full bg-ink text-[#f2f6f6] p-4 font-sans">
       <div className="mb-1 flex items-baseline gap-3">
         <span className="text-sm font-semibold tracking-tight">
           {view === 'grid' ? 'The grid — nodes, lines, live paths' : 'Settlement point relationships'}
@@ -216,12 +216,12 @@ export default function NodeMapPage() {
             </button>
           ))}
         </span>
-        <a href="/bids" className="ml-auto text-xs text-neutral-500 hover:text-neutral-300">← bid screen</a>
+        <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← bid screen</a>
       </div>
       {view === 'grid' && geo && tx ? <GridView geo={geo} tx={tx} /> : null}
-      {view === 'grid' && (!geo || !tx) ? <div className="p-6 text-xs text-neutral-500">loading grid…</div> : null}
+      {view === 'grid' && (!geo || !tx) ? <div className="p-6 text-xs text-[#7d9096]">loading grid…</div> : null}
       <div style={{ display: view === 'rel' ? undefined : 'none' }}>
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-neutral-400">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[#93a6ab]">
         {Object.entries(KINDS).map(([k, v]) => (
           <button key={k} onClick={() => toggle(k)}
             className="flex items-center gap-1.5 rounded px-1 focus:outline-none focus:ring-1 focus:ring-neutral-500"
@@ -240,7 +240,7 @@ export default function NodeMapPage() {
               {label}
             </button>
           ))}
-          <span className="text-neutral-600">{graph.points} points · {graph.asOf}</span>
+          <span className="text-[#61767e]">{graph.points} points · {graph.asOf}</span>
         </span>
       </div>
 
@@ -280,12 +280,12 @@ export default function NodeMapPage() {
         </svg>
       </div>
 
-      <div className="mt-2 min-h-4 text-xs text-neutral-500">
+      <div className="mt-2 min-h-4 text-xs text-[#7d9096]">
         {hover && hoverNode ? (
           <>
             {hover} · {Math.round(hoverNode.value || 0).toLocaleString()}{sizeBy === 'mw' ? ' MW live' : ' $/MWh avg |basis|'} · {hoverLinks.length} linked
             {hoverLinks.filter(p => p.label).slice(0, 3).map(p => (
-              <span key={p.id} className="ml-2 text-neutral-600">[{p.label}]</span>
+              <span key={p.id} className="ml-2 text-[#61767e]">[{p.label}]</span>
             ))}
           </>
         ) : 'Hover a node to isolate its relationships; click legend entries to toggle layers'}
