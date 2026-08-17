@@ -58,10 +58,21 @@ function usd(v: number | string | null | undefined): string {
 }
 
 export default async function BidsPage() {
-  const [{ rows: allRows, error }, { rows: points }] = await Promise.all([
+  const [{ rows: allRows, error }, { rows: points }, { rows: offerRows }] = await Promise.all([
     query<PathValuation>((db) => db.from('path_valuations').select('*')),
     query<SettlementPoint>((db) => db.from('settlement_points').select('name,active')),
+    query<{ source: string; sink: string; time_of_use: string; hedge_type: string; mw: number | string }>(
+      (db) => db.from('crr_offers')
+        .select('source,sink,time_of_use,hedge_type,mw')
+        .eq('auction_name', 'AUG2026Monthly')),
   ])
+  // Sell-side supply per path from the latest ingested auction's offer file:
+  // MW already offered for sale is crowding a bidder should see.
+  const offered = new Map<string, number>()
+  for (const o of offerRows) {
+    const k = `${o.source}|${o.sink}|${o.time_of_use}|${o.hedge_type}`
+    offered.set(k, (offered.get(k) ?? 0) + (num(o.mw) ?? 0))
+  }
   const active = new Set(points.filter((p) => p.active).map((p) => p.name))
   const daysLeft = Math.ceil(
     (new Date(`${AUCTION.closes}T17:00:00-05:00`).getTime() - Date.now()) / 86_400_000,
@@ -129,6 +140,7 @@ export default async function BidsPage() {
       sink: r.sink,
       tou: r.time_of_use,
       hedge: r.hedge_type,
+      offeredMw: offered.get(`${r.source}|${r.sink}|${r.time_of_use}|${r.hedge_type}`) ?? null,
       ceiling,
       worth,
       cleared,

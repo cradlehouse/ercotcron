@@ -19,6 +19,7 @@ export interface TicketRow {
   sink: string
   tou: string
   hedge: string
+  offeredMw: number | null // MW already offered for sale (latest auction file)
   ceiling: number          // the bid price
   worth: number
   cleared: number | null   // usual auction cost; null = never seen clear
@@ -59,6 +60,10 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   )
   const [budget, setBudget] = useState(20000)
   const [riskBudget, setRiskBudget] = useState(5000)
+  // Hedge lens: obligations returned +22.3% as a class over 17 scored months
+  // while options lost -7.6% — the toggle exists so the sheet's best OBL
+  // candidates are one click away instead of buried among the options.
+  const [hedgeLens, setHedgeLens] = useState<'both' | 'OPT' | 'OBL'>('both')
 
   // Portfolio allocation, Tim's way: state the pot and the slice you are
   // willing to gamble, and let the sheet size every row. Verified rows share
@@ -127,8 +132,10 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
     URL.revokeObjectURL(a.href)
   }
 
-  const green = rows.filter((r) => r.tier === 'green')
-  const amber = rows.filter((r) => r.tier === 'amber')
+  const lens = (r: TicketRow) => hedgeLens === 'both' || r.hedge === hedgeLens
+  const byMargin = (a: TicketRow, b: TicketRow) => (b.marginX ?? 0) - (a.marginX ?? 0)
+  const green = rows.filter((r) => r.tier === 'green' && lens(r)).sort(byMargin)
+  const amber = rows.filter((r) => r.tier === 'amber' && lens(r)).sort(byMargin)
 
   const Row = ({ r }: { r: TicketRow }) => {
     const d = derived[r.key]
@@ -149,7 +156,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
             <span>{r.source}</span><span className="text-amber-500">→</span><span>{r.sink}</span>
           </div>
           <div className="mt-0.5 text-[11px] text-zinc-600">
-            {r.tou} · {r.hedge} · {d.hours} hrs in Sep
+            {r.tou} · {r.hedge} · {d.hours} hrs in Sep{r.offeredMw ? ` · ${Math.round(r.offeredMw)} MW offered for sale last auction` : ''}
             {r.origin === 'discovery' && r.holders ? ` · held by ${r.holders} winning firm${r.holders > 1 ? 's' : ''}` : r.origin === 'market' ? ` · market scan · cleared in ${r.holders ?? '?'} auctions` : ''}
           </div>
           {r.overbidNote && <div className="mt-1 text-[11px] text-amber-400">{r.overbidNote}</div>}
@@ -288,6 +295,23 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
           </div>
         )
       })()}
+
+      <div className="flex items-center gap-2 text-[11px]">
+        <span className="text-zinc-500">Rank best bids:</span>
+        {(['both', 'OPT', 'OBL'] as const).map((h) => (
+          <button key={h} onClick={() => setHedgeLens(h)}
+            className="rounded px-2 py-0.5"
+            style={{ background: hedgeLens === h ? '#24404b' : 'transparent',
+                     color: hedgeLens === h ? '#f2f6f6' : '#7d9096' }}>
+            {h === 'both' ? 'Both' : h === 'OPT' ? 'Options' : 'Obligations'}
+          </button>
+        ))}
+        {hedgeLens === 'OBL' && (
+          <span className="text-amber-400/80">
+            obligations pay both directions — the class returned +22% over 17 scored months, but a single inverted month collects from you
+          </span>
+        )}
+      </div>
 
       {green.length > 0 && (
         <section>
