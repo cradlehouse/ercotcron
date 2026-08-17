@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // Supabase session gate client-side), and static graph data. Everything else
 // (the ops pages) stays behind the basic-auth password.
 const PUBLIC_EXACT = new Set(['/', '/node_graph.json', '/grid_geo.json', '/tx.json', '/favicon.ico'])
-const PUBLIC_PREFIX = ['/signin', '/signup', '/app', '/api/health']
+const PUBLIC_PREFIX = ['/signin', '/signup', '/app', '/api/health', '/api/claim', '/api/verify-holder']
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl

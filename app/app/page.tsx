@@ -4,11 +4,15 @@ import { useEffect, useState } from 'react'
 import { sb } from '@/lib/supabase'
 
 type Profile = { plan: string; trial_ends: string | null }
+type Claim = { holder_code: string; status: string }
 
 export default function MemberHome() {
   const [email, setEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [ready, setReady] = useState(false)
+  const [claims, setClaims] = useState<Claim[]>([])
+  const [code, setCode] = useState('')
+  const [claimMsg, setClaimMsg] = useState<string | null>(null)
 
   useEffect(() => {
     sb.auth.getSession().then(async ({ data }) => {
@@ -17,6 +21,8 @@ export default function MemberHome() {
       const { data: p } = await sb.from('profiles')
         .select('plan, trial_ends').eq('user_id', data.session.user.id).single()
       setProfile((p as unknown as Profile) ?? { plan: 'trial', trial_ends: null })
+      const { data: cl } = await sb.rpc('my_claims')
+      setClaims((cl as Claim[]) ?? [])
       setReady(true)
     })
   }, [])
@@ -44,6 +50,55 @@ export default function MemberHome() {
             ? <>Free trial{trialDays !== null ? ` — ${trialDays} days left` : ''}. Billing setup arrives before your trial ends; nothing is charged until you choose to stay.</>
             : <>Plan: {profile?.plan}</>}
         </div>
+
+        <section className="mt-6 rounded border border-line p-4">
+          <div className="text-sm font-medium">Your CRR account</div>
+          {claims.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {claims.map(c => (
+                <span key={c.holder_code}
+                  className="rounded border border-line px-2 py-1 font-mono">
+                  {c.holder_code}
+                  <span className={c.status === 'approved' ? 'ml-2 text-emerald-400' : 'ml-2 text-amber-400'}>
+                    {c.status}
+                  </span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-[#93a6ab]">
+              Enter your ERCOT CRR account code (e.g. XSAAIC) to see your own book, graded.
+              If your email matches the account&apos;s registered contact, access is instant;
+              otherwise a confirmation goes to the registered address.
+            </p>
+          )}
+          <form className="mt-3 flex gap-2" onSubmit={async e => {
+            e.preventDefault(); setClaimMsg(null)
+            const { data: sess } = await sb.auth.getSession()
+            const tok = sess.session?.access_token
+            const r = await fetch('/api/claim', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+              body: JSON.stringify({ code }),
+            }).then(x => x.json()).catch(() => ({ status: 'error' }))
+            if (r.status === 'approved') setClaimMsg('Approved — your book is unlocked.')
+            else if (r.status === 'pending' && r.delivery === 'emailed')
+              setClaimMsg(`Confirmation sent to the account's registered contact (${r.registered}).`)
+            else if (r.status === 'pending') setClaimMsg('Claim received — pending manual review (usually same day).')
+            else if (r.status === 'invalid') setClaimMsg('That does not look like a CRRAH code.')
+            else setClaimMsg('Something went wrong — try again.')
+            const { data: cl } = await sb.rpc('my_claims')
+            setClaims((cl as Claim[]) ?? [])
+          }}>
+            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())}
+              placeholder="ACCOUNT CODE"
+              className="w-40 rounded border border-line bg-panel px-2 py-1.5 font-mono text-xs outline-none focus:border-[#eda63a]" />
+            <button className="rounded bg-[#eda63a] px-3 py-1.5 text-xs font-medium text-[#15242c] hover:bg-[#f5b95c]">
+              Claim
+            </button>
+          </form>
+          {claimMsg && <p className="mt-2 text-xs text-[#93a6ab]">{claimMsg}</p>}
+        </section>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
           <section className="rounded border border-line p-4">
