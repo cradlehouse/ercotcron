@@ -28,9 +28,29 @@ export default function StripSheet() {
     fetch('/strip_2028.json').then(r => r.json()).then(setData).catch(() => setData(null))
   }, [])
 
+  // Same price discipline as the monthly sheet (588k-position study): the
+  // durable edge lives under ~$0.75; up to $5 only with a 2x margin; above
+  // $5 the market's aggregate record is a loss. A month QUALIFIES when its
+  // margin clears 1.05 inside that zone; rich cells render muted and rows
+  // rank by qualifying-month edge, not raw worth.
+  const qualifies = (c: NonNullable<MonthCell>) => {
+    if (c.margin === null || c.margin <= 1.05) return false
+    const px = c.clear ?? c.ceiling
+    return px < 0.75 || (px <= 5 && c.margin >= 2)
+  }
   const rows = useMemo(() => {
     if (!data) return []
-    return data.rows.filter(r => hedgeLens === 'both' || r.hedge === hedgeLens).slice(0, 120)
+    const scored = data.rows
+      .filter(r => hedgeLens === 'both' || r.hedge === hedgeLens)
+      .map(r => {
+        let edge = 0, nQual = 0
+        for (const c of Object.values(r.months)) {
+          if (c && qualifies(c)) { edge += (c.rate - c.ceiling) * c.hours; nQual++ }
+        }
+        return { r, edge, nQual }
+      })
+      .sort((a, b) => b.nQual - a.nQual || b.edge - a.edge)
+    return scored.slice(0, 120)
   }, [data, hedgeLens])
 
   if (!data) return <div className="p-6 text-sm text-[#93a6ab]">loading strip sheet…</div>
@@ -39,11 +59,11 @@ export default function StripSheet() {
 
   function downloadCsv() {
     const lines = ['Bid ID,CRR ID,Account Holder,Source,Sink,MW,Price $/MWh,Time of Use,Buy/Sell,Hedge Type,Start Date,End Date,Description']
-    for (const r of rows) {
+    for (const { r } of rows) {
       if (!checked[key(r)]) continue
       const q = mw[key(r)] ?? 1
       for (const [m, cell] of Object.entries(r.months)) {
-        if (!cell || cell.ceiling < 0.05) continue
+        if (!cell || cell.ceiling < 0.05 || !qualifies(cell)) continue
         const mo = Number(m)
         lines.push(`,,XSAAIC,${r.source},${r.sink},${q},${cell.ceiling.toFixed(2)},${r.tou},BUY,${r.hedge},${mo}/1/2028,${mo}/${MONTH_DAYS[mo]}/2028,strip`)
       }
@@ -55,7 +75,7 @@ export default function StripSheet() {
     a.click()
   }
 
-  const nSel = rows.filter(r => checked[key(r)]).length
+  const nSel = rows.filter(x => checked[key(x.r)]).length
 
   return (
     <div className="min-h-screen bg-ink p-4 text-[#f2f6f6]">
@@ -68,6 +88,10 @@ export default function StripSheet() {
         The auction sells individual months, so a strip is six bids. Each cell: our ceiling
         (worth ÷ 1.5) over the clearing price the SAME month drew in earlier 2028 sequences.
         History behind the far months is thin — sample count is shown; one summer is one sample.
+        Price discipline applies here exactly as on the monthly sheet: months priced above the
+        proven cheap zone (clear ≥ 75¢ without a 2× margin) render dimmed — across 588k scored
+        market positions, that zone returned roughly zero to −13%. Rows rank by qualifying
+        months, not raw worth.
       </p>
       <div className="mb-3 flex items-center gap-2 text-[11px]">
         <span className="text-[#7d9096]">Lens:</span>
@@ -96,9 +120,8 @@ export default function StripSheet() {
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => {
+            {rows.map(({ r, edge, nQual }) => {
               const k = key(r)
-              const edge = r.strip_worth_per_mw - r.strip_cost_at_ceiling_per_mw
               return (
                 <tr key={k} className="border-b border-line/50 align-top hover:bg-panel-2/40">
                   <td className="px-2 py-2">
@@ -118,9 +141,13 @@ export default function StripSheet() {
                   {Object.keys(MONTH_NAMES).map(m => {
                     const c = r.months[m]
                     if (!c) return <td key={m} className="px-2 py-2 text-right text-[#3a4f58]">—</td>
-                    const good = c.margin !== null && c.margin > 1.05
+                    const good = qualifies(c)
+                    const px = c.clear ?? c.ceiling
+                    const rich = px >= 0.75 && !good
                     return (
-                      <td key={m} className="px-2 py-2 text-right font-mono text-[11px]">
+                      <td key={m} className="px-2 py-2 text-right font-mono text-[11px]"
+                          style={rich ? { opacity: 0.35 } : undefined}
+                          title={rich ? 'outside the proven price zone — market pays ~0% or worse here' : undefined}>
                         <div className={good ? 'text-emerald-400' : 'text-[#dbe4e6]'}>${c.ceiling.toFixed(2)}</div>
                         <div className="text-[10px] text-[#61767e]">
                           clr {c.clear !== null ? `$${c.clear.toFixed(2)}` : '—'}
@@ -130,10 +157,12 @@ export default function StripSheet() {
                     )
                   })}
                   <td className="px-2 py-2 text-right font-mono text-[11.5px]">
-                    <div className={edge > 0 ? 'text-emerald-400' : 'text-[#dbe4e6]'}>
-                      ${r.strip_worth_per_mw.toFixed(0)} worth
+                    <div className={nQual > 0 ? 'text-emerald-400' : 'text-[#7d9096]'}>
+                      {nQual}/6 months qualify
                     </div>
-                    <div className="text-[10px] text-[#61767e]">${r.strip_cost_at_ceiling_per_mw.toFixed(0)} at ceilings</div>
+                    <div className="text-[10px] text-[#61767e]">
+                      ${edge.toFixed(0)}/MW edge in-zone · ${r.strip_worth_per_mw.toFixed(0)} raw worth
+                    </div>
                   </td>
                 </tr>
               )
