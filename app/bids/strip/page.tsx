@@ -28,15 +28,16 @@ export default function StripSheet() {
     fetch('/strip_2028.json').then(r => r.json()).then(setData).catch(() => setData(null))
   }, [])
 
-  // Same price discipline as the monthly sheet (588k-position study): the
-  // durable edge lives under ~$0.75; up to $5 only with a 2x margin; above
-  // $5 the market's aggregate record is a loss. A month QUALIFIES when its
-  // margin clears 1.05 inside that zone; rich cells render muted and rows
-  // rank by qualifying-month edge, not raw worth.
+  // Discipline derived from LONG-TERM auctions specifically (661k positions,
+  // 17 settled months): the class lost -7.1%; the edge lives under $1 (the
+  // 50c-$1 band actually returned +5 to +27%); $1-2 is mildly negative and
+  // allowed only with a 2x margin; above $2 the record is -16% to -27% and
+  // nothing qualifies. Note the hedge flip vs monthlies: long-term OBLIGATIONS
+  // lost -12% as a class - the option floor earns its premium at tenor.
   const qualifies = (c: NonNullable<MonthCell>) => {
     if (c.margin === null || c.margin <= 1.05) return false
     const px = c.clear ?? c.ceiling
-    return px < 0.75 || (px <= 5 && c.margin >= 2)
+    return px < 1.0 || (px <= 2 && c.margin >= 2)
   }
   const rows = useMemo(() => {
     if (!data) return []
@@ -88,10 +89,11 @@ export default function StripSheet() {
         The auction sells individual months, so a strip is six bids. Each cell: our ceiling
         (worth ÷ 1.5) over the clearing price the SAME month drew in earlier 2028 sequences.
         History behind the far months is thin — sample count is shown; one summer is one sample.
-        Price discipline applies here exactly as on the monthly sheet: months priced above the
-        proven cheap zone (clear ≥ 75¢ without a 2× margin) render dimmed — across 588k scored
-        market positions, that zone returned roughly zero to −13%. Rows rank by qualifying
-        months, not raw worth.
+        Price discipline here comes from long-term auctions&apos; own record (661k settled
+        positions): buyers as a class lost 7%, the edge lives under $1, $1–2 needs a 2× margin,
+        and above $2 nothing qualifies (−16% to −27% there). Long-term obligations lost 12% as
+        a class — at multi-year tenor the option floor earns its premium. Rows rank by
+        qualifying months, not raw worth.
       </p>
       <div className="mb-3 flex items-center gap-2 text-[11px]">
         <span className="text-[#7d9096]">Lens:</span>
