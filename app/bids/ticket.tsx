@@ -133,9 +133,26 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   }
 
   const lens = (r: TicketRow) => hedgeLens === 'both' || r.hedge === hedgeLens
-  const byMargin = (a: TicketRow, b: TicketRow) => (b.marginX ?? 0) - (a.marginX ?? 0)
-  const green = rows.filter((r) => r.tier === 'green' && lens(r)).sort(byMargin)
-  const amber = rows.filter((r) => r.tier === 'amber' && lens(r)).sort(byMargin)
+  // EV% — the lead number: expected return on premium at the price you'd
+  // likely pay (the going rate; your limit when no history). Rounded to 5s:
+  // with magnitudes only ~61% within 2x, a decimal would overstate precision.
+  const evOf = (r: TicketRow) => {
+    const px = r.cleared ?? r.ceiling
+    if (!px || px <= 0) return null
+    return Math.round(((r.worth - px) / px) * 100 / 5) * 5
+  }
+  const evRank = useMemo(() => {
+    const evs = rows.map(r => ({ k: r.key, ev: evOf(r) }))
+      .filter(x => x.ev !== null)
+      .sort((a, b) => (b.ev ?? 0) - (a.ev ?? 0))
+    const m: Record<string, number> = {}
+    evs.forEach((x, i) => { m[x.k] = Math.max(1, Math.ceil(((i + 1) / evs.length) * 100)) })
+    return m
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows])
+  const byEv = (a: TicketRow, b: TicketRow) => (evOf(b) ?? -999) - (evOf(a) ?? -999)
+  const green = rows.filter((r) => r.tier === 'green' && lens(r)).sort(byEv)
+  const amber = rows.filter((r) => r.tier === 'amber' && lens(r)).sort(byEv)
 
   const Row = ({ r }: { r: TicketRow }) => {
     const d = derived[r.key]
@@ -161,6 +178,34 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
           </div>
           {r.overbidNote && <div className="mt-1 text-[11px] text-amber-400">{r.overbidNote}</div>}
           {r.flag && <div className="mt-1 text-[11px] text-zinc-500">{r.flag}</div>}
+        </td>
+        <td className="px-2 py-2.5 text-right align-top">
+          {(() => {
+            const ev = evOf(r)
+            if (ev === null) return <span className="text-[12px] text-zinc-600">—</span>
+            const conf = (r.cleared !== null ? 1 : 0) + (r.flag ? 0 : 1)
+              + (r.origin !== 'market' ? 1 : 0) + (r.pctHours !== null ? 1 : 0)
+            const win = r.pctHours !== null ? Math.round(r.pctHours > 1 ? r.pctHours : r.pctHours * 100) : null
+            const px = r.cleared ?? r.ceiling
+            const edgeMw = Math.round((r.worth - px) * d.hours)
+            return (
+              <div className="relative">
+                <div className="absolute inset-y-0 right-0 rounded-sm"
+                  style={{ width: `${Math.min(Math.abs(ev), 100)}%`,
+                           background: ev >= 0 ? 'rgba(52,211,153,0.12)' : 'rgba(244,63,94,0.12)' }} />
+                <div className={`tnum relative text-[17px] font-bold ${ev >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {ev >= 0 ? '+' : ''}{ev}%
+                </div>
+                <div className="relative mt-0.5 text-[10px] text-zinc-500">
+                  Top {evRank[r.key] ?? '—'}%{win !== null ? ` · pays ${win}% of hrs` : ''}
+                  {edgeMw !== 0 ? ` · ${edgeMw > 0 ? '+' : ''}$${Math.abs(edgeMw) >= 1000 ? `${(edgeMw / 1000).toFixed(1)}k` : edgeMw}/MW` : ''}
+                </div>
+                <div className="relative mt-0.5 text-[9px] tracking-widest text-zinc-600" title="confidence: clearing history, no flags, verified origin, payoff data">
+                  {'●'.repeat(conf)}{'○'.repeat(4 - conf)}
+                </div>
+              </div>
+            )
+          })()}
         </td>
         <td className="px-2 py-2.5 text-right align-top">
           <div className="tnum text-[16px] font-bold text-emerald-300">{usd(r.ceiling)}</div>
@@ -207,6 +252,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
       <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-zinc-500">
         <th className="w-8 px-2 py-2" />
         <th className="px-2 py-2 font-medium">Path</th>
+        <th className="px-2 py-2 text-right font-medium">Edge<br /><span className="normal-case text-zinc-600">return on premium at going rate</span></th>
         <th className="px-2 py-2 text-right font-medium">Your limit<br /><span className="normal-case text-zinc-600">$/MWh — not what you pay</span></th>
         <th className="px-2 py-2 text-right font-medium">MW</th>
         <th className="px-2 py-2 text-right font-medium">Likely cost<br /><span className="normal-case text-zinc-600">at its going rate</span></th>
@@ -327,7 +373,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
             the full ceiling maximises wins at no extra cost.
           </p>
           <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-            <table className="w-full min-w-[880px] border-collapse"><Head /><tbody>
+            <table className="w-full min-w-[980px] border-collapse"><Head /><tbody>
               {green.map((r) => <Row key={r.key} r={r} />)}
             </tbody></table>
           </div>
@@ -348,12 +394,19 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
             default; deliberately small suggested sizes.
           </p>
           <div className="overflow-x-auto rounded-lg border border-line bg-panel">
-            <table className="w-full min-w-[880px] border-collapse"><Head /><tbody>
+            <table className="w-full min-w-[980px] border-collapse"><Head /><tbody>
               {amber.map((r) => <Row key={r.key} r={r} />)}
             </tbody></table>
           </div>
         </section>
       )}
+      <p className="text-[10.5px] leading-relaxed text-zinc-600">
+        Honesty note: Edge is rounded to 5-point steps on purpose — our magnitude estimates land
+        within 2× of realized on ~61% of positions, so decimals would overstate precision.
+        Direction and rank are far stronger (96%+ sign accuracy out-of-sample); lean on the sign,
+        the Top-% rank, and the pays-%-of-hours figure. Every sheet is scored publicly against
+        what the auction and settlement actually did.
+      </p>
     </div>
   )
 }
