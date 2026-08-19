@@ -151,8 +151,12 @@ export default function NodeMapPage() {
   const [sizeBy, setSizeBy] = useState<'mw' | 'dart'>('mw')
 
   useEffect(() => {
-    fetch('/node_graph.json').then(r => r.json()).then(setGraph).catch(() => setGraph(null))
-    fetch('/grid_geo.json').then(r => r.json()).then(setGeo).catch(() => setGeo(null))
+    const grab = (name: string, fallback: string) =>
+      fetch(`/api/artifact/${name}`)
+        .then(r => (r.ok ? r.json() : fetch(fallback).then(f => f.json())))
+        .catch(() => fetch(fallback).then(f => f.json()).catch(() => null))
+    grab('node_graph', '/node_graph.json').then(setGraph)
+    grab('grid_geo', '/grid_geo.json').then(setGeo)
     fetch('/tx.json').then(r => r.json()).then(setTx).catch(() => setTx(null))
   }, [])
 

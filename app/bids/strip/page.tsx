@@ -25,7 +25,10 @@ export default function StripSheet() {
   const [mw, setMw] = useState<Record<string, number>>({})
 
   useEffect(() => {
-    fetch('/strip_2028.json').then(r => r.json()).then(setData).catch(() => setData(null))
+    fetch('/api/artifact/strip_2028')
+      .then(r => (r.ok ? r.json() : fetch('/strip_2028.json').then(f => f.json())))
+      .then(setData)
+      .catch(() => fetch('/strip_2028.json').then(f => f.json()).then(setData).catch(() => setData(null)))
   }, [])
 
   // Discipline derived from LONG-TERM auctions specifically (661k positions,

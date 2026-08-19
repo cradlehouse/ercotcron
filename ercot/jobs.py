@@ -11,7 +11,7 @@ from typing import Callable
 
 import httpx
 
-from . import config, crr, db, fundamentals, ingest, weather
+from . import config, crr, db, fundamentals, ingest, products, weather
 from .client import ErcotClient
 from .ingest import Result
 
@@ -149,6 +149,22 @@ JOBS: dict[str, Job] = {
         run=lambda c: ingest.maintain_partitions(c),
         description="Create monthly partitions three months ahead",
         trigger={"hour": "3", "minute": "10"},
+    ),
+    "products": Job(
+        name="products",
+        # Nightly, after the day's auctions/constraints have settled into the
+        # DB: rebuilds the node graph and geo map artifacts the web serves.
+        run=lambda c: products.build_products(),
+        description="Rebuild node_graph + grid_geo artifacts",
+        trigger={"hour": "4", "minute": "15"},
+    ),
+    "paper_score": Job(
+        name="paper_score",
+        # After the 8:40 crr ingest: scores open paper-bid batches — fills the
+        # morning auction results post, P&L once the month settles.
+        run=lambda c: products.score_paper(),
+        description="Score open paper-trade batches",
+        trigger={"hour": "9", "minute": "5"},
     ),
 }
 
