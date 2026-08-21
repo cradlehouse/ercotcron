@@ -266,7 +266,11 @@ def score_paper(_c=None) -> ingest.Result:
                 did_clear = cp is not None and float(bid) >= cp
                 n_clr += bool(did_clear)
                 pnl = rv = None
-                if did_clear and settled:
+                # realized value is computed for EVERY bid once the month
+                # settles — fills get actual P&L; misses and no-trades keep
+                # their realized_value so the look-back can show the win that
+                # was passed up (or the ghost that never existed)
+                if settled:
                     cur.execute("""select delivery_date, hour_ending, settlement_point, price
                                      from dam_spp
                                     where delivery_date >= %s and delivery_date < %s
@@ -287,7 +291,8 @@ def score_paper(_c=None) -> ingest.Result:
                             hrs += 1
                     if hrs > 0:
                         rv = tot
-                        pnl = (tot - cp * hrs) * float(mwq)
+                        if did_clear:
+                            pnl = (tot - cp * hrs) * float(mwq)
                 cur.execute("""update paper_bids
                                   set clearing_price=%s, cleared=%s,
                                       realized_value=coalesce(%s, realized_value),

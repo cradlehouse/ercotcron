@@ -150,7 +150,14 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
     return m
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows])
-  const byEv = (a: TicketRow, b: TicketRow) => (evOf(b) ?? -999) - (evOf(a) ?? -999)
+  // Liquidity gates ranking (Sep-2026 reconstruction lesson: a pure-EV top-12
+  // drew ZERO fills — 10 of 12 paths never traded). Rows with real clearing
+  // history rank above no-history rows at any EV.
+  const byEv = (a: TicketRow, b: TicketRow) => {
+    const liq = Number(b.cleared !== null) - Number(a.cleared !== null)
+    if (liq !== 0) return liq
+    return (evOf(b) ?? -999) - (evOf(a) ?? -999)
+  }
   const green = rows.filter((r) => r.tier === 'green' && lens(r)).sort(byEv)
   const amber = rows.filter((r) => r.tier === 'amber' && lens(r)).sort(byEv)
 
