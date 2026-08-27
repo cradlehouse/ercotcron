@@ -150,6 +150,15 @@ JOBS: dict[str, Job] = {
         description="Create monthly partitions three months ahead",
         trigger={"hour": "3", "minute": "10"},
     ),
+    "crr_lt": Job(
+        name="crr_lt",
+        # Long-term auctions clear a few times a year; the daily monthly-only
+        # crr job never sees them (caught 2026-08: the 2028 Seq7 results would
+        # never have ingested and the paper batch would never have scored).
+        run=lambda c: crr.ingest_job(c, limit=2, report_type="long_term"),
+        description="CRR long-term auction results, newest 2",
+        trigger={"hour": "8", "minute": "50"},
+    ),
     "products": Job(
         name="products",
         # Nightly, after the day's auctions/constraints have settled into the
