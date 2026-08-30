@@ -249,19 +249,35 @@ def score_paper(_c=None) -> ingest.Result:
             clears = {tuple(r[:4]): float(r[4]) for r in cur.fetchall()}
             if not clears:
                 continue  # results not posted yet
-            cur.execute("""select source, sink, time_of_use, hedge_type, mw, bid_price, cleared
+            cur.execute("""select source, sink, time_of_use, hedge_type, mw, bid_price,
+                                  cleared, delivery_month
                              from paper_bids where batch_id = %s""", (batch,))
             bids = cur.fetchall()
             n_clr = 0
-            mo = dict(JAN=1, FEB=2, MAR=3, APR=4, MAY=5, JUN=6, JUL=7, AUG=8,
-                      SEP=9, OCT=10, NOV=11, DEC=12)[auction[:3].upper()]
-            yr = int(auction[3:7])
-            month_start = dt.date(yr, mo, 1)
-            month_end = (month_start.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
-            cur.execute("select count(*) from dam_spp where delivery_date >= %s and delivery_date < %s",
-                        (month_start, month_end))
-            settled = (cur.fetchone() or [0])[0] > 1000
-            for src, snk, tou, hedge, mwq, bid, _ in bids:
+            months = dict(JAN=1, FEB=2, MAR=3, APR=4, MAY=5, JUN=6, JUL=7, AUG=8,
+                          SEP=9, OCT=10, NOV=11, DEC=12)
+            settled_cache: dict[dt.date, bool] = {}
+
+            def month_window(delivery_month):
+                # per-bid delivery_month wins (long-term strips span months);
+                # monthly batches fall back to the MONYYYY auction-name parse
+                if delivery_month is not None:
+                    start = delivery_month.replace(day=1)
+                else:
+                    start = dt.date(int(auction[3:7]), months[auction[:3].upper()], 1)
+                end = (start.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+                return start, end
+
+            def is_settled(start, end):
+                if start not in settled_cache:
+                    cur.execute("select count(*) from dam_spp where delivery_date >= %s and delivery_date < %s",
+                                (start, end))
+                    settled_cache[start] = (cur.fetchone() or [0])[0] > 1000
+                return settled_cache[start]
+
+            for src, snk, tou, hedge, mwq, bid, _, dmonth in bids:
+                month_start, month_end = month_window(dmonth)
+                settled = is_settled(month_start, month_end)
                 cp = clears.get((src, snk, tou, hedge))
                 did_clear = cp is not None and float(bid) >= cp
                 n_clr += bool(did_clear)
