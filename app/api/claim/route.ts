@@ -3,6 +3,7 @@
 // the holder's REGISTERED contact address (when RESEND_API_KEY is set).
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { claimVerificationEmail } from '@/lib/email'
 
 function mask(email: string): string {
   const [user, domain] = email.split('@')
@@ -34,6 +35,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: 'pending', delivery: 'manual-review' })
   }
   const origin = req.nextUrl.origin
+  const { html, text } = claimVerificationEmail({
+    code: String(code).toUpperCase(),
+    verifyUrl: `${origin}/api/verify-holder?token=${res.token}`,
+  })
   const send = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -41,13 +46,7 @@ export async function POST(req: NextRequest) {
       from: process.env.CLAIM_FROM_EMAIL ?? 'verify@shadowprice.io',
       to: res.registered_email,
       subject: `Confirm access to CRR account ${String(code).toUpperCase()} on Shadowprice`,
-      text:
-        `Someone signed up on Shadowprice and requested access to the book of ` +
-        `CRR account holder ${String(code).toUpperCase()}, whose registered contact ` +
-        `address this is.\n\nIf that request is yours (or authorized by you), open:\n` +
-        `${origin}/api/verify-holder?token=${res.token}\n\n` +
-        `If not, ignore this email — nothing is shown without this confirmation. ` +
-        `The link expires in 7 days.`,
+      html, text,
     }),
   })
   return NextResponse.json({
