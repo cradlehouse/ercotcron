@@ -13,11 +13,16 @@ export default function SignUp() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true); setMsg(null)
-    const { data, error } = await sb.auth.signUp({ email, password })
+    const { data, error } = await sb.auth.signUp({
+      email, password,
+      // land the confirmation click signed-in on the Today page: /app loads
+      // the supabase client, which picks the session out of the redirect
+      options: { emailRedirectTo: `${window.location.origin}/app` },
+    })
     setBusy(false)
     if (error) { setMsg(error.message); return }
     if (data.session) { window.location.href = '/app'; return }
-    setMsg('Check your email to confirm your account, then sign in.')
+    setMsg(`Confirmation sent to ${email} — one click there and you'll land here signed in.`)
   }
 
   return (
