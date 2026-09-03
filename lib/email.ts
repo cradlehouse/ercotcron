@@ -22,7 +22,7 @@ export function emailShell(opts: {
         <tr><td style="background:${PETROL};border-radius:8px 8px 0 0;padding:20px 28px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
             <td style="font-size:18px;font-weight:700;letter-spacing:-0.01em;color:#f2f6f6">
-              <img src="https://shadowprice.io/email-mark.png" width="22" height="22" alt=""
+              <img src="https://www.shadowprice.io/email-mark.png" width="22" height="22" alt=""
                    style="display:inline-block;vertical-align:-5px;border:0;border-radius:5px;margin-right:9px">
               <span style="color:${AMBER}">shadow</span>price
             </td>

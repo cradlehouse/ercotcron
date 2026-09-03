@@ -12,11 +12,20 @@ import { NextRequest, NextResponse } from 'next/server'
 // Supabase session gate client-side), and static graph data. Everything else
 // (the ops pages) stays behind the basic-auth password.
 const PUBLIC_EXACT = new Set(['/', '/node_graph.json', '/grid_geo.json', '/tx.json', '/favicon.ico'])
-const PUBLIC_PREFIX = ['/signin', '/signup', '/app', '/terms', '/privacy', '/api/health', '/api/claim', '/api/verify-holder', '/api/artifact']
+const PUBLIC_PREFIX = [
+  '/signin', '/signup', '/app', '/terms', '/privacy',
+  // Product routes: open here, gated client-side by MemberGate (Supabase
+  // session), so members never hit the ops password prompt.
+  '/bids', '/map',
+  '/api/health', '/api/claim', '/api/verify-holder', '/api/artifact',
+]
+// Static assets (favicon variants, email logo, fonts, images) must never be
+// behind basic auth — email clients and browsers fetch them credential-less.
+const ASSET = /\.(png|jpg|jpeg|gif|webp|avif|svg|ico|txt|xml|webmanifest|woff2?)$/
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
-  if (PUBLIC_EXACT.has(pathname) || PUBLIC_PREFIX.some(p => pathname.startsWith(p))) {
+  if (PUBLIC_EXACT.has(pathname) || ASSET.test(pathname) || PUBLIC_PREFIX.some(p => pathname.startsWith(p))) {
     return NextResponse.next()
   }
   const expected = process.env.DASH_PASSWORD
