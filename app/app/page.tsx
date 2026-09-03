@@ -2,6 +2,7 @@
 // Member home: trial status + the products. Decision-focused, not a terminal.
 import { useEffect, useState } from 'react'
 import { sb } from '@/lib/supabase'
+import { LogoMark } from '../logo'
 
 type Profile = { plan: string; trial_ends: string | null }
 type Claim = { holder_code: string; status: string }
@@ -36,7 +37,7 @@ export default function MemberHome() {
   return (
     <div className="min-h-screen bg-ink text-[#f2f6f6]">
       <header className="mx-auto flex max-w-4xl items-center justify-between px-6 py-5">
-        <span className="text-sm font-semibold tracking-tight">shadowprice</span>
+        <span className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={20} /> <span><span className="text-[#eda63a]">shadow</span>price</span></span>
         <div className="flex items-center gap-3 text-xs text-[#93a6ab]">
           <span>{email}</span>
           <button onClick={() => sb.auth.signOut().then(() => { window.location.href = '/' })}

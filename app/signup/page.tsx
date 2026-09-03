@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { sb } from '@/lib/supabase'
+import { LogoMark } from '../logo'
 
 export default function SignUp() {
   const [email, setEmail] = useState('')
@@ -22,7 +23,7 @@ export default function SignUp() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink px-4 text-[#f2f6f6]">
       <div className="w-full max-w-sm">
-        <Link href="/" className="text-sm font-semibold tracking-tight">shadowprice</Link>
+        <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={20} /> <span><span className="text-[#eda63a]">shadow</span>price</span></Link>
         <h1 className="mt-6 text-lg font-medium">Start your free trial</h1>
         <p className="mt-1 text-xs text-[#7d9096]">
           30 days free. Every auction sheet while it lasts. No card required.

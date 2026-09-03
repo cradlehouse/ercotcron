@@ -1,5 +1,6 @@
 // Public landing page — the product front door.
 import Link from 'next/link'
+import { LogoMark } from './logo'
 
 export const metadata = { title: 'Shadowprice — pricing discipline for ERCOT CRRs' }
 
@@ -7,7 +8,7 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-ink text-[#f2f6f6]">
       <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-5">
-        <span className="text-sm font-semibold tracking-tight">shadowprice</span>
+        <span className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={22} /> <span><span className="text-[#eda63a]">shadow</span>price</span></span>
         <nav className="flex items-center gap-4 text-xs text-[#93a6ab]">
           <a href="#products" className="hover:text-[#dbe4e6]">Products</a>
           <a href="#method" className="hover:text-[#dbe4e6]">Method</a>

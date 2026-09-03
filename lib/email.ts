@@ -22,7 +22,7 @@ export function emailShell(opts: {
         <tr><td style="background:${PETROL};border-radius:8px 8px 0 0;padding:20px 28px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
             <td style="font-size:18px;font-weight:700;letter-spacing:-0.01em;color:#f2f6f6">
-              shadow<span style="color:${AMBER}">price</span>
+              <span style="color:${AMBER}">shadow</span>price
             </td>
             <td align="right" style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${MIST}">
               ERCOT CRR Analytics

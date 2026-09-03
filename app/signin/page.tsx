@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { sb } from '@/lib/supabase'
+import { LogoMark } from '../logo'
 
 export default function SignIn() {
   const [email, setEmail] = useState('')
@@ -21,7 +22,7 @@ export default function SignIn() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink px-4 text-[#f2f6f6]">
       <div className="w-full max-w-sm">
-        <Link href="/" className="text-sm font-semibold tracking-tight">shadowprice</Link>
+        <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={20} /> <span><span className="text-[#eda63a]">shadow</span>price</span></Link>
         <h1 className="mt-6 text-lg font-medium">Sign in</h1>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <input type="email" required value={email} onChange={e => setEmail(e.target.value)}

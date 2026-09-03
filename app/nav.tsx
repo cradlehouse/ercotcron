@@ -4,6 +4,7 @@
 // keep working by URL but no longer clutter anyone's navigation.
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { LogoMark } from './logo'
 
 const SELF_HEADED = ['/', '/signin', '/signup']
 const MENU = [
@@ -20,8 +21,9 @@ export function NavBar() {
   return (
     <header className="border-b border-line bg-panel">
       <div className="mx-auto flex max-w-[1400px] items-center gap-5 px-5 py-2.5">
-        <Link href="/" className="text-sm font-semibold tracking-tight text-[#f2f6f6]">
-          shadow<span className="text-[#eda63a]">price</span>
+        <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#f2f6f6]">
+          <LogoMark size={20} />
+          <span><span className="text-[#eda63a]">shadow</span>price</span>
         </Link>
         <nav className="flex gap-4 text-[13px]">
           {MENU.map(m => (
