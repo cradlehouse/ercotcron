@@ -22,6 +22,8 @@ export function emailShell(opts: {
         <tr><td style="background:${PETROL};border-radius:8px 8px 0 0;padding:20px 28px">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
             <td style="font-size:18px;font-weight:700;letter-spacing:-0.01em;color:#f2f6f6">
+              <img src="https://shadowprice.io/email-mark.png" width="22" height="22" alt=""
+                   style="display:inline-block;vertical-align:-5px;border:0;border-radius:5px;margin-right:9px">
               <span style="color:${AMBER}">shadow</span>price
             </td>
             <td align="right" style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:${MIST}">
@@ -76,8 +78,8 @@ export function claimVerificationEmail(opts: {
       </td>
     </tr></table>
     <div style="font-size:12px;line-height:1.6;color:#8a948f">
-      The link expires in 7 days. If the button doesn't work, open:<br>
-      <a href="${opts.verifyUrl}" style="color:#b45309;word-break:break-all">${opts.verifyUrl}</a>
+      The link expires in 7 days. If the button doesn't work,
+      <a href="${opts.verifyUrl}" style="color:#b45309;font-weight:600">open your confirmation link here</a>.
     </div>`
   const text =
     `Confirm access to CRR account ${opts.code} on Shadowprice\n\n` +
