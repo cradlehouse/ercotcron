@@ -41,6 +41,11 @@ export default function SignUp() {
           </button>
         </form>
         {msg && <p className="mt-3 text-xs text-amber-400">{msg}</p>}
+        <p className="mt-3 text-[11px] leading-relaxed text-[#61767e]">
+          By creating an account you agree to the{' '}
+          <Link href="/terms" className="text-[#93a6ab] hover:text-[#dbe4e6]">Terms of Service</Link> and{' '}
+          <Link href="/privacy" className="text-[#93a6ab] hover:text-[#dbe4e6]">Privacy Policy</Link>.
+        </p>
         <p className="mt-6 text-xs text-[#7d9096]">
           Already have an account? <Link href="/signin" className="text-[#dbe4e6] hover:text-white">Sign in</Link>
         </p>

@@ -99,7 +99,10 @@ export default function Landing() {
 
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 text-xs text-[#61767e]">
-          <span>© {new Date().getFullYear()} Shadowprice</span>
+          <span className="flex items-center gap-3">© {new Date().getFullYear()} Shadowprice
+            <Link href="/terms" className="hover:text-[#93a6ab]">Terms</Link>
+            <Link href="/privacy" className="hover:text-[#93a6ab]">Privacy</Link>
+          </span>
           <span>All analytics derive from public ERCOT data. Not investment advice.</span>
         </div>
       </footer>

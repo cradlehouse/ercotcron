@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LogoMark } from './logo'
 
-const SELF_HEADED = ['/', '/signin', '/signup']
+const SELF_HEADED = ['/', '/signin', '/signup', '/terms', '/privacy']
 const MENU = [
   { href: '/app', label: 'Today' },
   { href: '/bids', label: 'Bid sheets' },
