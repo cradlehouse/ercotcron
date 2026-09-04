@@ -21,7 +21,12 @@ export async function POST(req: NextRequest) {
     { global: { headers: { Authorization: auth } } },
   )
   const { code } = await req.json().catch(() => ({ code: '' }))
-  const { data, error } = await sb.rpc('claim_holder', { p_code: String(code ?? '') })
+  // The server secret unlocks the verification token + registered email from
+  // the RPC; a user calling the RPC directly (without it) learns nothing.
+  const { data, error } = await sb.rpc('claim_holder', {
+    p_code: String(code ?? ''),
+    p_server_secret: process.env.CLAIM_RPC_SECRET ?? process.env.DASH_PASSWORD ?? null,
+  })
   if (error) return NextResponse.json({ status: 'error', message: error.message }, { status: 400 })
 
   const res = data as { status: string; token?: string; registered_email?: string }
