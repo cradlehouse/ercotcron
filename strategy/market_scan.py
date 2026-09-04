@@ -227,13 +227,15 @@ def main() -> int:
                   (book, source, sink, time_of_use, hedge_type, mw, bids,
                    bid_price, value_mean, value_median, value_p05, value_p95,
                    pct_hours_pos, hours, edge, drivers, warnings,
-                   window_start, window_end, ceiling, cleared_price, trim_pct)
+                   window_start, window_end, ceiling, cleared_price, trim_pct,
+                   value_typical)
                 values ('Market',%s,%s,%s,%s,%s,%s,null,%s,%s,%s,%s,%s,%s,%s,null,%s,
-                        '2025-09-01','2026-07-01',%s,%s,%s)
+                        '2025-09-01','2026-07-01',%s,%s,%s,%s)
             """, [(r["source"], r["sink"], r["tou"], r["hedge"],
                    r["mw_max_auction"], r["n_auctions"], r["worth"], r["median"],
                    r["p05"], r["p95"], r["pct_pos"], r["hours"],
-                   r["margin"], r["warnings"], r["ceiling"], r["cleared"], r["trim"])
+                   r["margin"], r["warnings"], r["ceiling"], r["cleared"], r["trim"],
+                   r["typical_month"])
                   for r in top])
         c.commit()
     print(f"published top {len(top)} to path_valuations as book='Market'")

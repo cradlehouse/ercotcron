@@ -21,7 +21,10 @@ export interface TicketRow {
   hedge: string
   offeredMw: number | null // MW already offered for sale (latest auction file)
   ceiling: number          // the bid price
-  worth: number            // annual-mean hourly payout — "the past year, repeated"
+  worth: number            // annual-mean hourly payout (context, not the EV)
+  typical: number | null   // month-honest payout: median of per-month means,
+                           // capped by actual Septembers and the recent three
+                           // months — the same base the ceiling is priced off
   cleared: number | null   // usual auction cost; null = never seen clear
   marginX: number | null
   pctHours: number | null
@@ -101,7 +104,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
         hours: h,
         maxCost: q * h * r.ceiling,
         likelyCost: q * h * (r.cleared ?? r.ceiling),
-        histReturn: q * h * r.worth,
+        histReturn: q * h * (r.typical ?? r.worth),
       }
     }
     return out
@@ -133,18 +136,18 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   }
 
   const lens = (r: TicketRow) => hedgeLens === 'both' || r.hedge === hedgeLens
-  // EV% — the lead number: last year's payout per $1 paid at the price you'd
-  // likely pay (the usual clearing price; your limit when no history).
-  // Numerator is the annual-mean payout — "the past year, repeated" — which
-  // the July holdout showed OVERSTATES a single month ~10x on scan rows; the
-  // honest fix (a delivery-month-conditioned typical from the scan) ships
-  // with the OCT sheet. Until then: rounded to 5s (magnitudes ~61% within
-  // 2x), and suppressed under a 25c clear — a penny denominator turns any
-  // numerator into a four-digit percentage that is noise, not expectation.
+  // EV% — the lead number: the TYPICAL month's payout per $1 paid at the
+  // price you'd likely pay (the usual clearing price; your limit when no
+  // history). The typical (median of per-month means, September-capped,
+  // recency-capped) is the scan's own honest base — the annual mean is only
+  // the fallback where no typical was published, because the July holdout
+  // showed it overstates a single month ~10x on spike paths. Rounded to 5s
+  // (magnitudes ~61% within 2x); suppressed under a 25c clear — a penny
+  // denominator turns any numerator into four-digit noise.
   const evOf = (r: TicketRow) => {
     const px = r.cleared ?? r.ceiling
     if (!px || px <= 0 || px < 0.25) return null
-    return Math.round(((r.worth - px) / px) * 100 / 5) * 5
+    return Math.round((((r.typical ?? r.worth) - px) / px) * 100 / 5) * 5
   }
   const evRank = useMemo(() => {
     const evs = rows.map(r => ({ k: r.key, ev: evOf(r) }))
@@ -268,7 +271,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
         <th className="px-2 py-2 text-right font-medium">Your limit<br /><span className="normal-case text-zinc-600">$/MWh — not what you pay</span></th>
         <th className="px-2 py-2 text-right font-medium">MW</th>
         <th className="px-2 py-2 text-right font-medium">Likely cost<br /><span className="normal-case text-zinc-600">at its going rate</span></th>
-        <th className="px-2 py-2 text-right font-medium">If the past year repeats</th>
+        <th className="px-2 py-2 text-right font-medium">Typical month&apos;s return<br /><span className="normal-case text-zinc-600">September-capped history</span></th>
         <th className="px-2 py-2 text-right font-medium">Worst case<br /><span className="normal-case text-zinc-600">clears at your limit</span></th>
       </tr>
     </thead>
@@ -414,11 +417,13 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
         </section>
       )}
       <p className="text-[10.5px] leading-relaxed text-zinc-600">
-        Honesty note: Edge and &ldquo;if the past year repeats&rdquo; are built from a full year of
-        history — on spike-driven paths a single delivery month usually pays far less than the
-        annual average, so treat them as ranking signals, not monthly forecasts. Edge is rounded
-        to 5-point steps on purpose — our magnitude estimates land
-        within 2× of realized on ~61% of positions, so decimals would overstate precision. The
+        Honesty note: Edge and the typical month&apos;s return use the scan&apos;s
+        month-honest base — the median of per-month payouts, capped by what actual Septembers
+        paid and by the recent three months — because the raw annual average overstates a
+        single month badly on spike-driven paths (our own holdout put it near 10×). Treat them
+        as ranking signals, not forecasts. Edge is rounded to 5-point steps on purpose — our
+        magnitude estimates land within 2× of realized on ~61% of positions, so decimals would
+        overstate precision. The
         96%+ out-of-sample sign accuracy we cite belongs to the constraint-exposure model (does
         a constraint move this path&apos;s basis the way we say) — sheet-level pick accuracy is a
         different question, and it gets scored publicly starting with this September&apos;s

@@ -251,6 +251,7 @@ export interface PathValuation {
   bid_price: number | string | null
   value_mean: number | string | null
   value_median: number | string | null
+  value_typical: number | string | null
   value_p05: number | string | null
   value_p95: number | string | null
   pct_hours_pos: number | string | null

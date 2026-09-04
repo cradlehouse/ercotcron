@@ -175,6 +175,7 @@ export default function BidsPage() {
       offeredMw: offered.get(`${r.source}|${r.sink}|${r.time_of_use}|${r.hedge_type}`) ?? null,
       ceiling,
       worth,
+      typical: num(r.value_typical),
       cleared,
       marginX,
       pctHours: num(r.pct_hours_pos),
