@@ -79,14 +79,15 @@ export default function Landing() {
             <p>
               <span className="text-[#dbe4e6]">Settlement-validated.</span>{' '}
               Our engine reproduces a cooperating account holder&apos;s actual ERCOT
-              settlement statements within 2% on 91% of independently tested
-              positions.
+              settlement statements within 2% on 91% of 602 tested positions.
             </p>
             <p>
               <span className="text-[#dbe4e6]">Self-scored in public.</span>{' '}
-              Every sheet we publish is scored against what the auction and the
-              settlement actually did — hits and misses, never edited. Marks
-              are struck append-only; corrections are new runs.
+              Every sheet we publish gets scored against what the auction and the
+              settlement actually did — hits and misses, never edited, starting
+              with the September 2026 auction when it settles in October. Past
+              scores are never edited or deleted; a correction is published as a
+              new run, next to the old one.
             </p>
             <p>
               <span className="text-[#dbe4e6]">Neutral by charter.</span>{' '}
@@ -100,6 +101,7 @@ export default function Landing() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 text-xs text-[#61767e]">
           <span className="flex items-center gap-3">© {new Date().getFullYear()} Shadowprice
+            <Link href="/methodology" className="hover:text-[#93a6ab]">Methodology</Link>
             <Link href="/terms" className="hover:text-[#93a6ab]">Terms</Link>
             <Link href="/privacy" className="hover:text-[#93a6ab]">Privacy</Link>
           </span>

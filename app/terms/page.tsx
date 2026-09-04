@@ -44,7 +44,9 @@ export default function Terms() {
             yours alone, made through ERCOT&rsquo;s own systems, at your own risk.
           </p>
           <p>
-            Our numbers carry stated uncertainty: our methodology document discloses measured
+            Our numbers carry stated uncertainty: our{' '}
+            <Link href="/methodology" className="text-[#eda63a]">methodology document</Link>{' '}
+            discloses measured
             error rates, and you agree not to treat any figure as more precise than those
             disclosures state. Valuations are anchored on realized history; markets need not
             repeat it.

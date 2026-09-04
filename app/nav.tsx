@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react'
 import { sb } from '@/lib/supabase'
 import { LogoMark } from './logo'
 
-const SELF_HEADED = ['/', '/signin', '/signup', '/terms', '/privacy']
+const SELF_HEADED = ['/', '/signin', '/signup', '/terms', '/privacy', '/methodology']
 const MENU = [
   { href: '/app', label: 'Today' },
   { href: '/bids', label: 'Bid sheets' },

@@ -1,8 +1,8 @@
 # Shadowprice — CRR Valuation Methodology
 
-**Version 1.0 — August 2026**
+**Version 1.1 — September 2026**
 **Instrument scope:** ERCOT Congestion Revenue Rights (Options and Obligations, all Time-of-Use blocks, monthly and long-term tenors)
-**Purpose:** Independent, reproducible fair-value marks for CRR positions, suitable for use in financial reporting support, collateral assessment, portfolio wind-down, and transaction pricing.
+**Purpose:** Independent, reproducible marks for CRR positions, suitable for collateral assessment, portfolio wind-down, and transaction pricing. Marks are **not** fair-value measurements for financial reporting, audit evidence, or financial-reporting support, and may not be represented as such (see Terms of Service §3).
 
 This document describes what the mark is, every input that produces it, the controls around it, and — deliberately, at equal length — what the mark is *not* and where it can be wrong. A valuation methodology that hides its limitations is not audit-grade.
 
@@ -102,3 +102,4 @@ Every published mark must be reproducible and attributable. The system self-audi
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-08-12 | Initial methodology. |
+| 1.1 | 2026-09-04 | Purpose amended: financial-reporting support removed from stated uses (aligns with ToS §3; attested-letter product shelved). Clarified that the 96% figure is the exposure map's sign accuracy, not sheet-level pick accuracy — sheet picks are scored publicly from the SEP-2026 settlement onward. Published bid sheets display a month-conditioned typical payout (median of per-month means, delivery-month-capped, recency-capped) as the expectation base; the annual mean remains as context and fallback. Position-sizing helper on the sheet reduced to equal-split budget arithmetic per §7. |
