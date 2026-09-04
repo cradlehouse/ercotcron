@@ -37,7 +37,13 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
     () => Object.keys(geo.paths?.market ?? {}).sort(),
     [geo])
   const [month, setMonth] = useState<string>('')
-  useEffect(() => { if (!month && months.length) setMonth(months[0]) }, [months, month])
+  useEffect(() => {
+    if (month || !months.length) return
+    // Default to the current delivery month, not the alphabetical first
+    // (which is a month already settled).
+    const now = new Date().toISOString().slice(0, 7)
+    setMonth(months.find(m => m >= now) ?? months[months.length - 1])
+  }, [months, month])
 
   const shown: GeoPath[] = useMemo(() => {
     if (!geo.paths) return geo.crr
@@ -72,7 +78,7 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
           </select>
         )}
         <span className="text-[#61767e]">
-          {shown.length} paths{scope === 'suggestions' ? ' (current auction scan)' : month ? ` live in ${month}` : ''}
+          {shown.length} {scope === 'suggestions' ? 'bid-sheet paths (largest we can place on the map)' : `largest live paths we can place on the map${month ? ` · ${month}` : ''}`}
         </span>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" className="block select-none"

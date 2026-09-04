@@ -201,7 +201,11 @@ def build_products(_c=None) -> ingest.Result:
                    group by 1, 2, 3)
                 select mo, source, sink, mw from (
                   select *, row_number() over (partition by mo order by mw desc) rn
-                    from m) x where rn <= 40""")
+                    from m) x where rn <= 300""")
+            # Deep pool on purpose: most points have no public coordinates
+            # (ERCOT publishes none), so only a fraction of any top-N is
+            # drawable — a shallow pool left ~12 paths on a "whole market"
+            # map. The client draws what it gets; locatability is the filter.
             by_mo: dict[str, list] = {}
             for mo, s, k, mwv in cur.fetchall():
                 a, b = loc.get(s), loc.get(k)
