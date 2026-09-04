@@ -175,11 +175,6 @@ export default function BidsPage() {
       offeredMw: offered.get(`${r.source}|${r.sink}|${r.time_of_use}|${r.hedge_type}`) ?? null,
       ceiling,
       worth,
-      typical: (() => {
-        const med = num(r.value_median)
-        const trim = num(r.trim_pct) ?? 0
-        return med === null ? null : med * (1 - trim)
-      })(),
       cleared,
       marginX,
       pctHours: num(r.pct_hours_pos),
