@@ -40,9 +40,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ status: 'pending', delivery: 'manual-review' })
   }
   const origin = req.nextUrl.origin
+  // Name the requester in the email: the registered contact can't judge
+  // "is this request authorized?" about an anonymous someone.
+  const { data: userData } = await sb.auth.getUser()
   const { html, text } = claimVerificationEmail({
     code: String(code).toUpperCase(),
     verifyUrl: `${origin}/api/verify-holder?token=${res.token}`,
+    requester: userData?.user?.email ?? undefined,
   })
   const send = await fetch('https://api.resend.com/emails', {
     method: 'POST',

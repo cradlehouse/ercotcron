@@ -186,8 +186,11 @@ def build_products(_c=None) -> ingest.Result:
         cons = [{"name": c, "lat": p[0], "lon": p[1]}
                 for c in exp if (p := cpos(c))]
 
+        # Public artifact carries AGGREGATE layers only. A named holder's book
+        # layer ("steve") shipped here once — a per-holder "My book" layer
+        # belongs behind the claim gate, not in a world-readable artifact.
         paths = {}
-        for scope, cond in [("market", ""), ("steve", "and account_holder='XSAAIC'")]:
+        for scope, cond in [("market", "")]:
             cur.execute(f"""
                 with m as (
                   select to_char(gs, 'YYYY-MM') mo, source, sink, sum(mw) mw
@@ -239,16 +242,32 @@ def score_paper(_c=None) -> ingest.Result:
     with _conn() as conn:
         conn.execute("set statement_timeout=0")
         cur = conn.cursor()
+        # A batch stays in scope until every bid is fully scored: fills
+        # pending, P&L pending on fills, OR realized_value pending on ANY bid
+        # (all-miss batches used to drop out here and never got their
+        # counterfactual — which quietly flattered the record).
         cur.execute("""select distinct batch_id, auction_name from paper_bids
-                        where cleared is null or (cleared and pnl is null)""")
+                        where cleared is null or (cleared and pnl is null)
+                           or realized_value is null""")
         batches = cur.fetchall()
         for batch, auction in batches:
-            cur.execute("""select source, sink, time_of_use, hedge_type, avg(clearing_price)
+            cur.execute("""select source, sink, time_of_use, hedge_type,
+                                  avg(clearing_price), sum(mw)
                              from crr_awards where auction_name = %s group by 1,2,3,4""",
                         (auction,))
-            clears = {tuple(r[:4]): float(r[4]) for r in cur.fetchall()}
+            award_rows = cur.fetchall()
+            clears = {tuple(r[:4]): float(r[4]) for r in award_rows}
+            awarded_mw = {tuple(r[:4]): float(r[5] or 0) for r in award_rows}
             if not clears:
-                continue  # results not posted yet
+                # Results not posted yet — OR the batch was stored under a
+                # guessed auction name that will never match (the 2028 batch
+                # risk). Make the wait visible instead of silent.
+                cur.execute("select min(submitted_at) from paper_bids where batch_id = %s", (batch,))
+                sub = (cur.fetchone() or [None])[0]
+                log.warning("paper batch %s: no awards under auction_name=%r "
+                            "(submitted %s) — results unposted or name mismatch",
+                            batch, auction, sub)
+                continue
             cur.execute("""select source, sink, time_of_use, hedge_type, mw, bid_price,
                                   cleared, delivery_month
                              from paper_bids where batch_id = %s""", (batch,))
@@ -268,16 +287,25 @@ def score_paper(_c=None) -> ingest.Result:
                 end = (start.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
                 return start, end
 
-            def is_settled(start, end):
-                if start not in settled_cache:
-                    cur.execute("select count(*) from dam_spp where delivery_date >= %s and delivery_date < %s",
-                                (start, end))
-                    settled_cache[start] = (cur.fetchone() or [0])[0] > 1000
-                return settled_cache[start]
+            def is_settled(start, end, src, snk):
+                # Settled = the delivery month is OVER and dam_spp holds the
+                # final delivery day for BOTH endpoints of this path. The old
+                # ">1000 rows in month" proxy scored partial months (then the
+                # requeue filter froze them) and passed on hub-only data that
+                # contained neither endpoint.
+                if end > dt.date.today():
+                    return False
+                key = (start, src, snk)
+                if key not in settled_cache:
+                    cur.execute("""select count(distinct settlement_point) from dam_spp
+                                    where delivery_date = %s and settlement_point in (%s, %s)""",
+                                (end - dt.timedelta(days=1), src, snk))
+                    settled_cache[key] = (cur.fetchone() or [0])[0] == 2
+                return settled_cache[key]
 
             for src, snk, tou, hedge, mwq, bid, _, dmonth in bids:
                 month_start, month_end = month_window(dmonth)
-                settled = is_settled(month_start, month_end)
+                settled = is_settled(month_start, month_end, src, snk)
                 cp = clears.get((src, snk, tou, hedge))
                 did_clear = cp is not None and float(bid) >= cp
                 n_clr += bool(did_clear)
@@ -308,7 +336,12 @@ def score_paper(_c=None) -> ingest.Result:
                     if hrs > 0:
                         rv = tot
                         if did_clear:
-                            pnl = (tot - cp * hrs) * float(mwq)
+                            # Paper fills are capped at the MW the auction
+                            # actually awarded on the path — a 5 MW paper fill
+                            # on a path that traded 2 MW is fiction that would
+                            # flatter the record.
+                            eff = min(float(mwq), awarded_mw.get((src, snk, tou, hedge), float(mwq)))
+                            pnl = (tot - cp * hrs) * eff
                 cur.execute("""update paper_bids
                                   set clearing_price=%s, cleared=%s,
                                       realized_value=coalesce(%s, realized_value),

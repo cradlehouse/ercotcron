@@ -69,7 +69,7 @@ export default function MyBook() {
         )}
       </div>
       <p className="mb-3 mt-1 max-w-[90ch] text-[12px] text-[#7d9096]">
-        Every live position, graded against the current valuation scan. &ldquo;Holds up&rdquo;
+        Every live position, graded against the latest valuation run. &ldquo;Holds up&rdquo;
         = worth more than its recent clearing price on real history. Grades are
         our read of public data — your sizing and your exits stay your call.
       </p>

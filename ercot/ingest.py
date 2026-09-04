@@ -53,9 +53,10 @@ def excluded_type(raw: dict) -> bool:
     return bool(kind) and str(kind).strip().upper() in EXCLUDED_POINT_TYPES
 
 
-def tracked_points() -> set[str] | None:
+def tracked_points(raw: str | None = None) -> set[str] | None:
     """None means keep every point the report returns."""
-    raw = os.environ.get("TRACKED_POINTS", "")
+    if raw is None:
+        raw = os.environ.get("TRACKED_POINTS", "")
     if raw.strip() == "*":
         return None
     names = [p.strip().upper() for p in raw.split(",") if p.strip()]
@@ -94,11 +95,17 @@ def _num(value: object) -> float | None:
 # --------------------------------------------------------------- day-ahead --
 
 
-def ingest_dam(client: ErcotClient, days_ahead: int = 1) -> Result:
-    """Day-ahead settlement point prices for today and tomorrow."""
-    keep = tracked_points()
+def ingest_dam(client: ErcotClient, days_ahead: int = 1, days_back: int = 0) -> Result:
+    """Day-ahead settlement point prices for today and tomorrow.
+
+    DAM keeps EVERY node by default (DAM_TRACKED_POINTS to restrict): paper-bid
+    scoring needs nodal prices, and a lost env var silently degraded this to 15
+    hub points for a month once — the scorer starved without anyone noticing.
+    days_back backfills a gap (the range start moves back that many days).
+    """
+    keep = tracked_points(os.environ.get("DAM_TRACKED_POINTS", "*"))
     now = datetime.now(timezone.utc)
-    start = _date(now)
+    start = _date(now - timedelta(days=days_back))
     end = _date(now + timedelta(days=days_ahead))
 
     result = Result()

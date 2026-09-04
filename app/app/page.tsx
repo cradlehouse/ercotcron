@@ -36,7 +36,7 @@ export default function MemberHome() {
       <main className="mx-auto max-w-4xl px-6 py-6">
         <div className="rounded border border-line bg-panel/60 px-4 py-3 text-xs text-[#93a6ab]">
           {profile?.plan === 'trial'
-            ? <>Free trial{trialDays !== null ? ` — ${trialDays} days left` : ''}. Billing setup arrives before your trial ends; nothing is charged until you choose to stay.</>
+            ? <>Free trial{trialDays !== null ? ` — ${trialDays} days left` : ''}. We&apos;ll ask for billing details before your trial ends; nothing is charged unless you choose to stay.</>
             : <>Plan: {profile?.plan}</>}
         </div>
 
@@ -74,7 +74,10 @@ export default function MemberHome() {
             else if (r.status === 'pending' && r.delivery === 'emailed')
               setClaimMsg(`Confirmation sent to the account's registered contact (${r.registered}).`)
             else if (r.status === 'pending') setClaimMsg('Claim received — pending manual review (usually same day).')
-            else if (r.status === 'invalid') setClaimMsg('That does not look like a CRRAH code.')
+            else if (r.status === 'invalid')
+              setClaimMsg("That doesn't look like a CRR account code — a short all-caps code, like XSAAIC.")
+            else if (r.status === 'rate_limited')
+              setClaimMsg('Too many claim attempts today — try again tomorrow, or email team@shadowprice.io.')
             else if (r.status === 'unknown')
               setClaimMsg("That code isn't in ERCOT's CRR holder registry — check the spelling, or email team@shadowprice.io if the account is newly registered.")
             else setClaimMsg('Something went wrong — try again.')
@@ -95,8 +98,8 @@ export default function MemberHome() {
           <section className="rounded border border-line p-4">
             <div className="text-sm font-medium">Next auction</div>
             <p className="mt-1 text-xs leading-relaxed text-[#93a6ab]">
-              OCT 2026 monthly — bids Sep 8–10. Your sheet posts here when the
-              scan for the delivery month completes, with limits, sizing, and
+              OCT 2026 monthly — bids Sep 8–10. Your bid sheet posts here when
+              the October valuation run completes, with limits, sizing, and
               the ERCOT-format CSV.
             </p>
             <a href="/bids" className="mt-3 inline-block rounded bg-[#eda63a] px-3 py-1.5 text-xs font-medium text-[#15242c] hover:bg-[#f5b95c]">

@@ -92,17 +92,19 @@ export default function StripSheet() {
             ? <span className="rounded bg-panel-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#93a6ab]">closed — awaiting posted results</span>
             : null
         })()}
-        <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← September sheet</a>
+        <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← September bid sheet</a>
       </div>
       <p className="mb-3 max-w-[90ch] text-[12.5px] text-[#93a6ab]">
-        The auction sells individual months, so a strip is six bids. Each cell: our ceiling
-        (worth ÷ 1.5) over the clearing price the SAME month drew in earlier 2028 sequences.
-        History behind the far months is thin — sample count is shown; one summer is one sample.
-        Price discipline here comes from long-term auctions&apos; own record (661k settled
-        positions): buyers as a class lost 7%, the edge lives under $1, $1–2 needs a 2× margin,
-        and above $2 nothing qualifies (−16% to −27% there). Long-term obligations lost 12% as
-        a class — at multi-year tenor the option floor earns its premium. Rows rank by
-        qualifying months, not raw worth.
+        This auction sells each month separately, so covering Jul–Dec (&ldquo;a strip&rdquo;)
+        means six bids per path. Each cell shows our bid limit (the path&apos;s valued payout
+        ÷ 1.5) above the price the same month cleared at in earlier rounds of 2028 long-term
+        auctions. Far-month history is thin — the sample count is shown, and one summer is one
+        sample. The price rules come from the long-term auctions&apos; own record, 661,000
+        settled positions: buyers as a class lost 7%. Paths that cleared under $1/MWh made
+        money; $1–2 only qualifies with a 2× margin; above $2 nothing qualifies — buyers there
+        lost 16–27%. One flip from the monthly sheet: long-term obligations lost 12% as a
+        class, so over multiple years the option&apos;s built-in floor is worth its extra cost.
+        Rows rank by how many months qualify, not by raw worth.
       </p>
       <div className="mb-3 flex items-center gap-2 text-[11px]">
         <span className="text-[#7d9096]">Lens:</span>

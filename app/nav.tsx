@@ -12,7 +12,7 @@ const SELF_HEADED = ['/', '/signin', '/signup', '/terms', '/privacy']
 const MENU = [
   { href: '/app', label: 'Today' },
   { href: '/bids', label: 'Bid sheets' },
-  { href: '/bids/strip', label: '2028 sheet' },
+  { href: '/bids/strip', label: 'Long-term 2028' },
   { href: '/app/book', label: 'My book' },
   { href: '/map', label: 'Map' },
 ]

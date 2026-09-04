@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Nothing in this app is safe to cache: it is a live monitor.
   // Pages opt out individually via `export const dynamic = 'force-dynamic'`.
+  async headers() {
+    return [{
+      source: '/(.*)',
+      headers: [
+        // Verification tokens ride in URLs — never leak them via Referer.
+        { key: 'Referrer-Policy', value: 'no-referrer' },
+        { key: 'X-Content-Type-Options', value: 'nosniff' },
+        { key: 'X-Frame-Options', value: 'DENY' },
+      ],
+    }]
+  },
 }
 
 export default nextConfig

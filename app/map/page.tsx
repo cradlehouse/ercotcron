@@ -27,13 +27,12 @@ type GeoLayer = {
 
 const SCOPES = [
   ['market', 'Whole market'],
-  ['steve', "Steve's book"],
   ['suggestions', 'Bid-sheet picks'],
 ] as const
 
 function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
   const [hover, setHover] = useState<string | null>(null)
-  const [scope, setScope] = useState<'market' | 'steve' | 'suggestions'>('market')
+  const [scope, setScope] = useState<'market' | 'suggestions'>('market')
   const months = useMemo(
     () => Object.keys(geo.paths?.market ?? {}).sort(),
     [geo])
@@ -89,7 +88,7 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
           {shown.map((c, i) => {
             const [a, b] = [pt(c.a[0], c.a[1]), pt(c.b[0], c.b[1])]
             const lit = !hover || c.label.includes(hover)
-            const color = scope === 'steve' ? '#fbbf24' : scope === 'suggestions' ? '#a78bfa' : '#22d3ee'
+            const color = scope === 'suggestions' ? '#a78bfa' : '#22d3ee'
             return (
               <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
                 stroke={color} strokeWidth={Math.max(1, c.v / 3)}
@@ -128,12 +127,12 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
         </g>
       </svg>
       <div className="mt-2 flex items-center gap-4 text-[11px] text-[#7d9096]">
-        <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-400" />exact location</span>
+        <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-400" />node location: exact</span>
         <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-neutral-500" />name-matched</span>
         <span><span className="mr-1 inline-block h-2 w-2 rounded-full bg-neutral-700" />approximate</span>
         <span className="text-cyan-400">— live CRR paths</span>
-        <span className="text-rose-400">◦ placeable constraints</span>
-        <span className="ml-auto">{hover ?? 'grid edges derive from line-flow topology'}</span>
+        <span className="text-rose-400">◦ constraints we can place on the map</span>
+        <span className="ml-auto">{hover ?? `data as of ${geo.asOf || 'unknown'} · grid lines from ERCOT line-flow data`}</span>
       </div>
     </div>
   )
@@ -220,7 +219,7 @@ export default function NodeMapPage() {
             </button>
           ))}
         </span>
-        <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← bid screen</a>
+        <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← Bid sheet</a>
       </div>
       {view === 'grid' && geo && tx ? <GridView geo={geo} tx={tx} /> : null}
       {view === 'grid' && (!geo || !tx) ? <div className="p-6 text-xs text-[#7d9096]">loading grid…</div> : null}
@@ -236,7 +235,7 @@ export default function NodeMapPage() {
         ))}
         <span className="ml-auto flex items-center gap-2">
           <span>Size:</span>
-          {([['mw', 'live MW'], ['dart', 'avg |basis|']] as const).map(([k, label]) => (
+          {([['mw', 'live MW'], ['dart', 'avg price gap ($/MWh)']] as const).map(([k, label]) => (
             <button key={k} onClick={() => setSizeBy(k)}
               className="rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-neutral-500"
               style={{ background: sizeBy === k ? '#27272a' : 'transparent',
@@ -287,7 +286,7 @@ export default function NodeMapPage() {
       <div className="mt-2 min-h-4 text-xs text-[#7d9096]">
         {hover && hoverNode ? (
           <>
-            {hover} · {Math.round(hoverNode.value || 0).toLocaleString()}{sizeBy === 'mw' ? ' MW live' : ' $/MWh avg |basis|'} · {hoverLinks.length} linked
+            {hover} · {Math.round(hoverNode.value || 0).toLocaleString()}{sizeBy === 'mw' ? ' MW live' : ' $/MWh avg price gap'} · {hoverLinks.length} linked
             {hoverLinks.filter(p => p.label).slice(0, 3).map(p => (
               <span key={p.id} className="ml-2 text-[#61767e]">[{p.label}]</span>
             ))}

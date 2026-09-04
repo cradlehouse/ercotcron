@@ -1,12 +1,17 @@
+'use client'
 // The auction order ticket — what to bid, at what price, how many MW, by when.
 //
-// Redesigned after a cold read as the trader it serves. The failures it fixes:
-// the rejection table hid its own reasoning (no clearing-price column), paths
-// with NO auction history were green-lit as if absence of evidence were
-// approval, the thinnest margin led the buy list, a nickel ceiling made the
-// tool look innumerate, and nothing said which auction any of this was for.
+// Client component by design: path_valuations is locked at the database (the
+// valuations ARE the product), so the sheet is fetched through the
+// authenticated-only get_bid_sheet() RPC with the signed-in user's session.
+// Anonymous visitors get the MemberGate redirect and an empty shell — curl
+// gets nothing.
 //
-// Tiers now mean something operational:
+// Private books: rows from a named holder's book (positions, prior bids) are
+// shown only to users with an APPROVED claim on that holder code. Everyone
+// else sees the market scan only, and their CSV carries their own code.
+//
+// Tiers:
 //   green  = worth more than the auction has actually charged, on real
 //            clearing history, no cautions — bid the shown price
 //   amber  = positive value but unverifiable (never seen clearing) or
@@ -14,19 +19,18 @@
 //   red    = the auction charges more than the path has returned, with the
 //            clearing price SHOWN so the rejection argues for itself
 
+import { useEffect, useState } from 'react'
 import { Empty, ErrorNote, Panel } from '@/app/components'
 import { num } from '@/lib/prices'
-import { query, type PathValuation, type SettlementPoint } from '@/lib/supabase'
+import { sb, type PathValuation } from '@/lib/supabase'
 import { Ticket, type AuctionMeta, type TicketRow } from './ticket'
-
-export const dynamic = 'force-dynamic'
 
 // From ERCOT's CRR Activity Calendar (WMS-approved edition on file). September
 // 2026 TOU hours are computed, not assumed: Labor Day (7 Sep) is a NERC
 // holiday, so its peak hours count as PeakWE — 21 weekdays x16, 9 weekend-rule
 // days x16, remainder off-peak. Fixed constants drift a few percent by month,
 // which is exactly the error the trader's own workbook carries.
-const AUCTION: Omit<AuctionMeta, 'daysLeft'> = {
+const AUCTION: Omit<AuctionMeta, 'daysLeft' | 'holder'> = {
   name: '2026.SEP.Monthly.Auction',
   opens: '2026-08-11',
   closes: '2026-08-13',
@@ -34,8 +38,11 @@ const AUCTION: Omit<AuctionMeta, 'daysLeft'> = {
   deliveryEnd: '9/30/2026',
   deliveryLabel: '1–30 Sep 2026',
   hours: { PeakWD: 336, PeakWE: 144, 'Off-peak': 240 },
-  holder: 'XSAAIC',
 }
+
+// Which holder code a private valuation book belongs to. Rows from these
+// books are invisible without an approved claim on the code.
+const BOOK_HOLDER: Record<string, string> = { 'Saaico 2027 First': 'XSAAIC' }
 
 const MATERIALITY = 0.1 // ceilings below 10c are noise, not trades
 // Never bid to breakeven: the limit is value/1.5, so a worst-case fill at the
@@ -57,27 +64,52 @@ function usd(v: number | string | null | undefined): string {
   return n === null ? '—' : `$${n.toFixed(2)}`
 }
 
-export default async function BidsPage() {
-  const [{ rows: allRows, error }, { rows: points }, { rows: offerRows }] = await Promise.all([
-    query<PathValuation>((db) => db.from('path_valuations').select('*')),
-    query<SettlementPoint>((db) => db.from('settlement_points').select('name,active')),
-    query<{ source: string; sink: string; time_of_use: string; hedge_type: string; mw: number | string }>(
-      (db) => db.from('crr_offers')
-        .select('source,sink,time_of_use,hedge_type,mw')
-        .eq('auction_name', 'AUG2026Monthly')),
-  ])
-  // Sell-side supply per path from the latest ingested auction's offer file:
-  // MW already offered for sale is crowding a bidder should see.
+type SheetPayload = {
+  valuations: PathValuation[]
+  offered: { source: string; sink: string; time_of_use: string; hedge_type: string; mw: number | string }[]
+  offers_auction: string | null
+  points: { name: string; active: boolean }[]
+}
+
+export default function BidsPage() {
+  const [sheet, setSheet] = useState<SheetPayload | null>(null)
+  const [owned, setOwned] = useState<Set<string>>(new Set())
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([sb.rpc('get_bid_sheet'), sb.rpc('my_claims')]).then(([s, c]) => {
+      if (s.error) setError(s.error.message)
+      else setSheet(s.data as SheetPayload)
+      const claims = (c.data as { holder_code: string; status: string }[]) ?? []
+      setOwned(new Set(claims.filter(x => x.status === 'approved').map(x => x.holder_code)))
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) {
+    return <div className="p-6 text-sm text-[#7d9096]">loading the bid sheet…</div>
+  }
+  if (error || !sheet) {
+    return <div className="p-6"><ErrorNote error={error ?? 'The sheet did not load — refresh, or sign in again.'} /></div>
+  }
+
+  const allRows = (sheet.valuations ?? []).filter(r => {
+    const holder = BOOK_HOLDER[r.book]
+    return holder === undefined || owned.has(holder)
+  })
+  const ownedHolder = Object.values(BOOK_HOLDER).find(h => owned.has(h)) ?? ''
+
   const offered = new Map<string, number>()
-  for (const o of offerRows) {
+  for (const o of sheet.offered ?? []) {
     const k = `${o.source}|${o.sink}|${o.time_of_use}|${o.hedge_type}`
     offered.set(k, (offered.get(k) ?? 0) + (num(o.mw) ?? 0))
   }
-  const active = new Set(points.filter((p) => p.active).map((p) => p.name))
+  const active = new Set((sheet.points ?? []).filter(p => p.active).map(p => p.name))
   const daysLeft = Math.ceil(
     (new Date(`${AUCTION.closes}T17:00:00-05:00`).getTime() - Date.now()) / 86_400_000,
   )
-  const auction: AuctionMeta = { ...AUCTION, daysLeft }
+  const auction: AuctionMeta = { ...AUCTION, daysLeft, holder: ownedHolder }
 
   const ticket: TicketRow[] = []
   const red: PathValuation[] = []
@@ -143,6 +175,11 @@ export default async function BidsPage() {
       offeredMw: offered.get(`${r.source}|${r.sink}|${r.time_of_use}|${r.hedge_type}`) ?? null,
       ceiling,
       worth,
+      typical: (() => {
+        const med = num(r.value_median)
+        const trim = num(r.trim_pct) ?? 0
+        return med === null ? null : med * (1 - trim)
+      })(),
       cleared,
       marginX,
       pctHours: num(r.pct_hours_pos),
@@ -181,30 +218,30 @@ export default async function BidsPage() {
   // Widest verified margin first: conviction order, not raw-edge order.
   ticket.sort((a, b) => (b.marginX ?? 0) - (a.marginX ?? 0) || b.ceiling - a.ceiling)
   red.sort((a, b) => (num(b.mw) ?? 0) - (num(a.mw) ?? 0))
+  const hasBookRows = red.some(r => BOOK_HOLDER[r.book] !== undefined)
 
   return (
     <div className="space-y-5">
       <Panel
         title={AUCTION.name}
-        subtitle={`bids open ${AUCTION.opens} · close ${AUCTION.closes} (${daysLeft >= 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'CLOSED — the OCT sheet posts here once the scan completes, before bids open Sep 8'}) · delivery ${AUCTION.deliveryLabel}`}
+        subtitle={`bids open ${AUCTION.opens} · close ${AUCTION.closes} (${daysLeft >= 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'CLOSED — the OCT sheet posts here once the valuation run completes, before bids open Sep 8'}) · delivery ${AUCTION.deliveryLabel}`}
       >
-        {error ? (
-          <ErrorNote error={error} />
-        ) : allRows.length === 0 ? (
-          <Empty message="No valuations published." hint="Run strategy/valuation_screen.py first." />
+        {allRows.length === 0 ? (
+          <Empty message="No valuations published." hint="The next valuation run posts them here." />
         ) : (
           <div className="space-y-1 text-[13px] text-zinc-400">
             <p className="max-w-[70ch]">
-              One rule: <span className="font-semibold text-zinc-200">enter the shown price as
-              your bid and never more</span>. The auction charges the clearing price, not your
-              bid, so bidding your full limit wins more paths at no extra cost — and every limit
-              here is already set at two-thirds of the path&apos;s valued payout, so even a
-              worst-case fill at your full limit keeps a ~50% margin.
+              One rule: <span className="font-semibold text-zinc-200">enter the green limit
+              price as your bid — never more, never less</span>. The auction charges everyone
+              the same clearing price (the price where supply meets demand), not what you bid,
+              so bidding your full limit wins more paths at no extra cost. And every limit is
+              already set below the path&apos;s valued payout: even if it clears at your full
+              limit, history says you get back about $1.50 for every $1 paid.
             </p>
             <p className="text-[11px] text-zinc-600">
-              valued on 12 months of day-ahead prices to {allRows[0]?.window_end ?? ''} (trailing
-              2 months always held out) · September hours used: 336 PeakWD / 144 PeakWE / 240
-              Off-peak — Labor Day counts as weekend
+              valued on day-ahead prices to {allRows[0]?.window_end ?? ''} (trailing 2 months
+              always held out) · September hour blocks: 336 weekday-peak (PeakWD) / 144
+              weekend-peak (PeakWE) / 240 off-peak — Labor Day counts as a weekend
             </p>
           </div>
         )}
@@ -220,8 +257,8 @@ export default async function BidsPage() {
           <p className="mb-3 max-w-[70ch] text-[12.5px] text-zinc-500">
             Each row shows the price the auction has actually cleared at next to what the path
             has actually paid. Wherever clearing exceeds worth, the buyer funds the gap — and
-            across 296 firms and 113M MWh, that gap averaged −$0.14/MWh. Some of these are this
-            book&apos;s biggest positions; that is the point.
+            across 296 firms and 113M MWh, that gap averaged −$0.14/MWh.
+            {hasBookRows && ' Some of these are among the largest positions in this account’s book; that is the point.'}
           </p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] border-collapse">
@@ -231,7 +268,7 @@ export default async function BidsPage() {
                   <th className="px-3 py-2 text-right font-medium">Worth</th>
                   <th className="px-3 py-2 text-right font-medium">Usually clears</th>
                   <th className="px-3 py-2 text-right font-medium">You&apos;d overpay</th>
-                  <th className="px-3 py-2 text-right font-medium">Was bid</th>
+                  {hasBookRows && <th className="px-3 py-2 text-right font-medium">Was bid</th>}
                 </tr>
               </thead>
               <tbody>
@@ -251,7 +288,8 @@ export default async function BidsPage() {
                           <span>{r.sink}</span>
                         </div>
                         <div className="mt-0.5 text-[11px] text-zinc-600">
-                          {r.time_of_use} · {num(r.mw)?.toFixed(0)} MW held
+                          {r.time_of_use}
+                          {BOOK_HOLDER[r.book] !== undefined && ` · ${num(r.mw)?.toFixed(0)} MW held`}
                         </div>
                       </td>
                       <td className="px-3 py-2.5 text-right tnum text-zinc-300">{usd(r.value_mean)}</td>
@@ -261,7 +299,11 @@ export default async function BidsPage() {
                       <td className="px-3 py-2.5 text-right tnum text-red-400">
                         {gap !== null && gap > 0 ? `${usd(gap)}/MWh` : '—'}
                       </td>
-                      <td className="px-3 py-2.5 text-right tnum text-zinc-500">{usd(r.bid_price)}</td>
+                      {hasBookRows && (
+                        <td className="px-3 py-2.5 text-right tnum text-zinc-500">
+                          {BOOK_HOLDER[r.book] !== undefined ? usd(r.bid_price) : '—'}
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
@@ -290,7 +332,7 @@ export default async function BidsPage() {
         <div className="space-y-2.5 text-[13px] text-zinc-400">
           <p className="max-w-[70ch]">
             <span className="text-zinc-200">Worth</span> — what the path actually paid per MWh
-            over twelve months of day-ahead settlement. <span className="text-zinc-200">Bid
+            over the valuation window of day-ahead settlement. <span className="text-zinc-200">Bid
             price</span> — worth, trimmed where a driving constraint changed recently, history is
             thin, or the value rides on rare spikes. <span className="text-zinc-200">Likely
             outlay</span> — your MW × September hours × the price it usually clears at.{' '}

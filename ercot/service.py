@@ -79,9 +79,31 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="ercotcron", lifespan=lifespan)
 
 
+def _overdue_jobs() -> list[str]:
+    """Jobs whose last recorded start is older than their cadence allows.
+
+    Cadence is derived from the trigger: an 'hour' field means a daily job
+    (grace 26h — one missed slot trips it), anything else runs sub-hourly
+    (grace 2h). A registered job with NO run row at all is overdue by
+    definition — a job that silently stops scheduling records nothing, which
+    is exactly the failure this exists to surface.
+    """
+    from datetime import datetime, timedelta, timezone as tz
+    last = db.last_run_per_job()
+    now = datetime.now(tz.utc)
+    overdue = []
+    for name, job in JOBS.items():
+        grace = timedelta(hours=26) if "hour" in job.trigger else timedelta(hours=2)
+        seen = last.get(name)
+        if seen is None or now - seen > grace:
+            overdue.append(name)
+    return sorted(overdue)
+
+
 @app.get("/health")
 def health() -> dict[str, object]:
-    """Liveness plus the two things that actually break: DB and credentials."""
+    """Liveness plus the things that actually break: DB, credentials, and —
+    the one that bit us — jobs that silently stop running."""
     checks = {
         "database": False,
         "ercot_credentials": all(
@@ -90,13 +112,16 @@ def health() -> dict[str, object]:
         ),
         "scheduler": scheduler.running,
     }
+    overdue: list[str] = []
     try:
         checks["database"] = db.ping()
+        overdue = _overdue_jobs()
     except Exception as exc:  # noqa: BLE001
         log.warning("health check database probe failed: %s", exc)
 
-    healthy = checks["database"] and checks["ercot_credentials"]
-    return {"ok": healthy, "checks": checks, "jobs": sorted(JOBS)}
+    checks["jobs_on_schedule"] = not overdue
+    healthy = checks["database"] and checks["ercot_credentials"] and not overdue
+    return {"ok": healthy, "checks": checks, "overdue_jobs": overdue, "jobs": sorted(JOBS)}
 
 
 @app.get("/runs")

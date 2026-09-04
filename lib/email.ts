@@ -56,7 +56,10 @@ export function emailShell(opts: {
 export function claimVerificationEmail(opts: {
   code: string
   verifyUrl: string
+  requester?: string
 }): { html: string; text: string } {
+  const who = opts.requester ? `<b>${opts.requester}</b>` : 'Someone'
+  const whoText = opts.requester ?? 'Someone'
   const bodyHtml = `
     <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#8a948f;margin-bottom:10px">
       Access request
@@ -65,9 +68,10 @@ export function claimVerificationEmail(opts: {
       Confirm access to CRR account ${opts.code}
     </div>
     <div style="font-size:14px;line-height:1.6;color:#3d4a45;margin-bottom:22px">
-      Someone signed up on Shadowprice and requested access to the book of CRR
-      account holder <b>${opts.code}</b>, whose registered contact address this is.
-      If that request is yours — or authorized by you — confirm it below.
+      ${who} signed up on Shadowprice and requested access to the book of CRR
+      account holder <b>${opts.code}</b>. You're receiving this because this address
+      is the account's registered ERCOT contact. If that request is yours — or
+      authorized by you — confirm it below; if not, do nothing and nothing changes.
     </div>
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:22px"><tr>
       <td style="background:${AMBER};border-radius:6px">
@@ -83,8 +87,9 @@ export function claimVerificationEmail(opts: {
     </div>`
   const text =
     `Confirm access to CRR account ${opts.code} on Shadowprice\n\n` +
-    `Someone signed up on Shadowprice and requested access to the book of CRR ` +
-    `account holder ${opts.code}, whose registered contact address this is.\n\n` +
+    `${whoText} signed up on Shadowprice and requested access to the book of CRR ` +
+    `account holder ${opts.code}. You're receiving this because this address is ` +
+    `the account's registered ERCOT contact.\n\n` +
     `If that request is yours (or authorized by you), open:\n${opts.verifyUrl}\n\n` +
     `If not, ignore this email — nothing is shown without this confirmation. ` +
     `The link expires in 7 days.\n\n— The Shadowprice team`

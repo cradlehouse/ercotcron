@@ -21,7 +21,10 @@ export interface TicketRow {
   hedge: string
   offeredMw: number | null // MW already offered for sale (latest auction file)
   ceiling: number          // the bid price
-  worth: number
+  worth: number            // annual-mean payout — sets the ceiling, NOT the EV
+  typical: number | null   // trimmed median payout — the EV numerator: the
+                           // July holdout showed annual mean pays ~10% of
+                           // itself on scan rows, so EV never quotes it
   cleared: number | null   // usual auction cost; null = never seen clear
   marginX: number | null
   pctHours: number | null
@@ -65,22 +68,22 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   // candidates are one click away instead of buried among the options.
   const [hedgeLens, setHedgeLens] = useState<'both' | 'OPT' | 'OBL'>('both')
 
-  // Portfolio allocation, Tim's way: state the pot and the slice you are
-  // willing to gamble, and let the sheet size every row. Verified rows share
-  // the safe slice; speculative rows share the risk slice, weighted by margin,
-  // each capped by real liquidity (half the most MW any auction awarded) —
-  // past that size your own bid becomes the clearing price.
+  // Budget spreader — deliberately DUMB arithmetic, not a recommendation:
+  // splits each slice EQUALLY across its bucket's rows, capped by real
+  // liquidity (half the most MW any auction awarded — past that size your own
+  // bid becomes the clearing price). It used to weight by margin, which
+  // contradicted the methodology's own rule that magnitude never sizes a
+  // position (§7) — and quietly turned a calculator into advice.
   function allocate() {
     const g = rows.filter((r) => r.tier === 'green')
     const a = rows.filter((r) => r.tier === 'amber')
     const nextQty: Record<string, number> = { ...qty }
     const nextChecked: Record<string, boolean> = { ...checked }
     for (const [bucket, amt] of [[g, Math.max(budget - riskBudget, 0)], [a, riskBudget]] as const) {
-      const wsum = bucket.reduce((s, r) => s + Math.min(r.marginX ?? 1, 20), 0) || 1
+      const share = amt / (bucket.length || 1)
       for (const r of bucket) {
         const h = auction.hours[r.tou] ?? 0
         const rate = r.cleared ?? r.ceiling
-        const share = (amt * Math.min(r.marginX ?? 1, 20)) / wsum
         let q = h > 0 ? Math.floor(share / Math.max(h * rate, 1)) : 0
         if (r.maxMw) q = Math.min(q, Math.floor(r.maxMw / 2))
         q = Math.min(q, 500)
@@ -101,7 +104,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
         hours: h,
         maxCost: q * h * r.ceiling,
         likelyCost: q * h * (r.cleared ?? r.ceiling),
-        histReturn: q * h * r.worth,
+        histReturn: q * h * (r.typical ?? r.worth),
       }
     }
     return out
@@ -133,13 +136,17 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   }
 
   const lens = (r: TicketRow) => hedgeLens === 'both' || r.hedge === hedgeLens
-  // EV% — the lead number: expected return on premium at the price you'd
-  // likely pay (the going rate; your limit when no history). Rounded to 5s:
-  // with magnitudes only ~61% within 2x, a decimal would overstate precision.
+  // EV% — the lead number: expected return per $1 paid at the price you'd
+  // likely pay (the usual clearing price; your limit when no history).
+  // Numerator is the trimmed MEDIAN payout, not the annual mean: the mean is
+  // spike-inflated and our own holdout showed it pays ~10% of itself. Rounded
+  // to 5s: with magnitudes only ~61% within 2x, decimals overstate precision.
+  // Suppressed under a 25c clear — a penny denominator is not an expectation.
   const evOf = (r: TicketRow) => {
     const px = r.cleared ?? r.ceiling
-    if (!px || px <= 0) return null
-    return Math.round(((r.worth - px) / px) * 100 / 5) * 5
+    if (!px || px <= 0 || px < 0.25) return null
+    const base = r.typical ?? r.worth
+    return Math.round(((base - px) / px) * 100 / 5) * 5
   }
   const evRank = useMemo(() => {
     const evs = rows.map(r => ({ k: r.key, ev: evOf(r) }))
@@ -259,7 +266,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
       <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-zinc-500">
         <th className="w-8 px-2 py-2" />
         <th className="px-2 py-2 font-medium">Path</th>
-        <th className="px-2 py-2 text-right font-medium">Edge<br /><span className="normal-case text-zinc-600">return on premium at going rate</span></th>
+        <th className="px-2 py-2 text-right font-medium">Edge<br /><span className="normal-case text-zinc-600">return per $1 paid, at its usual clearing price</span></th>
         <th className="px-2 py-2 text-right font-medium">Your limit<br /><span className="normal-case text-zinc-600">$/MWh — not what you pay</span></th>
         <th className="px-2 py-2 text-right font-medium">MW</th>
         <th className="px-2 py-2 text-right font-medium">Likely cost<br /><span className="normal-case text-zinc-600">at its going rate</span></th>
@@ -287,11 +294,11 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
           </label>
           <button onClick={allocate}
             className="rounded-md border border-emerald-600/60 px-3 py-1.5 text-[12px] font-semibold text-emerald-300 transition-colors hover:bg-emerald-600/15">
-            Size the book for me
+            Spread a budget
           </button>
           <span className="text-[11px] text-zinc-600">
-            ${(budget - riskBudget).toLocaleString()} across verified rows · ${riskBudget.toLocaleString()} across
-            speculative rows, margin-weighted, liquidity-capped
+            arithmetic, not advice: ${(budget - riskBudget).toLocaleString()} split equally across verified rows ·{' '}
+            ${riskBudget.toLocaleString()} equally across speculative rows, each capped by traded volume
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -371,13 +378,14 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
           <div className="mb-1 flex items-baseline gap-2">
             <h2 className="text-[15px] font-semibold text-zinc-200">Verified value</h2>
             <span className="rounded bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-              bid the shown price
+              full limit supported
             </span>
           </div>
           <p className="mb-3 max-w-[70ch] text-[12.5px] text-zinc-500">
-            Worth more than the auction has charged, on real clearing history. Enter the green
-            figure as the bid — the auction charges the clearing price, not your bid, so bidding
-            the full ceiling maximises wins at no extra cost.
+            Worth more than the auction has charged, on real clearing history. The green figure
+            is the most our margin rule supports, not an instruction — the auction charges
+            everyone the same clearing price, not their bid, so a limit at the full ceiling adds
+            wins without adding cost.
           </p>
           <div className="overflow-x-auto rounded-lg border border-line bg-panel">
             <table className="w-full min-w-[980px] border-collapse"><Head /><tbody>
@@ -392,7 +400,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
           <div className="mb-1 flex items-baseline gap-2">
             <h2 className="text-[15px] font-semibold text-zinc-200">Unverified or flagged</h2>
             <span className="rounded bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-400">
-              size small if at all
+              unverified — flagged, not sized
             </span>
           </div>
           <p className="mb-3 max-w-[70ch] text-[12.5px] text-zinc-500">
@@ -409,10 +417,13 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
       )}
       <p className="text-[10.5px] leading-relaxed text-zinc-600">
         Honesty note: Edge is rounded to 5-point steps on purpose — our magnitude estimates land
-        within 2× of realized on ~61% of positions, so decimals would overstate precision.
-        Direction and rank are far stronger (96%+ sign accuracy out-of-sample); lean on the sign,
-        the Top-% rank, and the pays-%-of-hours figure. Every sheet is scored publicly against
-        what the auction and settlement actually did.
+        within 2× of realized on ~61% of positions, so decimals would overstate precision. The
+        96%+ out-of-sample sign accuracy we cite belongs to the constraint-exposure model (does
+        a constraint move this path&apos;s basis the way we say) — sheet-level pick accuracy is a
+        different question, and it gets scored publicly starting with this September&apos;s
+        settlement. Dots under Edge count data coverage (clearing history, no flags, verified
+        origin, payoff data) — they are not a probability. On OBL rows the worst case is NOT the
+        premium: an obligation settles both directions with no floor.
       </p>
     </div>
   )

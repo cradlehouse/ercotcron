@@ -367,6 +367,18 @@ def close_interrupted_runs(older_than_minutes: int = 5) -> int:
     return count
 
 
+def last_run_per_job() -> dict[str, datetime]:
+    """Most recent start per job name — the overdue-job health check's input.
+
+    A job that stops being scheduled records nothing at all, so absence from
+    ingest_runs (or an old max) is the only observable symptom. The `products`
+    job was dead for five days once while /health said ok; this closes that.
+    """
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute("select job, max(started_at) from ingest_runs group by job")
+        return {row[0]: row[1] for row in cur.fetchall()}
+
+
 def refresh_crr_pnl() -> None:
     """Recompute the CRR P&L materialised view.
 
