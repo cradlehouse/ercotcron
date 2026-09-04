@@ -55,7 +55,7 @@ export default function SignUp() {
         <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={20} /> <span><span className="text-[#eda63a]">shadow</span>price</span></Link>
         <h1 className="mt-6 text-lg font-medium">Start your free trial</h1>
         <p className="mt-1 text-xs text-[#7d9096]">
-          30 days free — every bid sheet published during your trial. No card required.
+          30 days free, no card. OCT auction bids open Sep 8 — your sheet will be ready.
         </p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <input type="email" required value={email} onChange={e => setEmail(e.target.value)}

@@ -15,10 +15,13 @@ const PUBLIC_EXACT = new Set(['/', '/node_graph.json', '/grid_geo.json', '/tx.js
 const PUBLIC_PREFIX = [
   '/signin', '/signup', '/app', '/terms', '/privacy',
   // Product routes: open here, gated client-side by MemberGate (Supabase
-  // session), so members never hit the ops password prompt.
+  // session) with the data locked behind authenticated-only RPCs.
   '/bids', '/map',
   '/api/health', '/api/claim', '/api/verify-holder', '/api/artifact',
 ]
+// Ops console routes — the only ones worth a basic-auth challenge. Anything
+// else unknown 404s: a password prompt on /pricing reads as "site is broken".
+const OPS_PREFIX = ['/monitor', '/paths', '/scanner', '/spikes', '/trades', '/why', '/health', '/api']
 // Static assets (favicon variants, email logo, fonts, images) must never be
 // behind basic auth — email clients and browsers fetch them credential-less.
 const ASSET = /\.(png|jpg|jpeg|gif|webp|avif|svg|ico|txt|xml|webmanifest|woff2?)$/
@@ -27,6 +30,9 @@ export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   if (PUBLIC_EXACT.has(pathname) || ASSET.test(pathname) || PUBLIC_PREFIX.some(p => pathname.startsWith(p))) {
     return NextResponse.next()
+  }
+  if (!OPS_PREFIX.some(p => pathname.startsWith(p))) {
+    return new NextResponse('Not found', { status: 404 })
   }
   const expected = process.env.DASH_PASSWORD
   if (!expected) {

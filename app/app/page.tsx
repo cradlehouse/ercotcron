@@ -92,6 +92,11 @@ export default function MemberHome() {
             </button>
           </form>
           {claimMsg && <p className="mt-2 text-xs text-[#93a6ab]">{claimMsg}</p>}
+          <p className="mt-3 border-t border-line pt-2 text-[11px] leading-relaxed text-[#61767e]">
+            We hold no CRR positions, sell no exit intelligence, and never show your book to
+            anyone but you. Your positions are already public ERCOT records — what we add is
+            the grading, and that goes to the verified holder only.
+          </p>
         </section>
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
