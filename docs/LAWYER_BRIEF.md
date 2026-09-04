@@ -45,6 +45,17 @@ per-holder data shown only to that verified holder.
   RTO/ISO exemption preserves CEA anti-fraud/anti-manipulation authority
   (§6(c)(1), Rule 180.1) and false-reporting liability (§9(a)(2)) over
   reports affecting commodity prices. We want that understanding checked.
+- Precision on our accuracy stats: the ~96% figure is the constraint-
+  exposure model's out-of-sample SIGN accuracy (predicted vs realized basis
+  response) — not the accuracy of the bid sheets' picks, which will be
+  scored publicly from the September auction on. Site copy is being
+  corrected to say exactly that.
+- One product fact counsel must weigh against our "no personalized advice"
+  posture: the bid sheet includes an optional allocator ("Size the book for
+  me") that converts a subscriber-entered budget and risk split into
+  suggested MW per path, and verified holders see views personalized to
+  their own positions. We are relabeling the allocator as neutral
+  calculator arithmetic, but we want the analysis done on the real facts.
 - Standard disclaimers currently on every surface: "not investment advice,"
   "not a forecast," "we hold no CRR positions," error rates stated.
 - One design partner (a retiring CRR trader) supplies feedback and his own
@@ -68,7 +79,22 @@ per-holder data shown only to that verified holder.
    show a *bank* the graded book of a counterparty (public positions, our
    grades) with the counterparty's knowledge but not consent — the
    rating-agency analogy. Green/yellow/red on that lane?
-5. **Anything we're not asking** that a commodities/publication lawyer sees
+5. **Publisher posture vs the allocator and personalized holder views**
+   (facts above): does either forfeit the impersonal-publisher exception
+   under CTA/IA doctrine (Lowe; CFTC Rule 4.14), and are ERCOT CRRs
+   "commodity interests" at all post-exemption?
+6. **Horizontal-competitor concern:** multiple competing bidders in the
+   same auction receive identical suggested limit prices ("enter the shown
+   price and never more"). Does distributing uniform limits to horizontal
+   competitors raise information-sharing / auction-manipulation questions,
+   and are guardrails (language or subscriber mix) needed?
+7. **Outreach lane:** planned one-time cold emails to contacts on ERCOT's
+   public CRRAH registry (tool + published record, never the recipient's
+   own graded positions), and an opt-in monthly Scorecard. CAN-SPAM
+   requirements for the cold sends; whether our privacy policy's "where
+   lawful, relevant correspondence" clause is an adequate disclosed basis
+   for emailing non-users; confirm TCPA is out of scope absent texting.
+8. **Anything we're not asking** that a commodities/publication lawyer sees
    immediately in the attached materials.
 
 ## Attachments (all short)
