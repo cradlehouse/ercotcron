@@ -2,13 +2,11 @@
 // Member home: trial status + the products. Decision-focused, not a terminal.
 import { useEffect, useState } from 'react'
 import { sb } from '@/lib/supabase'
-import { LogoMark } from '../logo'
 
 type Profile = { plan: string; trial_ends: string | null }
 type Claim = { holder_code: string; status: string }
 
 export default function MemberHome() {
-  const [email, setEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [ready, setReady] = useState(false)
   const [claims, setClaims] = useState<Claim[]>([])
@@ -18,7 +16,6 @@ export default function MemberHome() {
   useEffect(() => {
     sb.auth.getSession().then(async ({ data }) => {
       if (!data.session) { window.location.href = '/signin'; return }
-      setEmail(data.session.user.email ?? null)
       const { data: p } = await sb.from('profiles')
         .select('plan, trial_ends').eq('user_id', data.session.user.id).single()
       setProfile((p as unknown as Profile) ?? { plan: 'trial', trial_ends: null })
@@ -35,17 +32,8 @@ export default function MemberHome() {
     : null
 
   return (
-    <div className="min-h-screen bg-ink text-[#f2f6f6]">
-      <header className="mx-auto flex max-w-4xl items-center justify-between px-6 py-5">
-        <span className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={20} /> <span><span className="text-[#eda63a]">shadow</span>price</span></span>
-        <div className="flex items-center gap-3 text-xs text-[#93a6ab]">
-          <span>{email}</span>
-          <button onClick={() => sb.auth.signOut().then(() => { window.location.href = '/' })}
-            className="hover:text-[#dbe4e6]">Sign out</button>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-4xl px-6 py-8">
+    <div className="text-[#f2f6f6]">
+      <main className="mx-auto max-w-4xl px-6 py-6">
         <div className="rounded border border-line bg-panel/60 px-4 py-3 text-xs text-[#93a6ab]">
           {profile?.plan === 'trial'
             ? <>Free trial{trialDays !== null ? ` — ${trialDays} days left` : ''}. Billing setup arrives before your trial ends; nothing is charged until you choose to stay.</>
@@ -87,6 +75,8 @@ export default function MemberHome() {
               setClaimMsg(`Confirmation sent to the account's registered contact (${r.registered}).`)
             else if (r.status === 'pending') setClaimMsg('Claim received — pending manual review (usually same day).')
             else if (r.status === 'invalid') setClaimMsg('That does not look like a CRRAH code.')
+            else if (r.status === 'unknown')
+              setClaimMsg("That code isn't in ERCOT's CRR holder registry — check the spelling, or email team@shadowprice.io if the account is newly registered.")
             else setClaimMsg('Something went wrong — try again.')
             const { data: cl } = await sb.rpc('my_claims')
             setClaims((cl as Claim[]) ?? [])

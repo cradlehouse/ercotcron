@@ -186,7 +186,7 @@ export default async function BidsPage() {
     <div className="space-y-5">
       <Panel
         title={AUCTION.name}
-        subtitle={`bids open ${AUCTION.opens} · close ${AUCTION.closes} (${daysLeft >= 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'CLOSED'}) · delivery ${AUCTION.deliveryLabel}`}
+        subtitle={`bids open ${AUCTION.opens} · close ${AUCTION.closes} (${daysLeft >= 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'CLOSED — the OCT sheet posts here once the scan completes, before bids open Sep 8'}) · delivery ${AUCTION.deliveryLabel}`}
       >
         {error ? (
           <ErrorNote error={error} />

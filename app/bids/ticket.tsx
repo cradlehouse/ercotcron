@@ -290,7 +290,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
             Size the book for me
           </button>
           <span className="text-[11px] text-zinc-600">
-            ${'{'}(budget - riskBudget).toLocaleString(){'}'} across verified rows · ${'{'}riskBudget.toLocaleString(){'}'} across
+            ${(budget - riskBudget).toLocaleString()} across verified rows · ${riskBudget.toLocaleString()} across
             speculative rows, margin-weighted, liquidity-capped
           </span>
         </div>

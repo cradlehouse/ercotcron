@@ -56,7 +56,7 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
   const mwMax = Math.max(...geo.nodes.map(n => n.mw), 1)
 
   return (
-    <div>
+    <div className="mx-auto max-w-3xl">
       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
         {SCOPES.map(([k, label]) => (
           <button key={k} onClick={() => setScope(k)}

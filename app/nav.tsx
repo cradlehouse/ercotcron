@@ -4,6 +4,8 @@
 // keep working by URL but no longer clutter anyone's navigation.
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { sb } from '@/lib/supabase'
 import { LogoMark } from './logo'
 
 const SELF_HEADED = ['/', '/signin', '/signup', '/terms', '/privacy']
@@ -17,6 +19,10 @@ const MENU = [
 
 export function NavBar() {
   const path = usePathname()
+  const [email, setEmail] = useState<string | null>(null)
+  useEffect(() => {
+    sb.auth.getSession().then(({ data }) => setEmail(data.session?.user.email ?? null))
+  }, [])
   if (SELF_HEADED.includes(path)) return null
   return (
     <header className="border-b border-line bg-panel">
@@ -33,9 +39,17 @@ export function NavBar() {
             </Link>
           ))}
         </nav>
-        <Link href="/app" className="ml-auto text-[12px] text-[#7d9096] hover:text-[#dbe4e6]">
-          Account
-        </Link>
+        <div className="ml-auto flex items-center gap-3 text-[12px] text-[#7d9096]">
+          {email ? (
+            <>
+              <span className="hidden sm:inline">{email}</span>
+              <button onClick={() => sb.auth.signOut().then(() => { window.location.href = '/' })}
+                className="hover:text-[#dbe4e6]">Sign out</button>
+            </>
+          ) : (
+            <Link href="/signin" className="hover:text-[#dbe4e6]">Sign in</Link>
+          )}
+        </div>
       </div>
     </header>
   )

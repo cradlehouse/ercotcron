@@ -9,6 +9,7 @@ export default function SignUp() {
   const [password, setPassword] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [sent, setSent] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -22,7 +23,30 @@ export default function SignUp() {
     setBusy(false)
     if (error) { setMsg(error.message); return }
     if (data.session) { window.location.href = '/app'; return }
-    setMsg(`Confirmation sent to ${email} — one click there and you'll land here signed in.`)
+    setSent(true)
+  }
+
+  if (sent) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-ink px-4 text-[#f2f6f6]">
+        <div className="w-full max-w-sm">
+          <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={20} /> <span><span className="text-[#eda63a]">shadow</span>price</span></Link>
+          <div className="mt-6 rounded border border-line bg-panel p-5">
+            <h1 className="text-lg font-medium">Check your email</h1>
+            <p className="mt-2 text-sm leading-relaxed text-[#93a6ab]">
+              A confirmation just went to <span className="text-[#dbe4e6]">{email}</span>.
+              One click there and you&apos;ll land back here signed in, trial running.
+            </p>
+            <p className="mt-3 text-xs text-[#61767e]">
+              Nothing after a couple of minutes? Check spam, or{' '}
+              <button onClick={() => setSent(false)} className="text-[#93a6ab] underline hover:text-[#dbe4e6]">
+                try again
+              </button>.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

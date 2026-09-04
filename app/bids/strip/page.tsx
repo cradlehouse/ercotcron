@@ -86,6 +86,12 @@ export default function StripSheet() {
       <div className="mb-1 flex flex-wrap items-baseline gap-3">
         <h1 className="text-[15px] font-semibold">2028 strip sheet — Jul–Dec 2028 long-term auction</h1>
         <span className="text-xs text-[#eda63a]">bids {data.bids}</span>
+        {(() => {
+          const end = data.bids.match(/(\d{4}-\d{2}-\d{2})\s*$/)?.[1]
+          return end && end < new Date().toISOString().slice(0, 10)
+            ? <span className="rounded bg-panel-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#93a6ab]">closed — awaiting posted results</span>
+            : null
+        })()}
         <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← September sheet</a>
       </div>
       <p className="mb-3 max-w-[90ch] text-[12.5px] text-[#93a6ab]">
@@ -108,7 +114,7 @@ export default function StripSheet() {
         ))}
         <button onClick={downloadCsv} disabled={nSel === 0}
           className="ml-auto rounded bg-[#eda63a] px-3 py-1 text-xs font-medium text-[#15242c] disabled:opacity-40">
-          Download ERCOT CSV ({nSel} paths)
+          {nSel === 0 ? 'Tick rows to export CSV' : `Download ERCOT CSV (${nSel} paths)`}
         </button>
       </div>
 
