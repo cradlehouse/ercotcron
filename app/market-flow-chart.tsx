@@ -88,11 +88,9 @@ export function MarketFlowChart() {
     const strandLine = (series: (number | null)[]) => {
       let d = ''
       let pen = false
-      let lived = 0
       series.forEach((v, mi) => {
         if (v === null) { return }
-        lived += 1
-        if (lived <= 2 || v < lo || v > hi) { pen = false; return }
+        if (v < lo || v > hi) { pen = false; return }
         d += (pen ? 'L' : 'M') + x(mi).toFixed(1) + ',' + y(v).toFixed(1)
         pen = true
       })
