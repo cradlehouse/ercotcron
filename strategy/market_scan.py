@@ -37,9 +37,13 @@ import psycopg  # noqa: E402
 
 REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 CACHES = [pathlib.Path.home() / "ercotcron-archive" / "cache", pathlib.Path("/tmp")]
-MONTH_TAGS = ["sep24", "sep25", "oct25", "nov25", "dec25", "jan26", "feb26",
+# Window sep25..jun26 (10 months) + the target month's own history (oct24;
+# oct25 sits inside the window). Jul/Aug/Sep 2026 deliberately absent: the
+# standing rule holds out the trailing 2 months, and monthly caches force
+# whole-month cuts, so the window ends Jun 30.
+MONTH_TAGS = ["oct24", "sep25", "oct25", "nov25", "dec25", "jan26", "feb26",
               "mar26", "apr26", "may26", "jun26"]
-TARGET_MONTHS = ("2024-09", "2025-09")   # the delivery month being bid: September
+TARGET_MONTHS = ("2024-10", "2025-10")   # the delivery month being bid: October
 MIN_HOURS = 2000
 MATERIALITY = 0.10
 CAP = 400          # rows written to the platform
@@ -101,26 +105,33 @@ def main() -> int:
     # ---- 2. the traded universe, with what each combo actually cleared at
     print("fetching traded universe from crr_awards...", flush=True)
     with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as c:
-        c.execute("set statement_timeout='10min'")
+        c.execute("set statement_timeout='30min'")
         cur = c.cursor()
         # Clearing basis = the RECENT monthly auctions only, and never a signed
         # average: OBL clears straddle zero (FERMI->AMISTAD ranged -15.94 to
         # +5.59), so an all-time mean nets to a tiny "cost" no auction ever
         # charged and margins explode against it.
-        cur.execute("""
-            with ranked as (
-              select source, sink, time_of_use, hedge_type, auction_name,
-                     avg(clearing_price) cp, sum(mw) mw,
-                     row_number() over (partition by source, sink, time_of_use, hedge_type
-                                        order by max(ingested_at) desc) rn
-                from crr_awards
-               where auction_name like '%%Monthly'
-               group by 1,2,3,4,5)
-            select source, sink, time_of_use, hedge_type,
-                   avg(cp) filter (where rn <= 3),
-                   count(*), max(mw)
-              from ranked group by 1,2,3,4""")
-        universe = cur.fetchall()
+        # Same semantics as the original ranked-window query (each path's own
+        # 3 most recent monthly auctions form its clearing basis), but the
+        # ranking happens in Python: the Micro tier cancelled the window
+        # function at 10 minutes once the award table grew. Plain group-by,
+        # server-side cursor so nothing materialises on the instance.
+        agg: dict[tuple, list] = {}
+        with c.cursor(name="universe_stream") as scur:
+            scur.itersize = 20000
+            scur.execute("""
+                select source, sink, time_of_use, hedge_type, auction_name,
+                       avg(clearing_price) cp, sum(mw) mw, max(ingested_at) ing
+                  from crr_awards
+                 where auction_name like '%%Monthly'
+                 group by 1,2,3,4,5""")
+            for s, k, t, h, _a, cp, mw, ing in scur:
+                agg.setdefault((s, k, t, h), []).append((ing, float(cp), float(mw or 0)))
+        universe = []
+        for key, entries in agg.items():
+            entries.sort(key=lambda e: e[0], reverse=True)
+            cp3 = sum(e[1] for e in entries[:3]) / min(3, len(entries))
+            universe.append((*key, cp3, len(entries), max(e[2] for e in entries)))
         # staleness flags for the confidence column
         exp = json.loads((REF / "constraint_exposure.json").read_text())
         cur.execute("select constraint_name, recent_rerate, possibly_retired from constraint_novelty")

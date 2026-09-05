@@ -25,19 +25,18 @@ import { num } from '@/lib/prices'
 import { sb, type PathValuation } from '@/lib/supabase'
 import { Ticket, type AuctionMeta, type TicketRow } from './ticket'
 
-// From ERCOT's CRR Activity Calendar (WMS-approved edition on file). September
-// 2026 TOU hours are computed, not assumed: Labor Day (7 Sep) is a NERC
-// holiday, so its peak hours count as PeakWE — 21 weekdays x16, 9 weekend-rule
-// days x16, remainder off-peak. Fixed constants drift a few percent by month,
-// which is exactly the error the trader's own workbook carries.
+// From ERCOT's CRR Activity Calendar (WMS-approved edition on file). October
+// 2026 TOU hours are computed, not assumed (products.tou_of over the whole
+// month): 22 weekdays x16, 9 weekend days x16, remainder off-peak; no NERC
+// holiday in October and DST ends Nov 1, so 31 x 24 = 744 hours exactly.
 const AUCTION: Omit<AuctionMeta, 'daysLeft' | 'holder'> = {
-  name: '2026.SEP.Monthly.Auction',
-  opens: '2026-08-11',
-  closes: '2026-08-13',
-  deliveryStart: '9/1/2026',
-  deliveryEnd: '9/30/2026',
-  deliveryLabel: '1–30 Sep 2026',
-  hours: { PeakWD: 336, PeakWE: 144, 'Off-peak': 240 },
+  name: '2026.OCT.Monthly.Auction',
+  opens: '2026-09-08',
+  closes: '2026-09-10',
+  deliveryStart: '10/1/2026',
+  deliveryEnd: '10/31/2026',
+  deliveryLabel: '1–31 Oct 2026',
+  hours: { PeakWD: 352, PeakWE: 144, 'Off-peak': 248 },
 }
 
 // Which holder code a private valuation book belongs to. Rows from these
@@ -220,7 +219,7 @@ export default function BidsPage() {
     <div className="space-y-5">
       <Panel
         title={AUCTION.name}
-        subtitle={`bids open ${AUCTION.opens} · close ${AUCTION.closes} (${daysLeft >= 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'CLOSED — the OCT sheet posts here once the valuation run completes, before bids open Sep 8'}) · delivery ${AUCTION.deliveryLabel}`}
+        subtitle={`bids open ${AUCTION.opens} · close ${AUCTION.closes} (${daysLeft >= 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'CLOSED — the next monthly sheet posts here after the next valuation run'}) · delivery ${AUCTION.deliveryLabel}`}
       >
         {allRows.length === 0 ? (
           <Empty message="No valuations published." hint="The next valuation run posts them here." />
@@ -238,8 +237,8 @@ export default function BidsPage() {
             </p>
             <p className="text-[11px] text-zinc-600">
               valued on day-ahead prices to {allRows[0]?.window_end ?? ''} (trailing 2 months
-              always held out) · September hour blocks: 336 weekday-peak (PeakWD) / 144
-              weekend-peak (PeakWE) / 240 off-peak — Labor Day counts as a weekend
+              always held out) · {AUCTION.deliveryLabel} hour blocks: {AUCTION.hours.PeakWD} weekday-peak
+              (PeakWD) / {AUCTION.hours.PeakWE} weekend-peak (PeakWE) / {AUCTION.hours['Off-peak']} off-peak
             </p>
           </div>
         )}
@@ -333,13 +332,13 @@ export default function BidsPage() {
             over the valuation window of day-ahead settlement. <span className="text-zinc-200">Bid
             price</span> — worth, trimmed where a driving constraint changed recently, history is
             thin, or the value rides on rare spikes. <span className="text-zinc-200">Likely
-            outlay</span> — your MW × September hours × the price it usually clears at.{' '}
+            outlay</span> — your MW × delivery-month hours × the price it usually clears at.{' '}
             <span className="text-zinc-200">Max outlay</span> — the same if it clears at your
             full bid, the worst case you authorise by submitting.
           </p>
           <p className="max-w-[70ch] border-l-2 border-red-500/60 pl-3 text-zinc-300">
             This is not a forecast. It stops overpaying and points at verified mispricing; it
-            cannot promise September resembles the year behind it. Every prediction rule tested
+            cannot promise the delivery month resembles the year behind it. Every prediction rule tested
             on this data failed out of sample — pricing discipline is what survived.
           </p>
         </div>

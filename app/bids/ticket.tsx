@@ -23,7 +23,7 @@ export interface TicketRow {
   ceiling: number          // the bid price
   worth: number            // annual-mean hourly payout (context, not the EV)
   typical: number | null   // month-honest payout: median of per-month means,
-                           // capped by actual Septembers and the recent three
+                           // capped by the actual delivery month's history and the recent three
                            // months — the same base the ceiling is priced off
   cleared: number | null   // usual auction cost; null = never seen clear
   marginX: number | null
@@ -54,7 +54,14 @@ const usd = (v: number | null | undefined, dp = 2) =>
 const money = (v: number) =>
   v >= 1000 ? `$${Math.round(v).toLocaleString('en-US')}` : `$${v.toFixed(0)}`
 
+const MONTH_LONG: Record<string, string> = {
+  JAN: 'January', FEB: 'February', MAR: 'March', APR: 'April', MAY: 'May', JUN: 'June',
+  JUL: 'July', AUG: 'August', SEP: 'September', OCT: 'October', NOV: 'November', DEC: 'December',
+}
+
 export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionMeta }) {
+  const monthShort = auction.name.split('.')[1] ?? ''
+  const monthLong = MONTH_LONG[monthShort] ?? monthShort
   const [qty, setQty] = useState<Record<string, number>>(() =>
     Object.fromEntries(rows.map((r) => [r.key, r.suggestedMw])),
   )
@@ -116,7 +123,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   const lens = (r: TicketRow) => hedgeLens === 'both' || r.hedge === hedgeLens
   // EV% — the lead number: the TYPICAL month's payout per $1 paid at the
   // price you'd likely pay (the usual clearing price; your limit when no
-  // history). The typical (median of per-month means, September-capped,
+  // history). The typical (median of per-month means, delivery-month-capped,
   // recency-capped) is the scan's own honest base — the annual mean is only
   // the fallback where no typical was published, because the July holdout
   // showed it overstates a single month ~10x on spike paths. Rounded to 5s
@@ -166,7 +173,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
             <span>{r.source}</span><span className="text-amber-500">→</span><span>{r.sink}</span>
           </div>
           <div className="mt-0.5 text-[11px] text-zinc-600">
-            {r.tou} · {r.hedge} · {d.hours} hrs in Sep{r.offeredMw ? ` · ${Math.round(r.offeredMw)} MW offered for sale last auction` : ''}
+            {r.tou} · {r.hedge} · {d.hours} hrs in {monthShort}{r.offeredMw ? ` · ${Math.round(r.offeredMw)} MW offered for sale last auction` : ''}
             {r.origin === 'discovery' && r.holders ? ` · held by ${r.holders} winning firm${r.holders > 1 ? 's' : ''}` : r.origin === 'market' ? ` · market scan · cleared in ${r.holders ?? '?'} auctions` : ''}
           </div>
           {r.overbidNote && <div className="mt-1 text-[11px] text-amber-400">{r.overbidNote}</div>}
@@ -249,7 +256,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
         <th className="px-2 py-2 text-right font-medium">Your limit<br /><span className="normal-case text-zinc-600">$/MWh — not what you pay</span></th>
         <th className="px-2 py-2 text-right font-medium">MW</th>
         <th className="px-2 py-2 text-right font-medium">Likely cost<br /><span className="normal-case text-zinc-600">at its going rate</span></th>
-        <th className="px-2 py-2 text-right font-medium">Typical month&apos;s return<br /><span className="normal-case text-zinc-600">September-capped history</span></th>
+        <th className="px-2 py-2 text-right font-medium">Typical month&apos;s return<br /><span className="normal-case text-zinc-600">delivery-month-capped history</span></th>
         <th className="px-2 py-2 text-right font-medium">Worst case<br /><span className="normal-case text-zinc-600">clears at your limit</span></th>
       </tr>
     </thead>
@@ -300,7 +307,7 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
         return (
           <div className="rounded-lg border border-line bg-panel px-4 py-3 text-[12.5px] text-zinc-400">
             <span className="font-semibold text-zinc-200">How to read a row, using the first one: </span>
-            a CRR here is a strip of {eh} {ex.tou} hours in September. {eq} MW means you are
+            a CRR here is a block of {eh} {ex.tou} hours in {monthLong}. {eq} MW means you are
             buying {eq} × {eh} = {(eq * eh).toLocaleString()} MWh. Your limit of {usd(ex.ceiling)}
             /MWh is the most you authorise — <span className="text-zinc-200">everyone pays the
             same clearing price, not their bid</span>, and this path has recently cleared
@@ -373,8 +380,8 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
       )}
       <p className="text-[10.5px] leading-relaxed text-zinc-600">
         Honesty note: Edge and the typical month&apos;s return use the scan&apos;s
-        month-honest base — the median of per-month payouts, capped by what actual Septembers
-        paid and by the recent three months — because the raw annual average overstates a
+        month-honest base — the median of per-month payouts, capped by what that actual delivery month
+        paid in past years and by the recent three months — because the raw annual average overstates a
         single month badly on spike-driven paths (our own holdout put it near 10×). Treat them
         as ranking signals, not forecasts. Edge is rounded to 5-point steps on purpose — our
         magnitude estimates land within 2× of realized on ~61% of positions, so decimals would
