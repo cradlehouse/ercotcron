@@ -178,7 +178,7 @@ SBA-size small businesses.
 | A13 | Internal record: model outputs generated independently of subscriber data (run-ID lineage) | Launch | P1 | Open |
 | A14 | Design partner delivery timestamp identical to subscribers; documented | Launch | P1 | Open |
 | A15 | External anchor for methodology versions (published hash / signed tag) | Launch | P1 | Open |
-| A16 | Review ERCOT website terms and CRRAH registry purpose for redistribution and email-harvesting limits | Outreach / Launch | P1 | Open |
+| A16 | Review ERCOT website terms and CRRAH registry purpose for redistribution and email-harvesting limits | Outreach / Launch | P1 | Researched 2026-09-05 (see note); email angle to counsel Q8 |
 | A17 | CAN-SPAM checklist for cold sends: headers, subject, ad ID, postal address, opt-out ≤10 business days, suppression list | Outreach | P1 | Open |
 | A18 | Engagement-letter template per Q3 | First valuation | P1 | Open |
 | A19 | Broker quotes: E&O ($1M/$1M floor), media liability, cyber; retroactive date before first engagement | First valuation | P1 | Open |
@@ -200,6 +200,22 @@ SBA-size small businesses.
   budget-to-MW tool is gone from the build. Methodology v1.2 records both.
 - Valuations are locked behind authenticated-only access as of 2026-09-04;
   the model pipeline reads only ERCOT-published data (supports A13's record).
+
+- A16 findings (ERCOT Terms of Use, ercot.com/help/terms, read 2026-09-05):
+  (1) REDISTRIBUTION — expressly permitted: "Raw data provided in public
+  portions of this website may be used, reproduced, and redistributed in
+  compilations, charts, and analyses" (ERCOT disclaims accuracy of downstream
+  compilations; our own accuracy disclosures already cover this). The core
+  business model is within the written terms. (2) EMAIL — §8: "Use of ERCOT
+  list Server (email) list for marketing products and/or services is strictly
+  prohibited." This targets ERCOT's listserv distribution lists; the CRRAH
+  registry is a posted market report, not the list server — but it is close
+  enough to the §7704(b)(1) harvesting aggravator that counsel should confirm
+  before any cold send (folded into counsel question 8). (3) No explicit
+  scraping/crawling prohibition; only a bar on activity degrading site
+  performance — our ingestion honors rate limits (Retry-After respected in
+  code). API use is additionally governed by the Data Portal terms (usage
+  limits; no circumvention) which we comply with.
 
 ## 5. Questions to confirm with counsel (in the hour)
 
