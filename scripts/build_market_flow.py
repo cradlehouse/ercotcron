@@ -54,7 +54,7 @@ BUCKETS = [
     (2.0, 5.0, "$2–$5"),
     (5.0, float("inf"), "over $5"),
 ]
-MAX_STRANDS = 1400          # sampled for rendering; aggregates use everything
+MAX_STRANDS = 2000          # sampled for rendering; aggregates use everything
 MIN_MONTHS_FOR_STRAND = 4   # a strand needs a visible trajectory
 
 
@@ -205,7 +205,9 @@ def main() -> int:
                 cprem += mm[mi][1]
                 cpaid += mm[mi][2]
             ys.append(round((cpaid - cprem) / cprem, 3) if cprem > 0 else 0.0)
-        strands.append({"b": bucket_of(avg_cp), "y": ys})
+        strands.append({"b": bucket_of(avg_cp), "y": ys,
+                        "l": f"{key[0]} → {key[1]} · {key[2]} · {key[3]}",
+                        "cp": round(avg_cp, 3)})
 
     payload = {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
