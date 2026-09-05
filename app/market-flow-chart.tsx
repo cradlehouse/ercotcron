@@ -25,11 +25,22 @@ type Flow = {
 // bucket line carries a direct label.
 const RAMP = ['#f6e27a', '#f2c14e', '#eda63a', '#d97b2c', '#c04a1d']
 
-export function MarketFlowChart() {
+export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
   const [data, setData] = useState<Flow | null>(null)
   const [hoverMi, setHoverMi] = useState<number | null>(null)
   const [hoverStrand, setHoverStrand] = useState<number | null>(null)
   const [pinned, setPinned] = useState<number | null>(null)
+  const [focusMiss, setFocusMiss] = useState<string | null>(null)
+
+  // External focus (e.g. a path clicked on the grid map): pin the matching
+  // strand. Labels read "SRC → SNK · TOU · HEDGE"; a map path names only
+  // SRC → SNK, so the first (highest-premium) matching strand wins.
+  useEffect(() => {
+    if (!focus || !data) return
+    const idx = data.strands.findIndex(st => st.l?.startsWith(focus + ' ·'))
+    if (idx >= 0) { setPinned(idx); setFocusMiss(null) }
+    else { setPinned(null); setFocusMiss(focus) }
+  }, [focus, data])
   const [boxW, setBoxW] = useState(920)
   const svgRef = useRef<SVGSVGElement>(null)
   const wrapRef = useRef<HTMLElement>(null)
@@ -254,6 +265,13 @@ export function MarketFlowChart() {
           </g>
         )}
       </svg>
+      {focusMiss && (
+        <p className="mt-2 text-[11px] text-amber-400/80">
+          {focusMiss} has no strand here — this chart draws only monthly-auction history, and
+          that path&apos;s volume cleared in long-term auctions (or it&apos;s too new to have a
+          settled month).
+        </p>
+      )}
       <figcaption className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[11px] text-[#61767e]">
         <span>
           {data.n_paths.toLocaleString()} paths across {data.months.length} settled months —

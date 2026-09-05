@@ -31,7 +31,7 @@ const SCOPES = [
   ['suggestions', 'Bid-sheet picks'],
 ] as const
 
-function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
+function GridView({ geo, tx, onPathClick }: { geo: GeoLayer; tx: any; onPathClick?: (path: string) => void }) {
   const [hover, setHover] = useState<string | null>(null)
   const [scope, setScope] = useState<'market' | 'suggestions'>('market')
   const months = useMemo(
@@ -99,7 +99,9 @@ function GridView({ geo, tx }: { geo: GeoLayer; tx: any }) {
             return (
               <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
                 stroke={color} strokeWidth={Math.max(1, c.v / 3)}
-                strokeOpacity={lit ? 0.55 : 0.08} strokeLinecap="round" />
+                strokeOpacity={lit ? 0.55 : 0.08} strokeLinecap="round"
+                style={{ cursor: 'pointer' }}
+                onClick={() => onPathClick?.(c.label.replace(/ \(.*\)$/, '').replace(/ -> | → /, ' → '))} />
             )
           })}
         </g>
@@ -155,6 +157,8 @@ export default function NodeMapPage() {
   const [hover, setHover] = useState<string | null>(null)
   const [off, setOff] = useState<Set<string>>(() => new Set())
   const [sizeBy, setSizeBy] = useState<'mw' | 'dart'>('mw')
+  const [focusPath, setFocusPath] = useState<string | null>(null)
+  const chartRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const grab = (name: string, fallback: string) =>
@@ -228,7 +232,13 @@ export default function NodeMapPage() {
         </span>
         <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← Bid sheet</a>
       </div>
-      {view === 'grid' && geo && tx ? <GridView geo={geo} tx={tx} /> : null}
+      {view === 'grid' && geo && tx ? (
+        <GridView geo={geo} tx={tx}
+          onPathClick={(path) => {
+            setFocusPath(path)
+            chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }} />
+      ) : null}
       {view === 'grid' && (!geo || !tx) ? <div className="p-6 text-xs text-[#7d9096]">loading grid…</div> : null}
       <div style={{ display: view === 'rel' ? undefined : 'none' }}>
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[#93a6ab]">
@@ -302,14 +312,14 @@ export default function NodeMapPage() {
       </div>
       </div>
 
-      <div className="mt-10 border-t border-line pt-6">
+      <div className="mt-10 border-t border-line pt-6" ref={chartRef}>
         <div className="text-sm font-medium text-[#f2f6f6]">The same market, as money</div>
         <p className="mt-1 max-w-[75ch] text-xs leading-relaxed text-[#93a6ab]">
           Every monthly-auction path&apos;s running return per $1 paid in, by clearing-price
-          bucket, across the last twelve settled months. Hover a strand to identify its path;
-          click to pin it.
+          bucket, across the last twelve settled months. Click a path on the map above to trace
+          it here; hover any strand to identify it; click to pin.
         </p>
-        <div className="mt-4"><MarketFlowChart /></div>
+        <div className="mt-4"><MarketFlowChart focus={focusPath} /></div>
       </div>
     </div>
   )

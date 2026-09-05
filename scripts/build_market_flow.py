@@ -188,9 +188,19 @@ def main() -> int:
         bucket_series.append({"label": label, "series": series, "paths": n_pos})
 
     # ---- strands: sampled paths, cumulative ROI where they held, carried flat
+    # Sample = the biggest paths by total premium FIRST (so anything visible
+    # on the grid map has a strand to link to), then random fill for texture.
     strands = []
-    keys = [k for k, mm in path_months.items() if len(mm) >= MIN_MONTHS_FOR_STRAND]
-    random.shuffle(keys)
+    # The guaranteed head takes the biggest paths by premium even with short
+    # histories (the grid map shows LIVE months, where new paths are common);
+    # the random tail keeps the texture floor at MIN_MONTHS_FOR_STRAND.
+    all_keys = list(path_months)
+    prem_of = {k: sum(v[1] for v in path_months[k].values()) for k in all_keys}
+    all_keys.sort(key=lambda k: -prem_of[k])
+    head = all_keys[:1400]
+    tail = [k for k in all_keys[1400:] if len(path_months[k]) >= MIN_MONTHS_FOR_STRAND]
+    random.shuffle(tail)
+    keys = head + tail
     for key in keys[:MAX_STRANDS]:
         mm = path_months[key]
         avg_cp = sum(v[0] for v in mm.values()) / len(mm)
