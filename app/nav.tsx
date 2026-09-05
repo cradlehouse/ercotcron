@@ -14,6 +14,7 @@ const MENU = [
   { href: '/bids', label: 'Bid sheets' },
   { href: '/bids/strip', label: 'Long-term 2028' },
   { href: '/app/book', label: 'My book' },
+  { href: '/app/record', label: 'Track record' },
   { href: '/map', label: 'Map' },
 ]
 

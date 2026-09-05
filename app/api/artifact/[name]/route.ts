@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const PUBLIC_ARTIFACTS = new Set(['node_graph', 'grid_geo', 'strip_2028'])
+const PUBLIC_ARTIFACTS = new Set(['node_graph', 'grid_geo', 'strip_2028', 'market_flow'])
 
 export async function GET(
   _req: NextRequest,

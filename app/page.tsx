@@ -1,5 +1,6 @@
 // Public landing page — the product front door.
 import Link from 'next/link'
+import { MarketFlowChart } from './market-flow-chart'
 import { LogoMark } from './logo'
 
 export const metadata = { title: 'Shadowprice — pricing discipline for ERCOT CRRs' }
@@ -37,6 +38,23 @@ export default function Landing() {
             Start free trial
           </Link>
           <span className="text-xs text-[#7d9096]">$250/mo after · cancel anytime</span>
+        </div>
+      </section>
+
+      <section id="market" className="border-t border-line">
+        <div className="mx-auto max-w-5xl px-6 py-12">
+          <div className="text-sm font-medium">The whole market, on the record</div>
+          <p className="mt-2 max-w-[75ch] text-xs leading-relaxed text-[#93a6ab]">
+            Every path the ERCOT monthly CRR auctions cleared, tracked through settlement —
+            what a dollar paid in at each price level actually got back, month after month.
+            In the last twelve settled months only the cheapest paths made money: positions
+            cleared under 10¢ returned +23% as a class, everything dearer lost, and the
+            expensive end lost 17%. The pattern is the product — our bid sheets are built to
+            live in the glowing band.
+          </p>
+          <div className="mt-6">
+            <MarketFlowChart />
+          </div>
         </div>
       </section>
 

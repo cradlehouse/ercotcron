@@ -310,23 +310,30 @@ def score_paper(_c=None) -> ingest.Result:
             for src, snk, tou, hedge, mwq, bid, _, dmonth in bids:
                 month_start, month_end = month_window(dmonth)
                 settled = is_settled(month_start, month_end, src, snk)
+                in_delivery = (not settled) and month_start <= dt.date.today()
                 cp = clears.get((src, snk, tou, hedge))
                 did_clear = cp is not None and float(bid) >= cp
                 n_clr += bool(did_clear)
                 pnl = rv = None
+                run_v = run_h = run_thru = None
                 # realized value is computed for EVERY bid once the month
                 # settles — fills get actual P&L; misses and no-trades keep
                 # their realized_value so the look-back can show the win that
-                # was passed up (or the ghost that never existed)
-                if settled:
+                # was passed up (or the ghost that never existed). While a
+                # month is IN DELIVERY, the same sum lands in running_value
+                # (per-MW, partial-month, display-only — never the score).
+                if settled or in_delivery:
                     cur.execute("""select delivery_date, hour_ending, settlement_point, price
                                      from dam_spp
                                     where delivery_date >= %s and delivery_date < %s
                                       and settlement_point in (%s, %s)""",
                                 (month_start, month_end, src, snk))
                     by_hour: dict = collections.defaultdict(dict)
+                    latest_day = None
                     for d, he, p, price in cur.fetchall():
                         by_hour[(d, he)][p] = float(price)
+                        if latest_day is None or d > latest_day:
+                            latest_day = d
                     tot = 0.0
                     hrs = 0
                     want = tou if tou != "Off-Peak" else "Off-peak"
@@ -337,7 +344,9 @@ def score_paper(_c=None) -> ingest.Result:
                                 diff = max(0.0, diff)
                             tot += diff
                             hrs += 1
-                    if hrs > 0:
+                    if in_delivery:
+                        run_v, run_h, run_thru = tot, hrs, latest_day
+                    if settled and hrs > 0:
                         rv = tot
                         if did_clear:
                             # Paper fills are capped at the MW the auction
@@ -349,10 +358,15 @@ def score_paper(_c=None) -> ingest.Result:
                 cur.execute("""update paper_bids
                                   set clearing_price=%s, cleared=%s,
                                       realized_value=coalesce(%s, realized_value),
-                                      pnl=coalesce(%s, pnl), scored_at=now()
+                                      pnl=coalesce(%s, pnl),
+                                      running_value=coalesce(%s, running_value),
+                                      running_hours=coalesce(%s, running_hours),
+                                      marked_through=coalesce(%s, marked_through),
+                                      scored_at=now()
                                 where batch_id=%s and source=%s and sink=%s
                                   and time_of_use=%s and hedge_type=%s and mw=%s and bid_price=%s""",
-                            (cp, did_clear, rv, pnl, batch, src, snk, tou, hedge, mwq, bid))
+                            (cp, did_clear, rv, pnl, run_v, run_h, run_thru,
+                             batch, src, snk, tou, hedge, mwq, bid))
             conn.commit()
             res.rows_seen += len(bids)
             log.info("paper batch %s: %d/%d bids cleared (settled=%s)",

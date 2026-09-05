@@ -235,6 +235,12 @@ export default function BidsPage() {
               returned about $1.50 per $1 paid. Whether to bid, at what limit, and at what
               size is your decision alone.
             </p>
+            <p className="max-w-[70ch] text-[12px] text-zinc-500">
+              Two instrument types on this sheet: an <span className="text-zinc-300">option
+              (OPT)</span> pays you or pays nothing — the price is all you can ever lose. An{' '}
+              <span className="text-zinc-300">obligation (OBL)</span> settles both directions —
+              a bad month bills you, with no floor.
+            </p>
             <p className="text-[11px] text-zinc-600">
               valued on day-ahead prices to {allRows[0]?.window_end ?? ''} (trailing 2 months
               always held out) · {AUCTION.deliveryLabel} hour blocks: {AUCTION.hours.PeakWD} weekday-peak
