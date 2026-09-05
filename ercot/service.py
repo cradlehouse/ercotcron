@@ -113,15 +113,26 @@ def health() -> dict[str, object]:
         "scheduler": scheduler.running,
     }
     overdue: list[str] = []
+    dam_points = -1
     try:
         checks["database"] = db.ping()
         overdue = _overdue_jobs()
+        # A job can run "ok" while starved: DAM once ingested only 15 hub
+        # points for six weeks with every run green. Yesterday's delivery day
+        # must carry near-full nodal coverage or health goes red.
+        with db.connection() as conn, conn.cursor() as cur:
+            cur.execute("""select count(distinct settlement_point) from dam_spp
+                            where delivery_date = current_date - 1""")
+            dam_points = int((cur.fetchone() or [0])[0])
     except Exception as exc:  # noqa: BLE001
         log.warning("health check database probe failed: %s", exc)
 
     checks["jobs_on_schedule"] = not overdue
-    healthy = checks["database"] and checks["ercot_credentials"] and not overdue
-    return {"ok": healthy, "checks": checks, "overdue_jobs": overdue, "jobs": sorted(JOBS)}
+    checks["dam_nodal_coverage"] = dam_points >= 1000
+    healthy = (checks["database"] and checks["ercot_credentials"]
+               and not overdue and checks["dam_nodal_coverage"])
+    return {"ok": healthy, "checks": checks, "overdue_jobs": overdue,
+            "dam_points_yesterday": dam_points, "jobs": sorted(JOBS)}
 
 
 @app.get("/runs")
