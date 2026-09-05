@@ -54,14 +54,15 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
     return () => ro.disconnect()
   }, [data])
 
-  // Text is drawn in viewBox units: on a narrow box a 920-unit canvas shrinks
-  // the type into illegibility. Compact mode uses a SMALLER canvas (type
-  // renders larger), drops the right label gutter (the table below is the
-  // legend), and thins the ticks.
+  // TRULY responsive: the viewBox width IS the measured CSS width, so one
+  // viewBox unit = one screen pixel and text renders at its stated size at
+  // EVERY width — no in-between state where the whole drawing scales down.
+  // Below 700px the right label gutter goes away (the table below is the
+  // legend) and ticks thin out.
   const compact = boxW < 700
-  const W = compact ? 440 : 920
+  const W = Math.max(320, Math.round(boxW || 920))
   const H = compact ? 400 : 460
-  const M = compact ? { t: 14, r: 14, b: 30, l: 40 } : { t: 18, r: 128, b: 34, l: 46 }
+  const M = compact ? { t: 14, r: 14, b: 32, l: 46 } : { t: 18, r: 148, b: 36, l: 52 }
 
   useEffect(() => {
     fetch('/api/artifact/market_flow')
@@ -109,7 +110,7 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
     }
     return { x, y, line, strandLine, yMin, yMax, n }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, compact])
+  }, [data, W, compact])
 
   // Direct labels at line ends, nudged apart so they never collide.
   const labels = useMemo(() => {
@@ -119,7 +120,7 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
       yPos: geom.y(b.series[b.series.length - 1]),
     })).sort((a, b) => a.yPos - b.yPos)
     for (let i = 1; i < raw.length; i++) {
-      if (raw[i].yPos - raw[i - 1].yPos < 16) raw[i].yPos = raw[i - 1].yPos + 16
+      if (raw[i].yPos - raw[i - 1].yPos < 19) raw[i].yPos = raw[i - 1].yPos + 19
     }
     return raw
   }, [data, geom])
@@ -171,13 +172,13 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
         {[-0.75, -0.5, -0.25, 0.25, 0.5, 1, 1.5, 2, 2.5].filter(v => v > geom.yMin && v < geom.yMax).map(v => (
           <g key={v}>
             <line x1={M.l} x2={W - M.r} y1={geom.y(v)} y2={geom.y(v)} stroke="#22333c" strokeWidth={1} />
-            <text x={M.l - 6} y={geom.y(v) + 3} textAnchor="end" fontSize={10} fill="#61767e">
+            <text x={M.l - 6} y={geom.y(v) + 3} textAnchor="end" fontSize={12} fill="#61767e">
               {v > 0 ? `+${Math.round(v * 100)}%` : `−${Math.round(-v * 100)}%`}
             </text>
           </g>
         ))}
         <line x1={M.l} x2={W - M.r} y1={zeroY} y2={zeroY} stroke="#3a4f58" strokeWidth={1.5} />
-        <text x={M.l - 6} y={zeroY + 3} textAnchor="end" fontSize={10} fill="#93a6ab">0%</text>
+        <text x={M.l - 6} y={zeroY + 3} textAnchor="end" fontSize={12} fill="#93a6ab">0%</text>
 
         <clipPath id="flow-plot"><rect x={M.l} y={M.t} width={W - M.l - M.r} height={H - M.t - M.b} /></clipPath>
         {/* the population: faint strands (clipped — hot early-life ratios exit the frame) */}
@@ -206,7 +207,7 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
           ))}
         </g>
         {!compact && labels.map(l => (
-          <text key={l.bi} x={W - M.r + 8} y={l.yPos + 4} fontSize={11.5} fill="#dbe4e6">
+          <text key={l.bi} x={W - M.r + 8} y={l.yPos + 4} fontSize={13} fill="#dbe4e6">
             <tspan fill={RAMP[l.bi]}>●</tspan> {l.label}
             <tspan fill="#93a6ab"> {l.v >= 0 ? '+' : '−'}{Math.abs(l.v * 100).toFixed(0)}%</tspan>
           </text>
@@ -214,7 +215,7 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
 
         {/* x axis: sparse month ticks */}
         {data.months.map((m, mi) => (mi === geom.n - 1 || (mi % (compact ? 5 : 4) === 0 && geom.n - 1 - mi >= (compact ? 3 : 2))) && (
-          <text key={m} x={geom.x(mi)} y={H - 12} textAnchor="middle" fontSize={10} fill="#61767e">
+          <text key={m} x={geom.x(mi)} y={H - 12} textAnchor="middle" fontSize={12} fill="#61767e">
             {m}
           </text>
         ))}
@@ -223,15 +224,15 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
         {activeStrand !== null && data.strands[activeStrand] && hoverMi !== null && (() => {
           const st = data.strands[activeStrand]
           const v = st.y[hoverMi]
-          const w = compact ? W - M.l - M.r : 340
+          const w = compact ? W - M.l - M.r : 380
           return (
             <g pointerEvents="none">
               <g transform={`translate(${compact ? M.l : Math.max(M.l, Math.min(geom.x(hoverMi) + 10, W - M.r - w - 4))}, ${M.t + 4})`}>
-                <rect width={w} height={46} rx={5} fill="#1e3038" stroke="#2c424c" />
-                <text x={8} y={16} fontSize={11} fill="#dbe4e6">
+                <rect width={w} height={52} rx={5} fill="#1e3038" stroke="#2c424c" />
+                <text x={8} y={18} fontSize={13} fill="#dbe4e6">
                   <tspan fill={RAMP[st.b]}>●</tspan> {st.l ?? 'path'}
                 </text>
-                <text x={8} y={33} fontSize={10.5} fill="#93a6ab">
+                <text x={8} y={38} fontSize={12} fill="#93a6ab">
                   usually clears ${(st.cp ?? 0).toFixed(2)} · {data.months[hoverMi]}:{' '}
                   {v !== null && v !== undefined
                     ? `${v >= 0 ? '+' : '−'}${Math.abs(v * 100).toFixed(0)}% per $1 paid in`
@@ -253,10 +254,10 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
                 fill={RAMP[bi]} stroke="#15242c" strokeWidth={2} />
             ))}
             <g transform={`translate(${Math.max(M.l, Math.min(geom.x(hoverMi) + 10, W - M.r - 168))}, ${M.t + 6})`}>
-              <rect width={160} height={16 + data.buckets.length * 15} rx={5} fill="#1e3038" stroke="#2c424c" />
-              <text x={8} y={13} fontSize={10.5} fill="#93a6ab">{data.months[hoverMi]} · return per $1 paid in</text>
+              <rect width={190} height={20 + data.buckets.length * 17} rx={5} fill="#1e3038" stroke="#2c424c" />
+              <text x={8} y={15} fontSize={12} fill="#93a6ab">{data.months[hoverMi]} · return per $1 paid in</text>
               {data.buckets.map((b, bi) => (
-                <text key={bi} x={8} y={28 + bi * 15} fontSize={10.5} fill="#dbe4e6">
+                <text key={bi} x={8} y={28 + bi * 15} fontSize={12} fill="#dbe4e6">
                   <tspan fill={RAMP[bi]}>●</tspan> {b.label}:{' '}
                   {b.series[hoverMi] >= 0 ? '+' : '−'}{Math.abs(b.series[hoverMi] * 100).toFixed(0)}%
                 </text>
@@ -266,13 +267,13 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
         )}
       </svg>
       {focusMiss && (
-        <p className="mt-2 text-[11px] text-amber-400/80">
+        <p className="mt-2 text-[12.5px] text-amber-400/80">
           {focusMiss} has no strand here — this chart draws only monthly-auction history, and
           that path&apos;s volume cleared in long-term auctions (or it&apos;s too new to have a
           settled month).
         </p>
       )}
-      <figcaption className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[11px] text-[#61767e]">
+      <figcaption className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[12.5px] text-[#61767e]">
         <span>
           {data.n_paths.toLocaleString()} paths across {data.months.length} settled months —
           each faint strand is one path&apos;s running return per $1 paid in (cumulative payout
@@ -282,7 +283,7 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
         <span>window {data.months[0]} → {data.months[data.months.length - 1]} · run {data.generated_at?.slice(0, 10)}</span>
       </figcaption>
       {/* table view — the same facts, readable without the graphic */}
-      <table className="mt-3 w-full max-w-lg border-collapse text-[11.5px]">
+      <table className="mt-3 w-full max-w-lg border-collapse text-[13px]">
         <thead>
           <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-[#61767e]">
             <th className="py-1 pr-3 font-medium">Cleared at</th>
