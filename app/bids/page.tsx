@@ -227,12 +227,14 @@ export default function BidsPage() {
         ) : (
           <div className="space-y-1 text-[13px] text-zinc-400">
             <p className="max-w-[70ch]">
-              One rule: <span className="font-semibold text-zinc-200">enter the green limit
-              price as your bid — never more, never less</span>. The auction charges everyone
-              the same clearing price (the price where supply meets demand), not what you bid,
-              so bidding your full limit wins more paths at no extra cost. And every limit is
-              already set below the path&apos;s valued payout: even if it clears at your full
-              limit, history says you get back about $1.50 for every $1 paid.
+              <span className="font-semibold text-zinc-200">Every green figure is a reference
+              limit price</span> — the highest limit our margin rule supports for that path,
+              not an instruction. How the auction works: everyone pays the same clearing price
+              (where supply meets demand), not their own bid, so a limit at the full reference
+              adds wins without adding cost, and each reference sits far enough below the
+              path&apos;s valued payout that a fill at the full reference has historically
+              returned about $1.50 per $1 paid. Whether to bid, at what limit, and at what
+              size is your decision alone.
             </p>
             <p className="text-[11px] text-zinc-600">
               valued on day-ahead prices to {allRows[0]?.window_end ?? ''} (trailing 2 months

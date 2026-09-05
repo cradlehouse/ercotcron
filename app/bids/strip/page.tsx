@@ -184,9 +184,17 @@ export default function StripSheet() {
         </table>
       </div>
       <p className="mt-3 max-w-[90ch] text-[11px] leading-relaxed text-[#61767e]">
-        Ceilings build in the 50% margin rule per month. Far-month history is one or two
-        calendar samples — treat single-sample cells as sketches, not prices. The CSV emits one
-        row per month at each month&apos;s own ceiling; edit quantities before upload. Not a forecast.
+        Ceilings are reference limits building in the 50% margin rule per month — descriptions
+        of what the rule supports, not instructions. Far-month history is one or two calendar
+        samples — treat single-sample cells as sketches, not prices. The CSV emits one row per
+        month at each month&apos;s own reference; quantities and limits are yours to set before
+        any upload. Not a forecast.
+      </p>
+      <p className="mt-2 max-w-[90ch] text-[11px] leading-relaxed text-[#61767e]">
+        HYPOTHETICAL PERFORMANCE DISCLOSURE: Shadowprice&apos;s self-scored results are
+        hypothetical — no actual bids were submitted and no positions were held. Hypothetical
+        results do not reflect actual market participation, and no representation is made that
+        any account will or is likely to achieve similar results.
       </p>
     </div>
   )

@@ -61,39 +61,17 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   const [checked, setChecked] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(rows.map((r) => [r.key, r.tier === 'green'])),
   )
-  const [budget, setBudget] = useState(20000)
-  const [riskBudget, setRiskBudget] = useState(5000)
   // Hedge lens: obligations returned +22.3% as a class over 17 scored months
   // while options lost -7.6% — the toggle exists so the sheet's best OBL
   // candidates are one click away instead of buried among the options.
   const [hedgeLens, setHedgeLens] = useState<'both' | 'OPT' | 'OBL'>('both')
 
-  // Budget spreader — deliberately DUMB arithmetic, not a recommendation:
-  // splits each slice EQUALLY across its bucket's rows, capped by real
-  // liquidity (half the most MW any auction awarded — past that size your own
-  // bid becomes the clearing price). It used to weight by margin, which
-  // contradicted the methodology's own rule that magnitude never sizes a
-  // position (§7) — and quietly turned a calculator into advice.
-  function allocate() {
-    const g = rows.filter((r) => r.tier === 'green')
-    const a = rows.filter((r) => r.tier === 'amber')
-    const nextQty: Record<string, number> = { ...qty }
-    const nextChecked: Record<string, boolean> = { ...checked }
-    for (const [bucket, amt] of [[g, Math.max(budget - riskBudget, 0)], [a, riskBudget]] as const) {
-      const share = amt / (bucket.length || 1)
-      for (const r of bucket) {
-        const h = auction.hours[r.tou] ?? 0
-        const rate = r.cleared ?? r.ceiling
-        let q = h > 0 ? Math.floor(share / Math.max(h * rate, 1)) : 0
-        if (r.maxMw) q = Math.min(q, Math.floor(r.maxMw / 2))
-        q = Math.min(q, 500)
-        nextQty[r.key] = Math.max(q, 0)
-        nextChecked[r.key] = q > 0
-      }
-    }
-    setQty(nextQty)
-    setChecked(nextChecked)
-  }
+  // The budget allocator (budget in → sized MW out) was REMOVED per the
+  // pre-launch legal review (action A10): a tool converting a subscriber's
+  // stated capital into per-path quantities is individualized sizing, which
+  // conflicts with the impersonal-publisher posture until counsel clears it
+  // and clickwrap terms are live. MW inputs remain subscriber-set; defaults
+  // are the same uniform liquidity-derived figures for every viewer.
 
   const derived = useMemo(() => {
     const out: Record<string, { hours: number; maxCost: number; likelyCost: number; histReturn: number }> = {}
@@ -280,28 +258,6 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
   return (
     <div className="space-y-5">
       <div className="sticky top-0 z-10 -mx-1 rounded-lg border border-line bg-panel/95 px-4 py-3 backdrop-blur">
-        <div className="mb-2 flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-line pb-2">
-          <label className="block">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500">total to deploy ($)</div>
-            <input type="number" min={0} step={500} value={budget}
-              onChange={(e) => setBudget(Math.max(0, Number(e.target.value)))}
-              className="mt-0.5 w-28 rounded border border-line bg-transparent px-2 py-1 text-right tnum text-[13px] text-zinc-200" />
-          </label>
-          <label className="block">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500">of which at risk ($)</div>
-            <input type="number" min={0} step={500} value={riskBudget}
-              onChange={(e) => setRiskBudget(Math.max(0, Math.min(budget, Number(e.target.value))))}
-              className="mt-0.5 w-28 rounded border border-line bg-transparent px-2 py-1 text-right tnum text-[13px] text-amber-300" />
-          </label>
-          <button onClick={allocate}
-            className="rounded-md border border-emerald-600/60 px-3 py-1.5 text-[12px] font-semibold text-emerald-300 transition-colors hover:bg-emerald-600/15">
-            Spread a budget
-          </button>
-          <span className="text-[11px] text-zinc-600">
-            arithmetic, not advice: ${(budget - riskBudget).toLocaleString()} split equally across verified rows ·{' '}
-            ${riskBudget.toLocaleString()} equally across speculative rows, each capped by traded volume
-          </span>
-        </div>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div>
             <div className="text-[10px] uppercase tracking-wider text-zinc-500">selected</div>
@@ -350,15 +306,14 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
             same clearing price, not their bid</span>, and this path has recently cleared
             around {ex.cleared !== null ? usd(ex.cleared) : 'unknown'}, so you would likely pay
             about {money(eq * eh * (ex.cleared ?? ex.ceiling))} in total. The worst case —
-            it clears exactly at your limit — is {money(eq * eh * ex.ceiling)}. Bidding a low
-            number instead does not save money; it only loses you the path in any month someone
-            else spots it too.
+            it clears exactly at your limit — is {money(eq * eh * ex.ceiling)}. A lower limit
+            does not reduce what a winner pays — it only lowers the odds of filling.
           </div>
         )
       })()}
 
       <div className="flex items-center gap-2 text-[11px]">
-        <span className="text-zinc-500">Rank best bids:</span>
+        <span className="text-zinc-500">Rank by:</span>
         {(['both', 'OPT', 'OBL'] as const).map((h) => (
           <button key={h} onClick={() => setHedgeLens(h)}
             className="rounded px-2 py-0.5"
@@ -430,6 +385,15 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
         settlement. Dots under Edge count data coverage (clearing history, no flags, verified
         origin, payoff data) — they are not a probability. On OBL rows the worst case is NOT the
         premium: an obligation settles both directions with no floor.
+      </p>
+      <p className="text-[10.5px] leading-relaxed text-zinc-600">
+        HYPOTHETICAL PERFORMANCE DISCLOSURE: Shadowprice&apos;s self-scored results are
+        hypothetical — no actual bids were submitted and no positions were held. Hypothetical
+        results have inherent limitations: they do not reflect actual market participation
+        (fills are assumed at posted clearing prices, capped at awarded volume), and no
+        representation is made that any account will or is likely to achieve similar results.
+        All figures on this sheet are historical description, not a forecast or a
+        recommendation.
       </p>
     </div>
   )

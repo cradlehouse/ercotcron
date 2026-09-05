@@ -1,6 +1,6 @@
 # Shadowprice — CRR Valuation Methodology
 
-**Version 1.1 — September 2026**
+**Version 1.2 — September 2026**
 **Instrument scope:** ERCOT Congestion Revenue Rights (Options and Obligations, all Time-of-Use blocks, monthly and long-term tenors)
 **Purpose:** Independent, reproducible marks for CRR positions, suitable for collateral assessment, portfolio wind-down, and transaction pricing. Marks are **not** fair-value measurements for financial reporting, audit evidence, or financial-reporting support, and may not be represented as such (see Terms of Service §3).
 
@@ -97,9 +97,48 @@ Every published mark must be reproducible and attributable. The system self-audi
 - Threshold changes (e.g., the 90-day staleness window, trim percentages) require a recorded rationale in the change log below.
 - The two-month holdout rule (§6) is standing and applies to any future methodology change: a proposed change must not be evaluated on data it was tuned on.
 
+## 10. Scorecard publication rules (pre-registered)
+
+These rules are fixed BEFORE the first Scorecard issue and apply to every
+issue. Changing any of them increments this document's version and applies
+only to later issues.
+
+**Aggregation floor.** No published statistic describes a cohort of fewer
+than 5 distinct account holders, and no single holder may account for more
+than 40% of a published bucket's MW. Buckets failing either test are merged
+or withheld. The unit of analysis is always the path, price band, or
+constraint — never the holder; no holder is ever named or identifiable.
+
+**Self-scoring rules (fixed).** (a) A paper bid "fills" when its limit is at
+or above the auction's posted clearing price for the identical path, TOU
+block, and hedge type; paper fill size is capped at the MW the auction
+actually awarded on that path. (b) Profit and loss is computed only after
+the delivery month has fully settled, over the whole month, from the same
+DAM prices ERCOT settles on. (c) Realized value is computed for EVERY stored
+bid — fills, misses, and non-trades alike — so passed-up wins and dodged
+losses are both on the record. (d) Bids are stored append-only before
+results post; nothing is added, removed, or edited afterward. A correction
+is a new run published alongside the old one.
+
+**Every published figure carries** its sample size, data window, class
+definition, and the immutable run ID it derives from.
+
+**Both directions, always.** Favorable and unfavorable results appear with
+equal prominence. An issue with no unfavorable result must say why.
+
+**Hypothetical-performance legend.** Every self-scored publication carries
+the disclosure that results are hypothetical, no actual bids were submitted,
+and no representation is made that any account will achieve similar results
+(CFTC Rule 4.41(b) form, used whether or not formally required).
+
+**Historical only.** Scorecard content is historical description. It
+contains no forecasts, no forward-looking statements, and no recommendation
+to buy, sell, or bid anything.
+
 ### Change log
 
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 2026-08-12 | Initial methodology. |
 | 1.1 | 2026-09-04 | Purpose amended: financial-reporting support removed from stated uses (aligns with ToS §3; attested-letter product shelved). Clarified that the 96% figure is the exposure map's sign accuracy, not sheet-level pick accuracy — sheet picks are scored publicly from the SEP-2026 settlement onward. Published bid sheets display a month-conditioned typical payout (median of per-month means, delivery-month-capped, recency-capped) as the expectation base; the annual mean remains as context and fallback. Position-sizing helper on the sheet reduced to equal-split budget arithmetic per §7. |
+| 1.2 | 2026-09-05 | Pre-launch legal review adopted: §10 added — pre-registered Scorecard publication rules (5-holder aggregation floor, 40% MW concentration cap pending counsel confirmation, fixed self-scoring rules, per-figure sample/window/class/run-ID stamps, hypothetical-performance legend, historical-only content). Budget allocator removed from the bid sheet entirely (supersedes v1.1's equal-split form); all sheet limits presented as reference limit prices, imperative phrasing removed. |
