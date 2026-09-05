@@ -42,7 +42,7 @@ export default function Landing() {
       </section>
 
       <section id="market" className="border-t border-line">
-        <div className="mx-auto max-w-5xl px-6 py-12">
+        <div className="mx-auto max-w-6xl px-6 py-12">
           <div className="text-sm font-medium">The whole market, on the record</div>
           <p className="mt-2 max-w-[75ch] text-xs leading-relaxed text-[#93a6ab]">
             Every path the ERCOT monthly CRR auctions cleared, tracked through settlement —

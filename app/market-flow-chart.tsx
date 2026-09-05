@@ -24,12 +24,30 @@ type Flow = {
 // bucket line carries a direct label.
 const RAMP = ['#f6e27a', '#f2c14e', '#eda63a', '#d97b2c', '#c04a1d']
 
-const W = 920, H = 460, M = { t: 18, r: 128, b: 34, l: 46 }
-
 export function MarketFlowChart() {
   const [data, setData] = useState<Flow | null>(null)
   const [hoverMi, setHoverMi] = useState<number | null>(null)
+  const [boxW, setBoxW] = useState(920)
   const svgRef = useRef<SVGSVGElement>(null)
+  const wrapRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    // Depends on `data`: before the payload arrives only the placeholder is
+    // mounted and wrapRef is null — attaching on [] would observe nothing.
+    if (!wrapRef.current) return
+    const ro = new ResizeObserver(([e]) => setBoxW(e.contentRect.width))
+    ro.observe(wrapRef.current)
+    return () => ro.disconnect()
+  }, [data])
+
+  // Text is drawn in viewBox units: on a narrow box a 920-unit canvas shrinks
+  // the type into illegibility. Compact mode uses a SMALLER canvas (type
+  // renders larger), drops the right label gutter (the table below is the
+  // legend), and thins the ticks.
+  const compact = boxW < 700
+  const W = compact ? 440 : 920
+  const H = compact ? 400 : 460
+  const M = compact ? { t: 14, r: 14, b: 30, l: 40 } : { t: 18, r: 128, b: 34, l: 46 }
 
   useEffect(() => {
     fetch('/api/artifact/market_flow')
@@ -60,7 +78,8 @@ export function MarketFlowChart() {
       return d
     }
     return { x, y, line, yMin, yMax, n }
-  }, [data])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, compact])
 
   // Direct labels at line ends, nudged apart so they never collide.
   const labels = useMemo(() => {
@@ -89,7 +108,7 @@ export function MarketFlowChart() {
 
   const zeroY = geom.y(0)
   return (
-    <figure className="m-0">
+    <figure className="m-0" ref={wrapRef}>
       <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%" className="block select-none"
            role="img" aria-label="Cumulative return per dollar bid, by clearing-price bucket, across ERCOT monthly CRR auctions"
            onMouseMove={onMove} onMouseLeave={() => setHoverMi(null)}>
@@ -121,7 +140,7 @@ export function MarketFlowChart() {
               style={{ filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.6))' }} />
           ))}
         </g>
-        {labels.map(l => (
+        {!compact && labels.map(l => (
           <text key={l.bi} x={W - M.r + 8} y={l.yPos + 4} fontSize={11.5} fill="#dbe4e6">
             <tspan fill={RAMP[l.bi]}>●</tspan> {l.label}
             <tspan fill="#93a6ab"> {l.v >= 0 ? '+' : '−'}{Math.abs(l.v * 100).toFixed(0)}%</tspan>
@@ -129,7 +148,7 @@ export function MarketFlowChart() {
         ))}
 
         {/* x axis: sparse month ticks */}
-        {data.months.map((m, mi) => (mi % 4 === 0 || mi === geom.n - 1) && (
+        {data.months.map((m, mi) => (mi === geom.n - 1 || (mi % (compact ? 5 : 4) === 0 && geom.n - 1 - mi >= (compact ? 3 : 2))) && (
           <text key={m} x={geom.x(mi)} y={H - 12} textAnchor="middle" fontSize={10} fill="#61767e">
             {m}
           </text>
@@ -144,7 +163,7 @@ export function MarketFlowChart() {
               <circle key={bi} cx={geom.x(hoverMi)} cy={geom.y(b.series[hoverMi])} r={3.5}
                 fill={RAMP[bi]} stroke="#15242c" strokeWidth={2} />
             ))}
-            <g transform={`translate(${Math.min(geom.x(hoverMi) + 10, W - M.r - 168)}, ${M.t + 6})`}>
+            <g transform={`translate(${Math.max(M.l, Math.min(geom.x(hoverMi) + 10, W - M.r - 168))}, ${M.t + 6})`}>
               <rect width={160} height={16 + data.buckets.length * 15} rx={5} fill="#1e3038" stroke="#2c424c" />
               <text x={8} y={13} fontSize={10.5} fill="#93a6ab">{data.months[hoverMi]} · return per $1 paid in</text>
               {data.buckets.map((b, bi) => (
