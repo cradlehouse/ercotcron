@@ -11,7 +11,7 @@
 // below the plot. Strands are paths, never holders (methodology §10).
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-type Strand = { b: number; y: (number | null)[]; l?: string; cp?: number }
+type Strand = { b: number; y: (number | null)[]; c?: (number | null)[]; l?: string; cp?: number }
 type Flow = {
   months: string[]
   buckets: { label: string; series: number[]; paths: number }[]
@@ -198,8 +198,9 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
           </g>
         )}
 
-        {/* bucket aggregates: 2px, labeled */}
-        <g fill="none" strokeWidth={2}>
+        {/* bucket aggregates: 2px, labeled — they step back when a single
+            path is selected so the selection owns the frame */}
+        <g fill="none" strokeWidth={2} strokeOpacity={activeStrand !== null ? 0.18 : 1}>
           {data.buckets.map((b, bi) => (
             <path key={bi} d={geom.line(b.series)} stroke={RAMP[bi]}
               strokeLinecap="round"
@@ -207,7 +208,8 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
           ))}
         </g>
         {!compact && labels.map(l => (
-          <text key={l.bi} x={W - M.r + 8} y={l.yPos + 4} fontSize={13} fill="#dbe4e6">
+          <text key={l.bi} x={W - M.r + 8} y={l.yPos + 4} fontSize={13} fill="#dbe4e6"
+            opacity={activeStrand !== null ? 0.3 : 1}>
             <tspan fill={RAMP[l.bi]}>●</tspan> {l.label}
             <tspan fill="#93a6ab"> {l.v >= 0 ? '+' : '−'}{Math.abs(l.v * 100).toFixed(0)}%</tspan>
           </text>
@@ -220,25 +222,56 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
           </text>
         ))}
 
-        {/* strand readout: which path this line is, and where it stands */}
-        {activeStrand !== null && data.strands[activeStrand] && hoverMi !== null && (() => {
+        {/* strand readout: which path this line is, where it stands, and
+            whether the auction has been charging more or less for it */}
+        {activeStrand !== null && data.strands[activeStrand] && (() => {
+          const mi = hoverMi ?? geom.n - 1
           const st = data.strands[activeStrand]
-          const v = st.y[hoverMi]
-          const w = compact ? W - M.l - M.r : 380
+          const v = st.y[mi]
+          const w = compact ? W - M.l - M.r : 400
+          const cps = (st.c ?? []).map((c, i) => ({ c, i })).filter((e): e is { c: number; i: number } => e.c !== null)
+          const priced = cps.length >= 2
+          const cFirst = priced ? cps[0].c : null
+          const cLast = priced ? cps[cps.length - 1].c : null
+          const move = priced && cFirst! > 0 ? ((cLast! - cFirst!) / cFirst!) * 100 : null
+          // sparkline of the clearing-price history (its own tiny scale)
+          const sw = 120, sh = 18
+          const cMin = priced ? Math.min(...cps.map(e => e.c)) : 0
+          const cMax = priced ? Math.max(...cps.map(e => e.c)) : 1
+          const spark = priced
+            ? cps.map((e, j) => `${j === 0 ? 'M' : 'L'}${(e.i / (geom.n - 1)) * sw},${sh - ((e.c - cMin) / Math.max(cMax - cMin, 1e-6)) * sh}`).join('')
+            : ''
+          const h = priced ? 84 : 52
           return (
             <g pointerEvents="none">
-              <g transform={`translate(${compact ? M.l : Math.max(M.l, Math.min(geom.x(hoverMi) + 10, W - M.r - w - 4))}, ${M.t + 4})`}>
-                <rect width={w} height={52} rx={5} fill="#1e3038" stroke="#2c424c" />
+              <g transform={`translate(${compact ? M.l : Math.max(M.l, Math.min(geom.x(mi) + 10, W - M.r - w - 4))}, ${M.t + 4})`}>
+                <rect width={w} height={h} rx={5} fill="#1e3038" stroke="#2c424c" />
                 <text x={8} y={18} fontSize={13} fill="#dbe4e6">
                   <tspan fill={RAMP[st.b]}>●</tspan> {st.l ?? 'path'}
                 </text>
                 <text x={8} y={38} fontSize={12} fill="#93a6ab">
-                  usually clears ${(st.cp ?? 0).toFixed(2)} · {data.months[hoverMi]}:{' '}
+                  {data.months[mi]}:{' '}
                   {v !== null && v !== undefined
                     ? `${v >= 0 ? '+' : '−'}${Math.abs(v * 100).toFixed(0)}% per $1 paid in`
                     : 'not yet trading'}
                   {pinned !== null ? ' · click to unpin' : ' · click to pin'}
                 </text>
+                {priced && (
+                  <>
+                    <g transform={`translate(8, 50)`}>
+                      <path d={spark} fill="none" stroke="#93a6ab" strokeWidth={1.5} />
+                    </g>
+                    <text x={8 + sw + 10} y={64} fontSize={12} fill="#93a6ab">
+                      auction price ${cFirst!.toFixed(2)} → ${cLast!.toFixed(2)}{' '}
+                      <tspan fill={move! >= 0 ? '#f2c14e' : '#34d399'}>
+                        {move! >= 0 ? `▲ ${move!.toFixed(0)}% pricier` : `▼ ${Math.abs(move!).toFixed(0)}% cheaper`}
+                      </tspan>
+                    </text>
+                  </>
+                )}
+                {!priced && (
+                  <text x={8 + 0} y={38} fontSize={12} fill="transparent"> </text>
+                )}
               </g>
             </g>
           )

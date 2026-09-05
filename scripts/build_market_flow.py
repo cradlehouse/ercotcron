@@ -206,8 +206,11 @@ def main() -> int:
         avg_cp = sum(v[0] for v in mm.values()) / len(mm)
         cprem = cpaid = 0.0
         ys = []
+        cps = []   # the path's clearing price per auction month — "did it
+                   # get pricier or cheaper over time" rides on this
         first = min(mm)
         for mi in range(len(months)):
+            cps.append(round(mm[mi][0], 4) if mi in mm else None)
             if mi < first:
                 ys.append(None)
                 continue
@@ -215,7 +218,7 @@ def main() -> int:
                 cprem += mm[mi][1]
                 cpaid += mm[mi][2]
             ys.append(round((cpaid - cprem) / cprem, 3) if cprem > 0 else 0.0)
-        strands.append({"b": bucket_of(avg_cp), "y": ys,
+        strands.append({"b": bucket_of(avg_cp), "y": ys, "c": cps,
                         "l": f"{key[0]} → {key[1]} · {key[2]} · {key[3]}",
                         "cp": round(avg_cp, 3)})
 
