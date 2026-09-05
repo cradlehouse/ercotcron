@@ -1,5 +1,18 @@
 # Counsel Brief — Shadowprice (pre-publication review)
 
+> **Update 2026-09-05:** an internal consolidated pre-launch review
+> (attached: LEGAL_REVIEW_2026-09.md) was completed after this brief was
+> drafted. Its product-side actions are already implemented: the budget
+> allocator is removed, all imperative bid language is replaced with
+> "reference limit price" framing, a Rule 4.41(b)-form hypothetical legend
+> sits on every self-scored sheet, Scorecard publication rules (aggregation
+> floor, pre-registered scoring, per-figure provenance) are pre-registered in
+> the public methodology v1.2, clickwrap acceptance evidence is recorded
+> append-only, and a schema audit confirms no subscriber bids, positions, or
+> intentions are collected. Please review the CURRENT product, and prioritize
+> the review's §5 confirmation questions — they supersede overlapping
+> questions below where they are more specific.
+
 **Client:** Tim Capper, founder, Shadowprice (shadowprice.io) — sole founder,
 Texas-based, pre-revenue. **Ask:** a scoped review (est. 1–3 hours) of planned
 publications and product language before public launch, plus advice on
@@ -99,7 +112,10 @@ per-holder data shown only to that verified holder.
 
 ## Attachments (all short)
 
-- Methodology document (public, versioned) — MARK_METHODOLOGY.md
+- Consolidated pre-launch review with action register — LEGAL_REVIEW_2026-09.md
+  (its §5 lists the ten confirmation questions for the hour)
+- Methodology document (public, versioned, now live at
+  shadowprice.io/methodology) — MARK_METHODOLOGY.md
 - Draft Scorecard issue #1 (pre-publication)
 - Sample counterparty credit report (redacted)
 - Landing page copy (shadowprice.io)

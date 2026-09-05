@@ -6,12 +6,19 @@ import { sb } from '@/lib/supabase'
 type Profile = { plan: string; trial_ends: string | null }
 type Claim = { holder_code: string; status: string }
 
+// Bump when the Terms of Service materially change: every member is asked to
+// agree to the new version once, and each agreement is stored append-only
+// (accept_terms RPC) as clickwrap acceptance evidence.
+const TERMS_VERSION = '2026-09-05'
+
 export default function MemberHome() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [ready, setReady] = useState(false)
   const [claims, setClaims] = useState<Claim[]>([])
   const [code, setCode] = useState('')
   const [claimMsg, setClaimMsg] = useState<string | null>(null)
+  const [accepted, setAccepted] = useState<boolean | null>(null)
+  const [agreeTick, setAgreeTick] = useState(false)
 
   useEffect(() => {
     sb.auth.getSession().then(async ({ data }) => {
@@ -19,13 +26,45 @@ export default function MemberHome() {
       const { data: p } = await sb.from('profiles')
         .select('plan, trial_ends').eq('user_id', data.session.user.id).single()
       setProfile((p as unknown as Profile) ?? { plan: 'trial', trial_ends: null })
-      const { data: cl } = await sb.rpc('my_claims')
+      const [{ data: cl }, { data: acc }] = await Promise.all([
+        sb.rpc('my_claims'),
+        sb.rpc('my_terms_acceptance', { p_version: TERMS_VERSION }),
+      ])
       setClaims((cl as Claim[]) ?? [])
+      setAccepted(Boolean(acc))
       setReady(true)
     })
   }, [])
 
   if (!ready) return <div className="p-6 text-sm text-[#93a6ab]">loading…</div>
+
+  if (accepted === false) {
+    return (
+      <div className="mx-auto max-w-md px-6 py-16 text-[#f2f6f6]">
+        <h1 className="text-lg font-medium">One thing before the numbers</h1>
+        <p className="mt-2 text-[13px] leading-relaxed text-[#93a6ab]">
+          Please review and agree to the{' '}
+          <a href="/terms" target="_blank" className="text-[#eda63a]">Terms of Service</a> and{' '}
+          <a href="/privacy" target="_blank" className="text-[#eda63a]">Privacy Policy</a>{' '}
+          (version {TERMS_VERSION}). The short of it: analytics on public data, not investment
+          advice; your bidding decisions are yours alone.
+        </p>
+        <label className="mt-5 flex items-start gap-2 text-[13px] text-[#dbe4e6]">
+          <input type="checkbox" checked={agreeTick} onChange={e => setAgreeTick(e.target.checked)}
+            className="mt-0.5 accent-[#eda63a]" />
+          <span>I have read and agree to the Terms of Service and Privacy Policy.</span>
+        </label>
+        <button disabled={!agreeTick}
+          onClick={async () => {
+            await sb.rpc('accept_terms', { p_version: TERMS_VERSION, p_user_agent: navigator.userAgent })
+            setAccepted(true)
+          }}
+          className="mt-4 rounded bg-[#eda63a] px-4 py-2 text-sm font-medium text-[#15242c] disabled:opacity-40">
+          Agree and continue
+        </button>
+      </div>
+    )
+  }
 
   const trialDays = profile?.trial_ends
     ? Math.max(0, Math.ceil((new Date(profile.trial_ends).getTime() - Date.now()) / 86400000))
