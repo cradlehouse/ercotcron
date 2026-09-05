@@ -32,7 +32,7 @@ export function NavBar() {
           <LogoMark size={20} />
           <span><span className="text-[#eda63a]">shadow</span>price</span>
         </Link>
-        <nav className="flex gap-4 text-[13px]">
+        <nav className="flex gap-4 text-[14px]">
           {MENU.map(m => (
             <Link key={m.href} href={m.href}
               className={path === m.href ? 'text-[#f2f6f6]' : 'text-[#7d9096] hover:text-[#dbe4e6]'}>
@@ -40,7 +40,7 @@ export function NavBar() {
             </Link>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-3 text-[12px] text-[#7d9096]">
+        <div className="ml-auto flex items-center gap-3 text-[13px] text-[#7d9096]">
           {email ? (
             <>
               <span className="hidden sm:inline">{email}</span>

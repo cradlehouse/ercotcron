@@ -73,14 +73,14 @@ export default function MemberHome() {
   return (
     <div className="text-[#f2f6f6]">
       <main className="mx-auto max-w-4xl px-6 py-6">
-        <div className="rounded border border-line bg-panel/60 px-4 py-3 text-xs text-[#93a6ab]">
+        <div className="rounded border border-line bg-panel/60 px-4 py-3 text-[13.5px] text-[#93a6ab]">
           {profile?.plan === 'trial'
             ? <>Free trial{trialDays !== null ? ` — ${trialDays} days left` : ''}. We&apos;ll ask for billing details before your trial ends; nothing is charged unless you choose to stay.</>
             : <>Plan: {profile?.plan}</>}
         </div>
 
         <section className="mt-6 rounded border border-line p-4">
-          <div className="text-sm font-medium">Your CRR account</div>
+          <div className="text-[15px] font-medium">Your CRR account</div>
           {claims.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               {claims.map(c => (
@@ -94,7 +94,7 @@ export default function MemberHome() {
               ))}
             </div>
           ) : (
-            <p className="mt-1 text-xs text-[#93a6ab]">
+            <p className="mt-1 text-[13.5px] text-[#93a6ab]">
               Enter your ERCOT CRR account code (e.g. XSAAIC) to see your own book, graded.
               If your email matches the account&apos;s registered contact, access is instant;
               otherwise a confirmation goes to the registered address.
@@ -140,8 +140,8 @@ export default function MemberHome() {
 
         <div className="mt-8 grid gap-6 sm:grid-cols-2">
           <section className="rounded border border-line p-4">
-            <div className="text-sm font-medium">Next auction</div>
-            <p className="mt-1 text-xs leading-relaxed text-[#93a6ab]">
+            <div className="text-[15px] font-medium">Next auction</div>
+            <p className="mt-1 text-[13.5px] leading-relaxed text-[#93a6ab]">
               OCT 2026 monthly — bids Sep 8–10. Your bid sheet posts here when
               the October valuation run completes, with limits, sizing, and
               the ERCOT-format CSV.
@@ -152,8 +152,8 @@ export default function MemberHome() {
           </section>
 
           <section className="rounded border border-line p-4">
-            <div className="text-sm font-medium">Relationship map</div>
-            <p className="mt-1 text-xs leading-relaxed text-[#93a6ab]">
+            <div className="text-[15px] font-medium">Relationship map</div>
+            <p className="mt-1 text-[13.5px] leading-relaxed text-[#93a6ab]">
               Every live path and the constraints behind it — hover a node to
               see what drives it and what it drags along.
             </p>
@@ -163,8 +163,8 @@ export default function MemberHome() {
           </section>
 
           <section className="rounded border border-line p-4">
-            <div className="text-sm font-medium">Constraint alerts</div>
-            <p className="mt-1 text-xs leading-relaxed text-[#93a6ab]">
+            <div className="text-[15px] font-medium">Constraint alerts</div>
+            <p className="mt-1 text-[13.5px] leading-relaxed text-[#93a6ab]">
               Re-rates, retirements, and relief projects behind the paths you
               care about. Email alerts are being wired now — trial members get
               them first.
@@ -172,8 +172,8 @@ export default function MemberHome() {
           </section>
 
           <section className="rounded border border-line p-4">
-            <div className="text-sm font-medium">Track record</div>
-            <p className="mt-1 text-xs leading-relaxed text-[#93a6ab]">
+            <div className="text-[15px] font-medium">Track record</div>
+            <p className="mt-1 text-[13.5px] leading-relaxed text-[#93a6ab]">
               Every sheet self-scored against what the auction and settlement
               actually did. First public scorecard publishes after the
               September settlement.
