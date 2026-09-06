@@ -80,13 +80,17 @@ export default function MethodScore() {
               const running = rows.filter(r => r.status === 'running')
               const cost = running.reduce((a, r) => a + (r.cost ?? 0), 0)
               const paid = running.reduce((a, r) => a + (r.paid ?? 0), 0)
+              const missed = rows.filter(r => r.status.startsWith('missed —'))
+              const mCost = missed.reduce((a, r) => a + (r.cost ?? 0), 0)
+              const mPaid = missed.reduce((a, r) => a + (r.paid ?? 0), 0)
               return (
                 <div key={g} className="mt-3">
                   <div className="flex flex-wrap items-baseline gap-3 text-[13px]">
                     <span className="font-medium text-[#dbe4e6]">{g}</span>
                     <span className="text-[11.5px] text-[#7d9096]">
                       {rows.length} estimates · {running.length} running
-                      {running.length > 0 && <> · {`$${cost.toLocaleString()} in / $${paid.toLocaleString()} out`} ({cost > 0 ? Math.round((paid / cost) * 100) : 0}% pace)</>}
+                      {running.length > 0 && <> · ours: {`$${cost.toLocaleString()} in / $${paid.toLocaleString()} out`} ({cost > 0 ? Math.round((paid / cost) * 100) : 0}%)</>}
+                      {missed.length > 0 && <> · <span className="text-red-400/80">the market&apos;s {missed.length} buys at prices we refused: {`$${mCost.toLocaleString()} in / $${mPaid.toLocaleString()} out`} ({mCost > 0 ? Math.round((mPaid / mCost) * 100) : 0}%)</span></>}
                     </span>
                   </div>
                   <div className="mt-1 overflow-x-auto rounded border border-line bg-panel">
@@ -94,7 +98,7 @@ export default function MethodScore() {
                       <tbody>
                         {rows.map((r, i) => {
                           const key = `${r.grp}|${r.source}|${r.sink}|${r.tou}|${r.hedge}`
-                          const canOpen = r.status === 'running'
+                          const canOpen = r.status === 'running' || r.status.startsWith('missed —')
                           const isOpen = openEst === key
                           const dd = estDaily[key]
                           return (
@@ -108,9 +112,9 @@ export default function MethodScore() {
                             <td className="px-2 py-1">{r.delivery}</td>
                             <td className="px-2 py-1 text-right tnum">{r.bid !== null ? `$${Number(r.bid).toFixed(2)}` : '—'}{r.clearing !== null ? ` / $${Number(r.clearing).toFixed(4)}` : ''}</td>
                             <td className="px-2 py-1 text-right tnum">{Number(r.mw)} MW</td>
-                            <td className={`px-2 py-1 ${r.status === 'running' ? 'text-emerald-400' : r.status === 'missed' ? 'text-[#61767e]' : 'text-amber-400'}`}>{r.status}</td>
-                            <td className="px-2 py-1 text-right tnum">{r.status === 'running' ? `$${(r.cost ?? 0).toLocaleString()} in` : ''}</td>
-                            <td className="px-2 py-1 text-right tnum">{r.status === 'running' ? `$${(r.paid ?? 0).toLocaleString()} out` : ''}</td>
+                            <td className={`px-2 py-1 ${r.status === 'running' ? 'text-emerald-400' : r.status.startsWith('missed —') ? 'text-red-400/80' : r.status === 'missed' ? 'text-[#61767e]' : 'text-amber-400'}`}>{r.status}</td>
+                            <td className="px-2 py-1 text-right tnum">{canOpen && r.cost !== null ? `$${(r.cost ?? 0).toLocaleString()} in` : ''}</td>
+                            <td className="px-2 py-1 text-right tnum">{canOpen && r.paid !== null ? `$${(r.paid ?? 0).toLocaleString()} out` : ''}</td>
                           </tr>
                           {isOpen && (
                             <tr className="border-b border-line/40">
