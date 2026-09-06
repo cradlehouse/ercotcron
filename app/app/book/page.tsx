@@ -171,6 +171,7 @@ export default function MyBook() {
             <table className="w-full min-w-[760px] border-collapse text-[12px]">
               <thead>
                 <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-[#7d9096]">
+                  <th className="w-7 px-2 py-2"></th>
                   <th className="px-2 py-2">Path</th>
                   <th className="px-2 py-2">Block · type</th>
                   <th className="px-2 py-2 text-right">MW</th>
@@ -190,6 +191,7 @@ export default function MyBook() {
                     <Fragment key={key}><tr onClick={() => toggleDaily(r)}
                         className={`cursor-pointer border-b border-line/50 last:border-0 hover:bg-panel-2/40 ${open ? 'bg-panel-2/30' : ''}`}
                         title="click for the daily win/loss picture">
+                      <td className="px-2 py-1.5 text-[11px] text-[#eda63a]">{open ? '▾' : '▸'}</td>
                       <td className="px-2 py-1.5 font-mono text-[11.5px]">
                         <a className="hover:text-white" onClick={e => e.stopPropagation()}
                            href={`/path?src=${encodeURIComponent(r.source)}&snk=${encodeURIComponent(r.sink)}`}>
@@ -207,7 +209,7 @@ export default function MyBook() {
                     </tr>
                     {open && (
                       <tr className="border-b border-line/50">
-                        <td colSpan={7} className="bg-ink/40 px-3 py-3">
+                        <td colSpan={8} className="bg-ink/40 px-3 py-3">
                           {dd === 'loading' || !dd
                             ? <div className="text-[12px] text-[#7d9096]">pulling the daily record…</div>
                             : dd.length === 0
