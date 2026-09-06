@@ -91,7 +91,7 @@ export default function MethodScore() {
                     <span className="font-medium text-[#dbe4e6]">{g}</span>
                     <span className="text-[11.5px] text-[#7d9096]">
                       {rows.length} estimates · {running.length} running
-                      {running.length > 0 && <> · ours: {`$${cost.toLocaleString()} in / $${paid.toLocaleString()} out`} ({cost > 0 ? Math.round((paid / cost) * 100) : 0}%)</>}
+                      {running.length > 0 && <> · ours: {`$${cost.toLocaleString()} in / $${paid.toLocaleString()} out`} (net {paid - cost >= 0 ? '+' : '−'}${Math.abs(paid - cost).toLocaleString()}{cost > 0 ? `, ${Math.round((paid / cost) * 100)}%` : ''})</>}
                       {missed.length > 0 && <> · <span className="text-red-400/80">the market&apos;s {missed.length} buys at prices we refused: {`$${mCost.toLocaleString()} in / $${mPaid.toLocaleString()} out`} ({mCost > 0 ? Math.round((mPaid / mCost) * 100) : 0}%)</span></>}
                       {ghosts.length > 0 && <> · {ghosts.length} never traded</>}
                     </span>
@@ -117,7 +117,11 @@ export default function MethodScore() {
                             <td className="px-2 py-1 text-right tnum">{r.bid !== null ? `$${Number(r.bid).toFixed(2)}` : '—'}{r.clearing !== null ? ` / $${Number(r.clearing).toFixed(4)}` : ''}</td>
                             <td className="px-2 py-1 text-right tnum">{Number(r.mw)} MW</td>
                             <td className={`px-2 py-1 ${r.status === 'running' ? 'text-emerald-400' : r.status.startsWith('missed —') ? 'text-red-400/80' : r.status === 'missed' ? 'text-[#61767e]' : 'text-amber-400'}`}>{r.status}</td>
-                            <td className="px-2 py-1 text-right tnum">{canOpen && r.cost !== null ? `$${(r.cost ?? 0).toLocaleString()} in` : ''}</td>
+                            <td className="px-2 py-1 text-right tnum">{canOpen && r.cost !== null
+                              ? (r.cost < 0
+                                  ? <span className="text-emerald-400/80">{`collected $${Math.abs(r.cost).toLocaleString()} at entry`}</span>
+                                  : `$${(r.cost ?? 0).toLocaleString()} in`)
+                              : ''}</td>
                             <td className="px-2 py-1 text-right tnum">{canOpen && r.paid !== null ? `$${(r.paid ?? 0).toLocaleString()} out` : ''}</td>
                           </tr>
                           {isOpen && (
