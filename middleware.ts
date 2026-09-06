@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // (the ops pages) stays behind the basic-auth password.
 const PUBLIC_EXACT = new Set(['/', '/node_graph.json', '/grid_geo.json', '/tx.json', '/market_flow.json', '/favicon.ico'])
 const PUBLIC_PREFIX = [
-  '/signin', '/signup', '/app', '/terms', '/privacy', '/methodology',
+  '/signin', '/signup', '/reset', '/app', '/terms', '/privacy', '/methodology',
   // Product routes: open here, gated client-side by MemberGate (Supabase
   // session) with the data locked behind authenticated-only RPCs.
   '/bids', '/map', '/path',

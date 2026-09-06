@@ -19,6 +19,27 @@ export default function SignIn() {
     window.location.href = '/app'
   }
 
+  // No-password paths: a one-click emailed sign-in link, and a proper reset.
+  async function magicLink() {
+    if (!email) { setMsg('Type your email first, then hit the link button.'); return }
+    setBusy(true); setMsg(null)
+    const { error } = await sb.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/app` },
+    })
+    setBusy(false)
+    setMsg(error ? error.message : `Sign-in link sent to ${email} — one click there and you're in.`)
+  }
+  async function forgot() {
+    if (!email) { setMsg('Type your email first, then hit reset.'); return }
+    setBusy(true); setMsg(null)
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset`,
+    })
+    setBusy(false)
+    setMsg(error ? error.message : `Password reset sent to ${email}.`)
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink px-4 text-[#f2f6f6]">
       <div className="w-full max-w-sm">
@@ -37,6 +58,14 @@ export default function SignIn() {
           </button>
         </form>
         {msg && <p className="mt-3 text-xs text-amber-400">{msg}</p>}
+        <div className="mt-3 flex gap-4 text-xs text-[#7d9096]">
+          <button onClick={magicLink} disabled={busy} className="hover:text-[#dbe4e6]">
+            Email me a sign-in link
+          </button>
+          <button onClick={forgot} disabled={busy} className="hover:text-[#dbe4e6]">
+            Forgot password?
+          </button>
+        </div>
         <p className="mt-6 text-xs text-[#7d9096]">
           New here? <Link href="/signup" className="text-[#dbe4e6] hover:text-white">Start a free trial</Link>
         </p>
