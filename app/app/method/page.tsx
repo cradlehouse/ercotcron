@@ -1,33 +1,54 @@
 'use client'
-// The method scored against itself, visible to every member — every
-// snapshotted sheet row's counterfactual (would the reference limit have
-// filled; what delivery paid), including the red don't-bid calls. This IS
-// the self-scoring methodology §10 pre-registers.
+// The method, judged — one sheet at a time.
+// Verdict first: three camp tiles (won / outbid / refused) with money; the
+// month as a flow field (click a tile to isolate a camp and see its group
+// daily over/under); then evidence tables in descending interest, with
+// never-traded collapsed. Paper batches (real stored bids) get their own tab.
 import { Fragment, useEffect, useState } from 'react'
 import { sb } from '@/lib/supabase'
 import { DailyChart, type DailyRow } from '../../daily-chart'
-import { SheetFlowChart } from './sheet-flow'
+import { SheetFlowChart, type ClassKey } from './sheet-flow'
 
-type SheetAgg = { sheet: string; tier: string; rows: number; snapshot_at: string; filled: number | null; cost: number | null; realized: number | null; pnl: number | null }
-type Row = { sheet: string; source: string; sink: string; time_of_use: string; hedge_type: string; tier: string; ref_limit: number | null; suggested_mw: number | null; clearing: number | null; filled: boolean | null; cost: number | null; realized: number | null; pnl: number | null }
-type Score = { sheets: SheetAgg[]; rows: Row[] }
 type Prog = { grp: string; source: string; sink: string; tou: string; hedge: string; tier: string; bid: number | null; clearing: number | null; mw: number; delivery: string; status: string; hours: number; cost: number | null; paid: number | null }
 
-const usd = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `$${Number(v).toLocaleString()}`)
-const TIER_COLOR: Record<string, string> = { green: 'text-emerald-400', amber: 'text-amber-400', red: 'text-red-400' }
+const usd = (v: number) => `$${Math.abs(v).toLocaleString()}`
+const signed = (v: number) => `${v >= 0 ? '+' : '−'}${usd(v)}`
+
+function campOf(r: Prog): 'won' | 'outbid' | 'refused' | 'ghost' {
+  if (r.tier === 'red') return 'refused'
+  if (r.status === 'never traded') return 'ghost'
+  if (r.status.startsWith('missed')) return 'outbid'
+  return 'won'
+}
+const CAMP_META = {
+  won: { title: 'Won', blurb: 'we said bid — our limit would have filled', color: '#34d399', chart: 'ours' as ClassKey },
+  outbid: { title: 'Outbid', blurb: 'we said bid — the market paid more than our discipline allows', color: '#f87171', chart: 'market' as ClassKey },
+  refused: { title: 'Said no', blurb: "the red list, tracked at the market's price", color: '#c07b5a', chart: 'reds' as ClassKey },
+}
 
 export default function MethodScore() {
-  const [score, setScore] = useState<Score | null>(null)
   const [prog, setProg] = useState<Prog[] | null>(null)
-  const [openEst, setOpenEst] = useState<string | null>(null)
-  const [estDaily, setEstDaily] = useState<Record<string, DailyRow[] | 'loading'>>({})
+  const [state, setState] = useState<'loading' | 'member' | 'admin'>('loading')
+  const [tab, setTab] = useState<string | null>(null)
+  const [camp, setCamp] = useState<ClassKey | null>(null)
+  const [openRow, setOpenRow] = useState<string | null>(null)
+  const [daily, setDaily] = useState<Record<string, DailyRow[] | 'loading'>>({})
+  const [showGhosts, setShowGhosts] = useState(false)
 
-  async function toggleEst(r: Prog) {
+  useEffect(() => {
+    sb.auth.getSession().then(async ({ data }) => {
+      if (!data.session) { window.location.href = '/signin'; return }
+      const { data: pr } = await sb.rpc('get_method_progress')
+      if (Array.isArray(pr) && pr.length > 0) { setProg(pr as Prog[]); setState('admin') } else setState('member')
+    })
+  }, [])
+
+  async function toggleRow(r: Prog) {
     const key = `${r.grp}|${r.source}|${r.sink}|${r.tou}|${r.hedge}`
-    if (openEst === key) { setOpenEst(null); return }
-    setOpenEst(key)
-    if (!estDaily[key]) {
-      setEstDaily(d => ({ ...d, [key]: 'loading' }))
+    if (openRow === key) { setOpenRow(null); return }
+    setOpenRow(key)
+    if (!daily[key]) {
+      setDaily(d => ({ ...d, [key]: 'loading' }))
       const { data } = await sb.rpc('get_path_daily', {
         p_src: r.source, p_snk: r.sink, p_tou: r.tou, p_hedge: r.hedge,
         p_month: `${r.delivery}-01`,
@@ -37,180 +58,181 @@ export default function MethodScore() {
         paid_in: Math.round((r.clearing ?? 0) * x.hours * r.mw),
         paid_out: Math.round(x.paid_per_mwh * r.mw),
       }))
-      setEstDaily(d => ({ ...d, [key]: rows }))
+      setDaily(d => ({ ...d, [key]: rows }))
     }
   }
-  const [state, setState] = useState<'loading' | 'denied' | 'ok'>('loading')
-
-  useEffect(() => {
-    sb.auth.getSession().then(async ({ data }) => {
-      if (!data.session) { window.location.href = '/signin'; return }
-      const { data: s, error } = await sb.rpc('get_method_score')
-      if (error || !s) { setState('denied'); return }
-      setScore(s as Score)
-      setState('ok')
-      // admin-only live progress; null for everyone else
-      const { data: pr } = await sb.rpc('get_method_progress')
-      if (pr) setProg(pr as Prog[])
-    })
-  }, [])
 
   if (state === 'loading') return <div className="p-6 text-sm text-[#7d9096]">loading…</div>
-  if (state === 'denied') return <div className="p-6 text-sm text-[#93a6ab]">Couldn&apos;t load the method score — refresh, or sign in again.</div>
+  if (state === 'member' || !prog) return (
+    <div className="p-6 text-sm text-[#93a6ab]">
+      Sheet scores publish to the <a href="/app/record" className="text-[#eda63a]">Track record</a> page
+      as each auction and settlement completes.
+    </div>
+  )
+
+  const sheets = [...new Set(prog.filter(p => !p.grp.startsWith('paper:')).map(p => p.grp))]
+  const papers = [...new Set(prog.filter(p => p.grp.startsWith('paper:')).map(p => p.grp))]
+  const active = tab ?? sheets[0] ?? papers[0]
+  const isPaper = active?.startsWith('paper:') || active === '__papers__'
+  const rows = prog.filter(p => p.grp === active)
+
+  const camps = {
+    won: rows.filter(r => campOf(r) === 'won'),
+    outbid: rows.filter(r => campOf(r) === 'outbid'),
+    refused: rows.filter(r => campOf(r) === 'refused' && r.clearing !== null),
+    ghost: rows.filter(r => campOf(r) === 'ghost'),
+  }
+  const sums = (rs: Prog[]) => {
+    const live = rs.filter(r => r.hours > 0)
+    const cost = live.reduce((a, r) => a + (r.cost ?? 0), 0)
+    const paid = live.reduce((a, r) => a + (r.paid ?? 0), 0)
+    return { cost, paid, net: paid - cost }
+  }
+
+  const RowLine = ({ r }: { r: Prog }) => {
+    const key = `${r.grp}|${r.source}|${r.sink}|${r.tou}|${r.hedge}`
+    const canOpen = r.hours > 0
+    const isOpen = openRow === key
+    const dd = daily[key]
+    return (
+      <Fragment>
+        <tr onClick={() => canOpen && toggleRow(r)}
+            className={`border-b border-line/40 text-[#93a6ab] last:border-0 ${canOpen ? 'cursor-pointer hover:bg-panel-2/40' : ''} ${isOpen ? 'bg-panel-2/30' : ''}`}>
+          <td className="px-2 py-1 font-mono text-[11.5px] text-[#dbe4e6]">
+            {canOpen && <span className="mr-1 text-[10px] text-[#eda63a]">{isOpen ? '▾' : '▸'}</span>}
+            {r.source} → {r.sink}
+            <a className="ml-2 text-[#eda63a] hover:text-[#f5b95c]" title="dossier"
+               onClick={e => e.stopPropagation()}
+               href={`/path?src=${encodeURIComponent(r.source)}&snk=${encodeURIComponent(r.sink)}`}>↗</a>
+          </td>
+          <td className="px-2 py-1">{r.tou} · {r.hedge}</td>
+          <td className="px-2 py-1 text-right tnum">{r.bid !== null ? `$${Number(r.bid).toFixed(2)}` : '—'}</td>
+          <td className="px-2 py-1 text-right tnum">{r.clearing !== null ? `$${Number(r.clearing).toFixed(4)}` : '—'}</td>
+          <td className="px-2 py-1 text-right tnum">{Number(r.mw)} MW</td>
+          <td className="px-2 py-1 text-right tnum">{r.cost !== null && r.hours > 0
+            ? (r.cost < 0 ? <span className="text-emerald-400/80">collected {usd(r.cost)}</span> : `${usd(r.cost)} in`)
+            : (r.status === 'awaiting results' || r.status === 'awaiting delivery') ? r.status : ''}</td>
+          <td className={`px-2 py-1 text-right tnum ${r.paid !== null && r.paid < 0 ? 'text-red-400/80' : ''}`}>
+            {r.paid !== null && r.hours > 0 ? `${r.paid < 0 ? '−' : ''}${usd(r.paid)} out` : ''}</td>
+          <td className={`px-2 py-1 text-right tnum ${r.paid !== null && r.cost !== null && r.hours > 0 ? ((r.paid - r.cost) >= 0 ? 'text-emerald-400' : 'text-red-400') : ''}`}>
+            {r.paid !== null && r.cost !== null && r.hours > 0 ? signed(r.paid - r.cost) : ''}</td>
+        </tr>
+        {isOpen && (
+          <tr className="border-b border-line/40">
+            <td colSpan={8} className="bg-ink/40 px-3 py-3">
+              {dd === 'loading' || !dd
+                ? <div className="text-[12px] text-[#7d9096]">pulling the daily record…</div>
+                : dd.length === 0
+                  ? <div className="text-[12px] text-[#93a6ab]">No settled days yet.</div>
+                  : <DailyChart rows={dd} month={r.delivery} />}
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    )
+  }
+
+  const Table = ({ rs }: { rs: Prog[] }) => (
+    <div className="mt-2 overflow-x-auto rounded border border-line bg-panel">
+      <table className="w-full min-w-[880px] border-collapse text-[12px]">
+        <thead>
+          <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-[#7d9096]">
+            <th className="px-2 py-1.5">Path</th><th className="px-2 py-1.5">Block · type</th>
+            <th className="px-2 py-1.5 text-right">Our limit</th><th className="px-2 py-1.5 text-right">Cleared</th>
+            <th className="px-2 py-1.5 text-right">MW</th><th className="px-2 py-1.5 text-right">Cost</th>
+            <th className="px-2 py-1.5 text-right">Paid out</th><th className="px-2 py-1.5 text-right">Net</th>
+          </tr>
+        </thead>
+        <tbody>{rs.map((r, i) => <RowLine key={i} r={r} />)}</tbody>
+      </table>
+    </div>
+  )
 
   return (
     <div className="mx-auto max-w-6xl p-4 text-[#f2f6f6]">
-      <h1 className="text-[15px] font-semibold">Method score — every sheet, every row, counterfactual</h1>
-      <p className="mt-1 max-w-[95ch] text-[12.5px] text-[#7d9096]">
-        Sheets are snapshotted at publish (immutable) and scored as results and settlement
-        arrive: filled = the reference limit met the clearing price; cost, realized, and P&L at
-        the sheet&apos;s own suggested size. Red rows are scored per-MW — they grade the
-        don&apos;t-bid calls. Favorable and unfavorable alike, never edited.
-        HYPOTHETICAL PERFORMANCE DISCLOSURE: no actual bids were submitted and no positions
-        held; hypothetical results do not reflect actual market participation, and no
-        representation is made that any account will achieve similar results.
+      <h1 className="text-[15px] font-semibold">Method score</h1>
+      <p className="mt-1 text-[12.5px] text-[#7d9096]">
+        One sheet at a time, judged three ways. Hypothetical — no bids submitted, no positions
+        held; results do not reflect actual market participation and predict nothing.
       </p>
 
-      {prog && prog.length > 0 && (() => {
-        const groups = [...new Set(prog.map(p => p.grp))]
-        return (
-          <div className="mt-6">
-            <h2 className="text-[14px] font-medium">Pre-auction estimates — live progress <span className="ml-2 text-[10px] uppercase tracking-wider text-[#61767e]">admin</span></h2>
-            {groups.map(g => {
-              const rows = prog.filter(p => p.grp === g)
-              const running = rows.filter(r => r.status === 'running')
-              const cost = running.reduce((a, r) => a + (r.cost ?? 0), 0)
-              const paid = running.reduce((a, r) => a + (r.paid ?? 0), 0)
-              const missed = rows.filter(r => r.status.startsWith('missed —'))
-              const ghosts = rows.filter(r => r.status === 'never traded')
-              const mCost = missed.reduce((a, r) => a + (r.cost ?? 0), 0)
-              const mPaid = missed.reduce((a, r) => a + (r.paid ?? 0), 0)
+      <div className="mt-4 flex flex-wrap gap-2 text-[12.5px]">
+        {sheets.map(s => (
+          <button key={s} onClick={() => { setTab(s); setCamp(null); setOpenRow(null) }}
+            className={`rounded px-2.5 py-1 ${active === s ? 'bg-panel-2 text-[#f2f6f6]' : 'text-[#7d9096] hover:text-[#dbe4e6]'}`}>
+            {s.replace('2026Monthly', ' 2026 monthly').replace('-reconstructed', ' (reconstructed)')}
+          </button>
+        ))}
+        {papers.length > 0 && (
+          <button onClick={() => { setTab('__papers__'); setCamp(null); setOpenRow(null) }}
+            className={`rounded px-2.5 py-1 ${isPaper ? 'bg-panel-2 text-[#f2f6f6]' : 'text-[#7d9096] hover:text-[#dbe4e6]'}`}>
+            Paper batches
+          </button>
+        )}
+      </div>
+
+      {isPaper ? (
+        <div className="mt-2">
+          {papers.map(pb => (
+            <div key={pb} className="mt-5">
+              <div className="text-[13.5px] font-medium text-[#dbe4e6]">{pb.replace('paper: ', '')}</div>
+              <Table rs={prog.filter(p => p.grp === pb)} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {(['won', 'outbid', 'refused'] as const).map(k => {
+              const meta = CAMP_META[k]
+              const rs = camps[k]
+              const { cost, paid, net } = sums(rs)
+              const sel = camp === meta.chart
               return (
-                <div key={g} className="mt-3">
-                  <div className="flex flex-wrap items-baseline gap-3 text-[13px]">
-                    <span className="font-medium text-[#dbe4e6]">{g}</span>
-                    <span className="text-[11.5px] text-[#7d9096]">
-                      {rows.length} estimates · {running.length} running
-                      {running.length > 0 && <> · ours: {`$${cost.toLocaleString()} in / $${paid.toLocaleString()} out`} (net {paid - cost >= 0 ? '+' : '−'}${Math.abs(paid - cost).toLocaleString()}{cost > 0 ? `, ${Math.round((paid / cost) * 100)}%` : ''})</>}
-                      {missed.length > 0 && <> · <span className="text-red-400/80">the market&apos;s {missed.length} buys at prices we refused: {`$${mCost.toLocaleString()} in / $${mPaid.toLocaleString()} out`} ({mCost > 0 ? Math.round((mPaid / mCost) * 100) : 0}%)</span></>}
-                      {ghosts.length > 0 && <> · {ghosts.length} never traded</>}
-                    </span>
+                <button key={k} onClick={() => setCamp(sel ? null : meta.chart)}
+                  className={`rounded-lg border p-3 text-left transition-colors ${sel ? 'border-[#eda63a] bg-panel-2/50' : 'border-line bg-panel/50 hover:bg-panel-2/30'}`}>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[15px] font-semibold" style={{ color: meta.color }}>{meta.title}</span>
+                    <span className="text-[12px] text-[#7d9096]">{rs.length} paths</span>
                   </div>
-                  {!g.startsWith('paper:') && <SheetFlowChart sheet={g} />}
-                  <div className="mt-1 overflow-x-auto rounded border border-line bg-panel">
-                    <table className="w-full min-w-[860px] border-collapse text-[11.5px]">
-                      <tbody>
-                        {rows.map((r, i) => {
-                          const key = `${r.grp}|${r.source}|${r.sink}|${r.tou}|${r.hedge}`
-                          const canOpen = r.status === 'running' || r.status.startsWith('missed —')
-                          const isOpen = openEst === key
-                          const dd = estDaily[key]
-                          return (
-                          <Fragment key={i}>
-                          <tr onClick={() => canOpen && toggleEst(r)}
-                              className={`border-b border-line/40 text-[#93a6ab] last:border-0 ${canOpen ? 'cursor-pointer hover:bg-panel-2/40' : ''} ${isOpen ? 'bg-panel-2/30' : ''}`}>
-                            <td className="px-2 py-1 font-mono text-[11px] text-[#dbe4e6]">
-                              {canOpen && <span className="mr-1 text-[10px] text-[#eda63a]">{isOpen ? '▾' : '▸'}</span>}
-                              {r.source} → {r.sink}</td>
-                            <td className="px-2 py-1">{r.tou} · {r.hedge}</td>
-                            <td className="px-2 py-1">{r.delivery}</td>
-                            <td className="px-2 py-1 text-right tnum">{r.bid !== null ? `$${Number(r.bid).toFixed(2)}` : '—'}{r.clearing !== null ? ` / $${Number(r.clearing).toFixed(4)}` : ''}</td>
-                            <td className="px-2 py-1 text-right tnum">{Number(r.mw)} MW</td>
-                            <td className={`px-2 py-1 ${r.status === 'running' ? 'text-emerald-400' : r.status.startsWith('missed —') ? 'text-red-400/80' : r.status === 'missed' ? 'text-[#61767e]' : 'text-amber-400'}`}>{r.status}</td>
-                            <td className="px-2 py-1 text-right tnum">{canOpen && r.cost !== null
-                              ? (r.cost < 0
-                                  ? <span className="text-emerald-400/80">{`collected $${Math.abs(r.cost).toLocaleString()} at entry`}</span>
-                                  : `$${(r.cost ?? 0).toLocaleString()} in`)
-                              : ''}</td>
-                            <td className="px-2 py-1 text-right tnum">{canOpen && r.paid !== null ? `$${(r.paid ?? 0).toLocaleString()} out` : ''}</td>
-                          </tr>
-                          {isOpen && (
-                            <tr className="border-b border-line/40">
-                              <td colSpan={8} className="bg-ink/40 px-3 py-3">
-                                {dd === 'loading' || !dd
-                                  ? <div className="text-[12px] text-[#7d9096]">pulling the daily record…</div>
-                                  : dd.length === 0
-                                    ? <div className="text-[12px] text-[#93a6ab]">No settled days yet this month for this block.</div>
-                                    : <DailyChart rows={dd} month={r.delivery} />}
-                              </td>
-                            </tr>
-                          )}
-                          </Fragment>
-                        )})}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                  <div className="mt-1 text-[12px] text-[#7d9096]">{meta.blurb}</div>
+                  {(cost !== 0 || paid !== 0) ? (
+                    <div className="mt-2 text-[13.5px] text-[#dbe4e6]">
+                      {cost < 0 ? `collected ${usd(cost)}` : `${usd(cost)} in`} → {paid < 0 ? '−' : ''}{usd(paid)} out ·{' '}
+                      <span className={net >= 0 ? 'text-emerald-400' : 'text-red-400'}>{signed(net)} net</span>
+                      {cost > 0 && <span className="text-[#7d9096]"> · {Math.round((paid / cost) * 100)}%</span>}
+                    </div>
+                  ) : <div className="mt-2 text-[13.5px] text-[#61767e]">no settled days yet</div>}
+                  <div className="mt-1 text-[11px] text-[#61767e]">{sel ? 'isolated on the chart — click to clear' : 'click to isolate + see group daily bars'}</div>
+                </button>
               )
             })}
           </div>
-        )
-      })()}
+          {camps.ghost.length > 0 && (
+            <p className="mt-2 text-[12px] text-[#61767e]">
+              Plus {camps.ghost.length} recommended paths that never traded at all — the liquidity
+              reality the gates exist for.
+            </p>
+          )}
 
-      <h2 className="mt-6 text-[14px] font-medium">By sheet and tier</h2>
-      <div className="mt-2 overflow-x-auto rounded-lg border border-line bg-panel">
-        <table className="w-full min-w-[720px] border-collapse text-[12.5px]">
-          <thead>
-            <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-[#7d9096]">
-              <th className="px-2 py-2">Sheet</th><th className="px-2 py-2">Tier</th>
-              <th className="px-2 py-2 text-right">Rows</th><th className="px-2 py-2 text-right">Would have filled</th>
-              <th className="px-2 py-2 text-right">Cost</th><th className="px-2 py-2 text-right">Realized</th>
-              <th className="px-2 py-2 text-right">P&L</th><th className="px-2 py-2">Snapshot</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(score?.sheets ?? []).map((s, i) => (
-              <tr key={i} className="border-b border-line/50 last:border-0">
-                <td className="px-2 py-1.5">{s.sheet}</td>
-                <td className={`px-2 py-1.5 ${TIER_COLOR[s.tier] ?? ''}`}>{s.tier}</td>
-                <td className="px-2 py-1.5 text-right tnum">{s.rows}</td>
-                <td className="px-2 py-1.5 text-right tnum">{s.filled ?? '—'}</td>
-                <td className="px-2 py-1.5 text-right tnum">{usd(s.cost)}</td>
-                <td className="px-2 py-1.5 text-right tnum">{usd(s.realized)}</td>
-                <td className={`px-2 py-1.5 text-right tnum ${(s.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{usd(s.pnl)}</td>
-                <td className="px-2 py-1.5 text-[#61767e]">{s.snapshot_at}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          <SheetFlowChart sheet={active} camp={camp} />
 
-      <h2 className="mt-6 text-[14px] font-medium">Rows</h2>
-      <div className="mt-2 overflow-x-auto rounded-lg border border-line bg-panel">
-        <table className="w-full min-w-[900px] border-collapse text-[12px]">
-          <thead>
-            <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-[#7d9096]">
-              <th className="px-2 py-2">Sheet</th><th className="px-2 py-2">Path</th>
-              <th className="px-2 py-2">Block · type</th><th className="px-2 py-2">Tier</th>
-              <th className="px-2 py-2 text-right">Ref limit</th><th className="px-2 py-2 text-right">MW</th>
-              <th className="px-2 py-2 text-right">Cleared</th><th className="px-2 py-2 text-right">Filled?</th>
-              <th className="px-2 py-2 text-right">Cost</th><th className="px-2 py-2 text-right">Realized</th>
-              <th className="px-2 py-2 text-right">P&L</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(score?.rows ?? []).map((r, i) => (
-              <tr key={i} className="border-b border-line/50 last:border-0 text-[#93a6ab]">
-                <td className="px-2 py-1.5">{r.sheet}</td>
-                <td className="px-2 py-1.5 font-mono text-[11px] text-[#dbe4e6]">
-                  <a className="hover:text-white" href={`/path?src=${encodeURIComponent(r.source)}&snk=${encodeURIComponent(r.sink)}`}>
-                    {r.source} → {r.sink}
-                  </a>
-                </td>
-                <td className="px-2 py-1.5">{r.time_of_use} · {r.hedge_type}</td>
-                <td className={`px-2 py-1.5 ${TIER_COLOR[r.tier] ?? ''}`}>{r.tier}</td>
-                <td className="px-2 py-1.5 text-right tnum">{r.ref_limit !== null ? `$${Number(r.ref_limit).toFixed(2)}` : '—'}</td>
-                <td className="px-2 py-1.5 text-right tnum">{r.suggested_mw ?? '—'}</td>
-                <td className="px-2 py-1.5 text-right tnum">{r.clearing !== null ? `$${Number(r.clearing).toFixed(4)}` : '—'}</td>
-                <td className="px-2 py-1.5 text-right">{r.filled === null ? '—' : r.filled ? <span className="text-emerald-400">yes</span> : 'no'}</td>
-                <td className="px-2 py-1.5 text-right tnum">{usd(r.cost)}</td>
-                <td className="px-2 py-1.5 text-right tnum">{usd(r.realized)}</td>
-                <td className={`px-2 py-1.5 text-right tnum ${(r.pnl ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{usd(r.pnl)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          <h2 className="mt-8 text-[14px] font-medium" style={{ color: CAMP_META.won.color }}>Won — {camps.won.length}</h2>
+          <Table rs={camps.won} />
+          <h2 className="mt-8 text-[14px] font-medium" style={{ color: CAMP_META.outbid.color }}>Outbid — {camps.outbid.length}</h2>
+          <Table rs={camps.outbid} />
+          <h2 className="mt-8 text-[14px] font-medium" style={{ color: CAMP_META.refused.color }}>Said no (traded) — {camps.refused.length}</h2>
+          <Table rs={camps.refused} />
+          {camps.ghost.length > 0 && (
+            <div className="mt-8 pb-8">
+              <button onClick={() => setShowGhosts(g => !g)} className="text-[13px] text-[#7d9096] hover:text-[#dbe4e6]">
+                {showGhosts ? '▾' : '▸'} Never traded — {camps.ghost.length} (least interesting, but on the record)
+              </button>
+              {showGhosts && <Table rs={camps.ghost} />}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

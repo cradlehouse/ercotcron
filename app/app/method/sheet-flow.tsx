@@ -20,14 +20,14 @@ const CLASSES = [
   { key: 'market', label: "the market's buys at prices we refused", color: '#f87171' },
   { key: 'reds', label: "red don't-bids (traded)", color: '#c07b5a' },
 ] as const
-type ClassKey = typeof CLASSES[number]['key']
+export type ClassKey = typeof CLASSES[number]['key']
 
 function classOf(r: FlowRow): ClassKey {
   if (r.tier === 'red') return 'reds'
   return r.filled ? 'ours' : 'market'
 }
 
-export function SheetFlowChart({ sheet }: { sheet: string }) {
+export function SheetFlowChart({ sheet, camp }: { sheet: string; camp?: ClassKey | null }) {
   const [data, setData] = useState<Flow | null>(null)
   const [hover, setHover] = useState<{ i: number; day: number } | null>(null)
   const [pinned, setPinned] = useState<number | null>(null)
@@ -139,11 +139,11 @@ export function SheetFlowChart({ sheet }: { sheet: string }) {
           {series.map((s, i) => (
             <path key={i} d={line(s.ys, true)}
               stroke={CLASSES.find(c => c.key === s.cls)!.color}
-              strokeOpacity={hover ? (hover.i === i ? 0 : 0.08) : 0.14} />
+              strokeOpacity={camp && s.cls !== camp ? 0.03 : hover ? (hover.i === i ? 0 : 0.08) : 0.14} />
           ))}
         </g>
         <g fill="none" strokeWidth={2.5} strokeOpacity={hover ? 0.35 : 1}>
-          {heroes.map(h => (
+          {heroes.filter(h => !camp || h.key === camp).map(h => (
             <path key={h.key} d={line(h.ys)} stroke={h.color} strokeLinecap="round"
               style={{ filter: 'drop-shadow(0 0 4px rgba(0,0,0,0.6))' }} />
           ))}
@@ -194,6 +194,32 @@ export function SheetFlowChart({ sheet }: { sheet: string }) {
         price, day by day through {data.month}. Heavy lines are the three camps. Hover a strand
         to identify it; click to pin its daily over/under below. Hypothetical — no positions held.
       </p>
+      {camp && (() => {
+        const members = series.filter(s => s.cls === camp)
+        const agg = new Map<number, { hrs: number; paid_in: number; paid_out: number }>()
+        for (const s of members) {
+          for (const d of s.r.days) {
+            const a = agg.get(d.d) ?? { hrs: 0, paid_in: 0, paid_out: 0 }
+            a.hrs += d.hrs
+            a.paid_in += s.r.cp * d.hrs * s.r.mw
+            a.paid_out += d.ppm * s.r.mw
+            agg.set(d.d, a)
+          }
+        }
+        const rows = [...agg.entries()].sort((a, b) => a[0] - b[0]).map(([d, a]) => ({
+          d: `${data.month}-${String(d).padStart(2, '0')}`,
+          hours: a.hrs, paid_in: Math.round(a.paid_in), paid_out: Math.round(a.paid_out),
+        }))
+        if (rows.length === 0) return null
+        return (
+          <div className="mt-3 rounded border border-line bg-panel/50 p-3">
+            <div className="text-[13px] text-[#dbe4e6]">
+              {CLASSES.find(c => c.key === camp)!.label} — the whole group&apos;s daily over/under
+            </div>
+            <div className="mt-2"><DailyChart rows={rows} month={data.month} /></div>
+          </div>
+        )
+      })()}
       {pinned !== null && series[pinned] && (() => {
         const s = series[pinned]
         const rows = s.r.days.map(d => ({
