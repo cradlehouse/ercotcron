@@ -4,6 +4,10 @@
 import { useEffect, useState } from 'react'
 import { sb } from '@/lib/supabase'
 
+type RunRow = {
+  source: string; sink: string; tou: string; hedge: string
+  mw: number; cp: number; hours: number; paid_in: number; paid_out: number
+}
 type BookRow = {
   holder_code: string; source: string; sink: string; time_of_use: string
   hedge_type: string; mw: number; positions: number
@@ -21,6 +25,7 @@ const TIER_WORD: Record<string, string> = {
 
 export default function MyBook() {
   const [rows, setRows] = useState<BookRow[] | null>(null)
+  const [run, setRun] = useState<RunRow[]>([])
   const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -29,6 +34,8 @@ export default function MyBook() {
       setAuthed(true)
       const { data: b, error } = await sb.rpc('get_my_book')
       setRows(error ? [] : ((b as BookRow[]) ?? []))
+      const { data: rm } = await sb.rpc('get_running_month')
+      setRun((rm as RunRow[]) ?? [])
     })
   }, [])
 
@@ -73,6 +80,59 @@ export default function MyBook() {
         = worth more than its recent clearing price on real history. Grades are
         our read of public data — your sizing and your exits stay your call.
       </p>
+      {run.length > 0 && (
+        <div className="mb-5">
+          <div className="flex items-baseline gap-3">
+            <h2 className="text-[14px] font-semibold text-[#f2f6f6]">This month, running</h2>
+            <span className="text-[11.5px] text-[#61767e]">
+              settled days so far — partial-month description, not the official score (that
+              waits for the complete month)
+            </span>
+          </div>
+          <div className="mt-2 overflow-x-auto rounded-lg border border-line bg-panel">
+            <table className="w-full min-w-[760px] border-collapse text-[12px]">
+              <thead>
+                <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-[#7d9096]">
+                  <th className="px-2 py-2">Path</th>
+                  <th className="px-2 py-2">Block · type</th>
+                  <th className="px-2 py-2 text-right">MW</th>
+                  <th className="px-2 py-2 text-right">Hours banked</th>
+                  <th className="px-2 py-2 text-right">Paid in (pro-rata)</th>
+                  <th className="px-2 py-2 text-right">Paid out</th>
+                  <th className="px-2 py-2 text-right">Pace</th>
+                </tr>
+              </thead>
+              <tbody>
+                {run.map((r, i) => {
+                  const pace = r.paid_in > 0 ? Math.round((r.paid_out / r.paid_in) * 100) : null
+                  return (
+                    <tr key={i} className="border-b border-line/50 last:border-0">
+                      <td className="px-2 py-1.5 font-mono text-[11.5px]">
+                        <a className="hover:text-white" href={`/path?src=${encodeURIComponent(r.source)}&snk=${encodeURIComponent(r.sink)}`}>
+                          {r.source} → {r.sink}
+                        </a>
+                      </td>
+                      <td className="px-2 py-1.5 text-[#93a6ab]">{r.tou} · {r.hedge}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">{Math.round(Number(r.mw))}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">{r.hours}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">${Number(r.paid_in).toLocaleString()}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">${Number(r.paid_out).toLocaleString()}</td>
+                      <td className={`px-2 py-1.5 text-right font-mono ${pace === null ? 'text-[#61767e]' : pace >= 100 ? 'text-emerald-400' : pace >= 50 ? 'text-[#93a6ab]' : 'text-amber-400'}`}>
+                        {pace === null ? '—' : `${pace}%`}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1 text-[11px] text-[#61767e]">
+            Pace = paid out over pro-rata cost of the hours banked so far. Options can never
+            lose more than their premium; spike paths are expected to run cold between payoffs.
+          </p>
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-lg border border-line bg-panel">
         <table className="w-full min-w-[900px] border-collapse text-[12px]">
           <thead>
