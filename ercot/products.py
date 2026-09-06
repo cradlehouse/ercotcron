@@ -392,14 +392,16 @@ def score_sheets(_c=None) -> ingest.Result:
                         where filled is null or (filled and pnl is null)
                            or realized is null""")
         for (sheet,) in cur.fetchall():
+            # a '-reconstructed' vintage scores against its real auction
+            auction = sheet.split('-')[0]
             cur.execute("""select source, sink, time_of_use, hedge_type, avg(clearing_price)
                              from crr_awards where auction_name = %s group by 1,2,3,4""",
-                        (sheet,))
+                        (auction,))
             clears = {tuple(r[:4]): float(r[4]) for r in cur.fetchall()}
             if not clears:
                 log.warning("sheet %s: no awards posted yet", sheet)
                 continue
-            start = dt.date(int(sheet[3:7]), months[sheet[:3].upper()], 1)
+            start = dt.date(int(auction[3:7]), months[auction[:3].upper()], 1)
             end = (start.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
             month_over = end <= dt.date.today()
             cur.execute("""select id, source, sink, time_of_use, hedge_type,

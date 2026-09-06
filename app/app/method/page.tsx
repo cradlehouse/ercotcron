@@ -9,12 +9,14 @@ import { sb } from '@/lib/supabase'
 type SheetAgg = { sheet: string; tier: string; rows: number; snapshot_at: string; filled: number | null; cost: number | null; realized: number | null; pnl: number | null }
 type Row = { sheet: string; source: string; sink: string; time_of_use: string; hedge_type: string; tier: string; ref_limit: number | null; suggested_mw: number | null; clearing: number | null; filled: boolean | null; cost: number | null; realized: number | null; pnl: number | null }
 type Score = { sheets: SheetAgg[]; rows: Row[] }
+type Prog = { grp: string; source: string; sink: string; tou: string; hedge: string; tier: string; bid: number | null; clearing: number | null; mw: number; delivery: string; status: string; hours: number; cost: number | null; paid: number | null }
 
 const usd = (v: number | null | undefined) => (v === null || v === undefined ? '—' : `$${Number(v).toLocaleString()}`)
 const TIER_COLOR: Record<string, string> = { green: 'text-emerald-400', amber: 'text-amber-400', red: 'text-red-400' }
 
 export default function MethodScore() {
   const [score, setScore] = useState<Score | null>(null)
+  const [prog, setProg] = useState<Prog[] | null>(null)
   const [state, setState] = useState<'loading' | 'denied' | 'ok'>('loading')
 
   useEffect(() => {
@@ -24,6 +26,9 @@ export default function MethodScore() {
       if (error || !s) { setState('denied'); return }
       setScore(s as Score)
       setState('ok')
+      // admin-only live progress; null for everyone else
+      const { data: pr } = await sb.rpc('get_method_progress')
+      if (pr) setProg(pr as Prog[])
     })
   }, [])
 
@@ -42,6 +47,50 @@ export default function MethodScore() {
         held; hypothetical results do not reflect actual market participation, and no
         representation is made that any account will achieve similar results.
       </p>
+
+      {prog && prog.length > 0 && (() => {
+        const groups = [...new Set(prog.map(p => p.grp))]
+        return (
+          <div className="mt-6">
+            <h2 className="text-[14px] font-medium">Pre-auction estimates — live progress <span className="ml-2 text-[10px] uppercase tracking-wider text-[#61767e]">admin</span></h2>
+            {groups.map(g => {
+              const rows = prog.filter(p => p.grp === g)
+              const running = rows.filter(r => r.status === 'running')
+              const cost = running.reduce((a, r) => a + (r.cost ?? 0), 0)
+              const paid = running.reduce((a, r) => a + (r.paid ?? 0), 0)
+              return (
+                <div key={g} className="mt-3">
+                  <div className="flex flex-wrap items-baseline gap-3 text-[13px]">
+                    <span className="font-medium text-[#dbe4e6]">{g}</span>
+                    <span className="text-[11.5px] text-[#7d9096]">
+                      {rows.length} estimates · {running.length} running
+                      {running.length > 0 && <> · {`$${cost.toLocaleString()} in / $${paid.toLocaleString()} out`} ({cost > 0 ? Math.round((paid / cost) * 100) : 0}% pace)</>}
+                    </span>
+                  </div>
+                  <div className="mt-1 overflow-x-auto rounded border border-line bg-panel">
+                    <table className="w-full min-w-[860px] border-collapse text-[11.5px]">
+                      <tbody>
+                        {rows.map((r, i) => (
+                          <tr key={i} className="border-b border-line/40 text-[#93a6ab] last:border-0">
+                            <td className="px-2 py-1 font-mono text-[11px] text-[#dbe4e6]">{r.source} → {r.sink}</td>
+                            <td className="px-2 py-1">{r.tou} · {r.hedge}</td>
+                            <td className="px-2 py-1">{r.delivery}</td>
+                            <td className="px-2 py-1 text-right tnum">{r.bid !== null ? `$${Number(r.bid).toFixed(2)}` : '—'}{r.clearing !== null ? ` / $${Number(r.clearing).toFixed(4)}` : ''}</td>
+                            <td className="px-2 py-1 text-right tnum">{Number(r.mw)} MW</td>
+                            <td className={`px-2 py-1 ${r.status === 'running' ? 'text-emerald-400' : r.status === 'missed' ? 'text-[#61767e]' : 'text-amber-400'}`}>{r.status}</td>
+                            <td className="px-2 py-1 text-right tnum">{r.status === 'running' ? `$${(r.cost ?? 0).toLocaleString()} in` : ''}</td>
+                            <td className="px-2 py-1 text-right tnum">{r.status === 'running' ? `$${(r.paid ?? 0).toLocaleString()} out` : ''}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
 
       <h2 className="mt-6 text-[14px] font-medium">By sheet and tier</h2>
       <div className="mt-2 overflow-x-auto rounded-lg border border-line bg-panel">
