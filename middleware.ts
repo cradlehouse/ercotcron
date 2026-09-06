@@ -16,7 +16,7 @@ const PUBLIC_PREFIX = [
   '/signin', '/signup', '/app', '/terms', '/privacy', '/methodology',
   // Product routes: open here, gated client-side by MemberGate (Supabase
   // session) with the data locked behind authenticated-only RPCs.
-  '/bids', '/map',
+  '/bids', '/map', '/path',
   '/api/health', '/api/claim', '/api/verify-holder', '/api/artifact',
 ]
 // Ops console routes — the only ones worth a basic-auth challenge. Anything

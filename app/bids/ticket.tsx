@@ -169,9 +169,11 @@ export function Ticket({ rows, auction }: { rows: TicketRow[]; auction: AuctionM
           />
         </td>
         <td className="px-2 py-2.5">
-          <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-zinc-200">
+          <a className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-zinc-200 hover:text-white"
+             href={`/path?src=${encodeURIComponent(r.source)}&snk=${encodeURIComponent(r.sink)}`}
+             title="open this path's dossier">
             <span>{r.source}</span><span className="text-amber-500">→</span><span>{r.sink}</span>
-          </div>
+          </a>
           <div className="mt-0.5 text-[11px] text-zinc-600">
             {r.tou} · {r.hedge} · {d.hours} hrs in {monthShort}{r.offeredMw ? ` · ${Math.round(r.offeredMw)} MW offered for sale last auction` : ''}
             {r.origin === 'discovery' && r.holders ? ` · held by ${r.holders} winning firm${r.holders > 1 ? 's' : ''}` : r.origin === 'market' ? ` · market scan · cleared in ${r.holders ?? '?'} auctions` : ''}

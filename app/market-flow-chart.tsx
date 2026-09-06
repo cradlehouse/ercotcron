@@ -258,6 +258,12 @@ export function MarketFlowChart({ focus, onSelect }: {
                 <text x={8} y={18} fontSize={13} fill="#dbe4e6">
                   <tspan fill={RAMP[st.b]}>●</tspan> {st.l ?? 'path'}
                 </text>
+                {st.l && (
+                  <a href={`/path?src=${encodeURIComponent(st.l.split(' → ')[0])}&snk=${encodeURIComponent((st.l.split(' → ')[1] ?? '').split(' · ')[0])}`}
+                     style={{ pointerEvents: 'all' }}>
+                    <text x={w - 8} y={18} textAnchor="end" fontSize={12} fill="#eda63a">dossier →</text>
+                  </a>
+                )}
                 <text x={8} y={38} fontSize={12} fill="#93a6ab">
                   {data.months[mi]}:{' '}
                   {v !== null && v !== undefined
@@ -312,7 +318,11 @@ export function MarketFlowChart({ focus, onSelect }: {
         <p className="mt-2 text-[12.5px] text-amber-400/80">
           {focusMiss} has no strand here — this chart draws only monthly-auction history, and
           that path&apos;s volume cleared in long-term auctions (or it&apos;s too new to have a
-          settled month).
+          settled month). Its full record:{' '}
+          <a className="text-[#eda63a] underline"
+             href={`/path?src=${encodeURIComponent(focusMiss.split(' → ')[0])}&snk=${encodeURIComponent(focusMiss.split(' → ')[1] ?? '')}`}>
+            open the dossier →
+          </a>
         </p>
       )}
       <figcaption className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[12.5px] text-[#61767e]">
