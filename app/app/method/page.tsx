@@ -6,6 +6,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { sb } from '@/lib/supabase'
 import { DailyChart, type DailyRow } from '../../daily-chart'
+import { SheetFlowChart } from './sheet-flow'
 
 type SheetAgg = { sheet: string; tier: string; rows: number; snapshot_at: string; filled: number | null; cost: number | null; realized: number | null; pnl: number | null }
 type Row = { sheet: string; source: string; sink: string; time_of_use: string; hedge_type: string; tier: string; ref_limit: number | null; suggested_mw: number | null; clearing: number | null; filled: boolean | null; cost: number | null; realized: number | null; pnl: number | null }
@@ -95,6 +96,7 @@ export default function MethodScore() {
                       {ghosts.length > 0 && <> · {ghosts.length} never traded</>}
                     </span>
                   </div>
+                  {!g.startsWith('paper:') && <SheetFlowChart sheet={g} />}
                   <div className="mt-1 overflow-x-auto rounded border border-line bg-panel">
                     <table className="w-full min-w-[860px] border-collapse text-[11.5px]">
                       <tbody>
