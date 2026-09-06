@@ -31,7 +31,7 @@ const SCOPES = [
   ['suggestions', 'Bid-sheet picks'],
 ] as const
 
-function GridView({ geo, tx, onPathClick }: { geo: GeoLayer; tx: any; onPathClick?: (path: string) => void }) {
+function GridView({ geo, tx, onPathClick, highlight }: { geo: GeoLayer; tx: any; onPathClick?: (path: string) => void; highlight?: string | null }) {
   const [hover, setHover] = useState<string | null>(null)
   const [scope, setScope] = useState<'market' | 'suggestions'>('market')
   const months = useMemo(
@@ -94,14 +94,16 @@ function GridView({ geo, tx, onPathClick }: { geo: GeoLayer; tx: any; onPathClic
         <g>
           {shown.map((c, i) => {
             const [a, b] = [pt(c.a[0], c.a[1]), pt(c.b[0], c.b[1])]
-            const lit = !hover || c.label.includes(hover)
-            const color = scope === 'suggestions' ? '#a78bfa' : '#22d3ee'
+            const pathName = c.label.replace(/ \(.*\)$/, '')
+            const isSel = highlight != null && pathName === highlight
+            const lit = highlight != null ? isSel : (!hover || c.label.includes(hover))
+            const color = isSel ? '#f2f6f6' : scope === 'suggestions' ? '#a78bfa' : '#22d3ee'
             return (
               <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
-                stroke={color} strokeWidth={Math.max(1, c.v / 3)}
-                strokeOpacity={lit ? 0.55 : 0.08} strokeLinecap="round"
+                stroke={color} strokeWidth={isSel ? Math.max(2.5, c.v / 3) : Math.max(1, c.v / 3)}
+                strokeOpacity={lit ? (isSel ? 0.95 : 0.55) : 0.08} strokeLinecap="round"
                 style={{ cursor: 'pointer' }}
-                onClick={() => onPathClick?.(c.label.replace(/ \(.*\)$/, '').replace(/ -> | → /, ' → '))} />
+                onClick={() => onPathClick?.(pathName.replace(/ -> /, ' → '))} />
             )
           })}
         </g>
@@ -233,7 +235,7 @@ export default function NodeMapPage() {
         <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← Bid sheet</a>
       </div>
       {view === 'grid' && geo && tx ? (
-        <GridView geo={geo} tx={tx}
+        <GridView geo={geo} tx={tx} highlight={focusPath}
           onPathClick={(path) => {
             setFocusPath(path)
             chartRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -319,7 +321,7 @@ export default function NodeMapPage() {
           bucket, across the last twelve settled months. Click a path on the map above to trace
           it here; hover any strand to identify it; click to pin.
         </p>
-        <div className="mt-4"><MarketFlowChart focus={focusPath} /></div>
+        <div className="mt-4"><MarketFlowChart focus={focusPath} onSelect={setFocusPath} /></div>
       </div>
     </div>
   )

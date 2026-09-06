@@ -25,7 +25,12 @@ type Flow = {
 // bucket line carries a direct label.
 const RAMP = ['#f6e27a', '#f2c14e', '#eda63a', '#d97b2c', '#c04a1d']
 
-export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
+export function MarketFlowChart({ focus, onSelect }: {
+  focus?: string | null
+  // Fires with "SRC → SNK" when the user pins a strand by clicking the chart
+  // (null on unpin) — lets a host page mirror the selection, e.g. the map.
+  onSelect?: (path: string | null) => void
+} = {}) {
   const [data, setData] = useState<Flow | null>(null)
   const [hoverMi, setHoverMi] = useState<number | null>(null)
   const [hoverStrand, setHoverStrand] = useState<number | null>(null)
@@ -166,7 +171,11 @@ export function MarketFlowChart({ focus }: { focus?: string | null } = {}) {
            role="img" aria-label="Cumulative return per dollar bid, by clearing-price bucket, across ERCOT monthly CRR auctions"
            onMouseMove={onMove}
            onMouseLeave={() => { setHoverMi(null); setHoverStrand(null) }}
-           onClick={() => setPinned(p => (p !== null ? null : hoverStrand))}
+           onClick={() => {
+             const next = pinned !== null ? null : hoverStrand
+             setPinned(next)
+             onSelect?.(next !== null ? (data.strands[next]?.l?.split(' · ')[0] ?? null) : null)
+           }}
            style={{ cursor: hoverStrand !== null ? 'pointer' : 'default' }}>
         {/* recessive grid + emphasized zero line */}
         {[-0.75, -0.5, -0.25, 0.25, 0.5, 1, 1.5, 2, 2.5].filter(v => v > geom.yMin && v < geom.yMax).map(v => (
