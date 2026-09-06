@@ -60,6 +60,11 @@ export default function ModelBook() {
   return (
     <div className="mx-auto max-w-5xl px-2 py-2 text-[#f2f6f6]">
       <h1 className="text-lg font-medium">The model&apos;s book</h1>
+      <p className="mt-1 text-[12.5px] text-[#7d9096]">
+        Batches below are bids stored before results posted. The{' '}
+        <a href="/app/method" className="text-[#eda63a] hover:underline">full method score</a>{' '}
+        grades every row of every published sheet — including the don&apos;t-bid calls.
+      </p>
       <p className="mt-1 max-w-[80ch] text-[12.5px] leading-relaxed text-[#93a6ab]">
         Every batch of paper bids the engine put on the record <i>before</i> results posted,
         and what happened next. Nothing here can be edited after the fact — the table refuses
