@@ -12,6 +12,17 @@ type Offer = { auction: string; tou: string; hedge: string; mw: number; min_ask:
 type Valuation = { book: string; time_of_use: string; hedge_type: string; value_mean: number | string | null; value_typical: number | string | null; ceiling: number | string | null; cleared_price: number | string | null; warnings: string | null; window_end: string | null }
 type Paper = { batch: string; auction: string; tou: string; hedge: string; mw: number; bid: number; cleared: boolean | null; cp: number | null; pnl: number | null }
 type Dossier = { awards: Award[]; payoffs: Payoff[]; offers: Offer[]; valuations: Valuation[]; paper: Paper[] }
+type Attribution = {
+  window: { from: string; to: string }
+  data_through: { constraints: string; wind: string }
+  paid_hours: number
+  total_hours: number
+  wind: { t: number; avg_opt: number; paid_sum: number; hours: number }[]
+  constraints: { name: string; from: string; to: string; hours: number; avg_shadow: number }[]
+  constraint_events: { name: string; old: string; new: string; reason: string; at: string }[]
+  energized: { point: string; project: string; fuel: string; mw: number; county: string; cod: string; at_endpoint: boolean }[]
+  queued: { fuel: string; mw: number; projects: number; earliest_cod: string }[]
+}
 
 const n = (v: number | string | null | undefined): number | null =>
   v === null || v === undefined ? null : Number(v)
@@ -22,6 +33,7 @@ function Dossier() {
   const src = params.get('src') ?? ''
   const snk = params.get('snk') ?? ''
   const [d, setD] = useState<Dossier | null>(null)
+  const [attr, setAttr] = useState<Attribution | null | 'loading'>('loading')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -29,6 +41,10 @@ function Dossier() {
     sb.rpc('get_path_dossier', { p_src: src, p_snk: snk }).then(({ data, error }) => {
       if (error) setError(error.message)
       else setD(data as Dossier)
+    })
+    // attribution is the heavy call (~10s) — loads independently
+    sb.rpc('get_path_attribution', { p_src: src, p_snk: snk }).then(({ data, error }) => {
+      setAttr(error ? null : (data as Attribution))
     })
   }, [src, snk])
 
@@ -192,6 +208,91 @@ function Dossier() {
           )}
         </section>
       </div>
+
+      <section className="mt-5 rounded border border-line bg-panel/50 p-4">
+        <h2 className="text-[14px] font-medium">What moved it</h2>
+        {attr === 'loading' && (
+          <p className="mt-1 text-[13px] text-[#7d9096]">crunching a year of hours against wind, constraints, and grid changes… (~10s)</p>
+        )}
+        {attr === null && (
+          <p className="mt-1 text-[13px] text-[#93a6ab]">Attribution unavailable for this path right now.</p>
+        )}
+        {attr && attr !== 'loading' && (() => {
+          const w = attr.wind
+          const totPaid = w.reduce((a, x) => a + x.paid_sum, 0)
+          const top = w.find(x => x.t === 3), calm = w.find(x => x.t === 1)
+          const share = totPaid > 0 && top ? Math.round((top.paid_sum / totPaid) * 100) : null
+          return (
+            <div className="mt-2 space-y-4 text-[13px] text-[#93a6ab]">
+              {top && calm && (
+                <p>
+                  <span className="text-[#dbe4e6]">Wind.</span>{' '}
+                  In the windiest third of hours this path paid {`$${top.avg_opt.toFixed(2)}`}/MWh as an
+                  option, against {`$${calm.avg_opt.toFixed(2)}`} in the calmest third
+                  {share !== null && <> — {share}% of its payoff dollars arrived with high wind</>}.
+                </p>
+              )}
+              {attr.constraints.length > 0 && (
+                <div>
+                  <span className="text-[#dbe4e6]">Constraints binding during its paid hours</span>{' '}
+                  <span className="text-[#61767e]">(co-occurrence over {attr.paid_hours.toLocaleString()} paid hours — not proof of cause):</span>
+                  <ul className="mt-1 space-y-0.5">
+                    {attr.constraints.map((c, i) => (
+                      <li key={i}>
+                        <span className="font-mono text-[12px] text-[#dbe4e6]">{c.name}</span>{' '}
+                        ({c.from} → {c.to}) — binding in {Math.round((c.hours / Math.max(attr.paid_hours, 1)) * 100)}% of
+                        paid hours, avg shadow ${c.avg_shadow}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {attr.constraint_events.length > 0 && (
+                <div>
+                  <span className="text-[#dbe4e6]">Changes to those constraints:</span>
+                  <ul className="mt-1 space-y-0.5">
+                    {attr.constraint_events.map((e, i) => (
+                      <li key={i}>{e.at}: <span className="font-mono text-[12px]">{e.name}</span> {e.old} → {e.new}{e.reason ? ` (${e.reason})` : ''}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {attr.energized.length > 0 && (
+                <div>
+                  <span className="text-[#dbe4e6]">New capacity energized nearby:</span>
+                  <ul className="mt-1 space-y-0.5">
+                    {attr.energized.map((e, i) => (
+                      <li key={i}>
+                        {e.cod}: {e.project} — {e.mw} MW {e.fuel}
+                        {e.at_endpoint
+                          ? <span className="text-amber-400"> at this path&apos;s own node ({e.point})</span>
+                          : ` (${e.county} County)`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {attr.queued.length > 0 && (
+                <div>
+                  <span className="text-[#dbe4e6]">Announced capacity in the queue for these counties</span>{' '}
+                  <span className="text-[#61767e]">(public interconnection filings — facts about announced projects, not our prediction):</span>
+                  <ul className="mt-1 space-y-0.5">
+                    {attr.queued.map((q, i) => (
+                      <li key={i}>{q.fuel}: {q.mw.toLocaleString()} MW across {q.projects} project{q.projects > 1 ? 's' : ''}, earliest COD {q.earliest_cod}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-[11px] text-[#61767e]">
+                Settled data only, window {String(attr.window.from).slice(0, 10)} → {attr.window.to}; constraint data
+                through {attr.data_through.constraints}. Our own research record: weather and build-out
+                correlate with payoffs but failed every out-of-sample test as bidding rules — this section
+                explains history, it does not predict.
+              </p>
+            </div>
+          )
+        })()}
+      </section>
 
       <p className="mt-6 max-w-[90ch] text-[10.5px] leading-relaxed text-[#61767e]">
         All figures derive from public ERCOT data; hour-block classification follows our
