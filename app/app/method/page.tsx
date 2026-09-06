@@ -3,8 +3,9 @@
 // snapshotted sheet row's counterfactual (would the reference limit have
 // filled; what delivery paid), including the red don't-bid calls. This IS
 // the self-scoring methodology §10 pre-registers.
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { sb } from '@/lib/supabase'
+import { DailyChart, type DailyRow } from '../../daily-chart'
 
 type SheetAgg = { sheet: string; tier: string; rows: number; snapshot_at: string; filled: number | null; cost: number | null; realized: number | null; pnl: number | null }
 type Row = { sheet: string; source: string; sink: string; time_of_use: string; hedge_type: string; tier: string; ref_limit: number | null; suggested_mw: number | null; clearing: number | null; filled: boolean | null; cost: number | null; realized: number | null; pnl: number | null }
@@ -17,6 +18,27 @@ const TIER_COLOR: Record<string, string> = { green: 'text-emerald-400', amber: '
 export default function MethodScore() {
   const [score, setScore] = useState<Score | null>(null)
   const [prog, setProg] = useState<Prog[] | null>(null)
+  const [openEst, setOpenEst] = useState<string | null>(null)
+  const [estDaily, setEstDaily] = useState<Record<string, DailyRow[] | 'loading'>>({})
+
+  async function toggleEst(r: Prog) {
+    const key = `${r.grp}|${r.source}|${r.sink}|${r.tou}|${r.hedge}`
+    if (openEst === key) { setOpenEst(null); return }
+    setOpenEst(key)
+    if (!estDaily[key]) {
+      setEstDaily(d => ({ ...d, [key]: 'loading' }))
+      const { data } = await sb.rpc('get_path_daily', {
+        p_src: r.source, p_snk: r.sink, p_tou: r.tou, p_hedge: r.hedge,
+        p_month: `${r.delivery}-01`,
+      })
+      const rows = ((data as { d: string; hours: number; paid_per_mwh: number }[]) ?? []).map(x => ({
+        d: x.d, hours: x.hours,
+        paid_in: Math.round((r.clearing ?? 0) * x.hours * r.mw),
+        paid_out: Math.round(x.paid_per_mwh * r.mw),
+      }))
+      setEstDaily(d => ({ ...d, [key]: rows }))
+    }
+  }
   const [state, setState] = useState<'loading' | 'denied' | 'ok'>('loading')
 
   useEffect(() => {
@@ -70,9 +92,18 @@ export default function MethodScore() {
                   <div className="mt-1 overflow-x-auto rounded border border-line bg-panel">
                     <table className="w-full min-w-[860px] border-collapse text-[11.5px]">
                       <tbody>
-                        {rows.map((r, i) => (
-                          <tr key={i} className="border-b border-line/40 text-[#93a6ab] last:border-0">
-                            <td className="px-2 py-1 font-mono text-[11px] text-[#dbe4e6]">{r.source} → {r.sink}</td>
+                        {rows.map((r, i) => {
+                          const key = `${r.grp}|${r.source}|${r.sink}|${r.tou}|${r.hedge}`
+                          const canOpen = r.status === 'running'
+                          const isOpen = openEst === key
+                          const dd = estDaily[key]
+                          return (
+                          <Fragment key={i}>
+                          <tr onClick={() => canOpen && toggleEst(r)}
+                              className={`border-b border-line/40 text-[#93a6ab] last:border-0 ${canOpen ? 'cursor-pointer hover:bg-panel-2/40' : ''} ${isOpen ? 'bg-panel-2/30' : ''}`}>
+                            <td className="px-2 py-1 font-mono text-[11px] text-[#dbe4e6]">
+                              {canOpen && <span className="mr-1 text-[10px] text-[#eda63a]">{isOpen ? '▾' : '▸'}</span>}
+                              {r.source} → {r.sink}</td>
                             <td className="px-2 py-1">{r.tou} · {r.hedge}</td>
                             <td className="px-2 py-1">{r.delivery}</td>
                             <td className="px-2 py-1 text-right tnum">{r.bid !== null ? `$${Number(r.bid).toFixed(2)}` : '—'}{r.clearing !== null ? ` / $${Number(r.clearing).toFixed(4)}` : ''}</td>
@@ -81,7 +112,19 @@ export default function MethodScore() {
                             <td className="px-2 py-1 text-right tnum">{r.status === 'running' ? `$${(r.cost ?? 0).toLocaleString()} in` : ''}</td>
                             <td className="px-2 py-1 text-right tnum">{r.status === 'running' ? `$${(r.paid ?? 0).toLocaleString()} out` : ''}</td>
                           </tr>
-                        ))}
+                          {isOpen && (
+                            <tr className="border-b border-line/40">
+                              <td colSpan={8} className="bg-ink/40 px-3 py-3">
+                                {dd === 'loading' || !dd
+                                  ? <div className="text-[12px] text-[#7d9096]">pulling the daily record…</div>
+                                  : dd.length === 0
+                                    ? <div className="text-[12px] text-[#93a6ab]">No settled days yet this month for this block.</div>
+                                    : <DailyChart rows={dd} month={r.delivery} />}
+                              </td>
+                            </tr>
+                          )}
+                          </Fragment>
+                        )})}
                       </tbody>
                     </table>
                   </div>
