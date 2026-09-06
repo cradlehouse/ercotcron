@@ -171,7 +171,7 @@ JOBS: dict[str, Job] = {
         name="paper_score",
         # After the 8:40 crr ingest: scores open paper-bid batches — fills the
         # morning auction results post, P&L once the month settles.
-        run=lambda c: products.score_paper(),
+        run=lambda c: products.score_all(),
         description="Score open paper-trade batches",
         trigger={"hour": "9", "minute": "5"},
     ),

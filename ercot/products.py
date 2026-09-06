@@ -372,3 +372,89 @@ def score_paper(_c=None) -> ingest.Result:
             log.info("paper batch %s: %d/%d bids cleared (settled=%s)",
                      batch, n_clr, len(bids), settled)
     return res
+
+
+def score_sheets(_c=None) -> ingest.Result:
+    """Daily: score sheet SNAPSHOTS — the full-method counterfactual.
+
+    Fills once the auction's results post (reference limit >= clearing);
+    settlement once the delivery month completes, same basis as score_paper.
+    Red rows carry suggested_mw 0 — they are scored AS IF 1 MW so the
+    don't-bid calls are graded too (the admin page labels them per-MW).
+    """
+    res = ingest.Result()
+    months = dict(JAN=1, FEB=2, MAR=3, APR=4, MAY=5, JUN=6, JUL=7, AUG=8,
+                  SEP=9, OCT=10, NOV=11, DEC=12)
+    with _conn() as conn:
+        conn.execute("set statement_timeout=0")
+        cur = conn.cursor()
+        cur.execute("""select distinct sheet from sheet_snapshots
+                        where filled is null or (filled and pnl is null)
+                           or realized is null""")
+        for (sheet,) in cur.fetchall():
+            cur.execute("""select source, sink, time_of_use, hedge_type, avg(clearing_price)
+                             from crr_awards where auction_name = %s group by 1,2,3,4""",
+                        (sheet,))
+            clears = {tuple(r[:4]): float(r[4]) for r in cur.fetchall()}
+            if not clears:
+                log.warning("sheet %s: no awards posted yet", sheet)
+                continue
+            start = dt.date(int(sheet[3:7]), months[sheet[:3].upper()], 1)
+            end = (start.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+            month_over = end <= dt.date.today()
+            cur.execute("""select id, source, sink, time_of_use, hedge_type,
+                                  ref_limit, suggested_mw
+                             from sheet_snapshots where sheet = %s
+                              and (filled is null or realized is null)""", (sheet,))
+            rows = cur.fetchall()
+            hours_of = {}
+            for rid, src, snk, tou, hedge, ref, mwq in rows:
+                cp = clears.get((src, snk, tou, hedge))
+                filled = cp is not None and ref is not None and float(ref) >= cp
+                eff_mw = float(mwq or 0) or 1.0   # red rows: per-MW basis
+                cost = rv = pnl = None
+                hrs = None
+                if cp is not None and month_over:
+                    key = (src, snk, tou)
+                    if key not in hours_of:
+                        cur.execute("""
+                            select count(*), coalesce(sum(k.price - s.price), 0),
+                                   coalesce(sum(greatest(k.price - s.price, 0)), 0)
+                              from dam_spp s
+                              join dam_spp k on k.interval_start = s.interval_start
+                             where s.settlement_point = %s and k.settlement_point = %s
+                               and s.delivery_date >= %s and s.delivery_date < %s
+                               and (case when s.hour_ending between 7 and 22
+                                         then case when extract(isodow from s.delivery_date) < 6
+                                                   then 'PeakWD' else 'PeakWE' end
+                                         else 'Off-peak' end) = %s""",
+                                    (src, snk, start, end, tou))
+                        hours_of[key] = cur.fetchone()
+                    n_h, obl_sum, opt_sum = hours_of[key]
+                    if n_h and n_h > 0:
+                        hrs = int(n_h)
+                        pay = float(opt_sum if hedge == "OPT" else obl_sum)
+                        rv = pay * eff_mw
+                        if cp is not None:
+                            cost = cp * hrs * eff_mw
+                            if filled:
+                                pnl = rv - cost
+                cur.execute("""update sheet_snapshots
+                                  set clearing=%s, filled=%s, hours=%s,
+                                      cost=coalesce(%s, cost),
+                                      realized=coalesce(%s, realized),
+                                      pnl=coalesce(%s, pnl), scored_at=now()
+                                where id=%s""",
+                            (cp, filled, hrs, cost, rv, pnl, rid))
+                res.rows_seen += 1
+            conn.commit()
+            log.info("sheet %s: %d rows scored (month_over=%s)", sheet, len(rows), month_over)
+    return res
+
+
+def score_all(c=None) -> ingest.Result:
+    """The daily scoring pass: paper batches, then sheet snapshots."""
+    a = score_paper(c)
+    b = score_sheets(c)
+    a.rows_seen += b.rows_seen
+    return a
