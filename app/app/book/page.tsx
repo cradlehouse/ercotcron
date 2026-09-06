@@ -193,10 +193,10 @@ export default function MyBook() {
                         title="click for the daily win/loss picture">
                       <td className="px-2 py-1.5 text-[11px] text-[#eda63a]">{open ? '▾' : '▸'}</td>
                       <td className="px-2 py-1.5 font-mono text-[11.5px]">
-                        <a className="hover:text-white" onClick={e => e.stopPropagation()}
-                           href={`/path?src=${encodeURIComponent(r.source)}&snk=${encodeURIComponent(r.sink)}`}>
-                          {r.source} → {r.sink}
-                        </a>
+                        {r.source} → {r.sink}
+                        <a className="ml-2 text-[#eda63a] hover:text-[#f5b95c]" title="open this path's dossier"
+                           onClick={e => e.stopPropagation()}
+                           href={`/path?src=${encodeURIComponent(r.source)}&snk=${encodeURIComponent(r.sink)}`}>↗</a>
                       </td>
                       <td className="px-2 py-1.5 text-[#93a6ab]">{r.tou} · {r.hedge}</td>
                       <td className="px-2 py-1.5 text-right font-mono">{Math.round(Number(r.mw))}</td>
