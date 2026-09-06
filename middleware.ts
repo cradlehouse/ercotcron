@@ -17,7 +17,7 @@ const PUBLIC_PREFIX = [
   // Product routes: open here, gated client-side by MemberGate (Supabase
   // session) with the data locked behind authenticated-only RPCs.
   '/bids', '/map', '/path',
-  '/api/health', '/api/claim', '/api/verify-holder', '/api/artifact',
+  '/api/health', '/api/claim', '/api/verify-holder', '/api/artifact', '/api/unsubscribe',
 ]
 // Ops console routes — the only ones worth a basic-auth challenge. Anything
 // else unknown 404s: a password prompt on /pricing reads as "site is broken".
