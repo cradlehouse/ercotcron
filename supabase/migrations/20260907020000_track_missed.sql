@@ -20,7 +20,6 @@ as $$
                                     substring(s.sheet from 1 for 3)), 1) as m0,
            s.filled
       from sheet_snapshots s
-     where s.clearing is not null
   ),
   paper_rows as (
     select 'paper: ' || b.batch_id as grp, b.source, b.sink,
@@ -67,6 +66,7 @@ as $$
            'mw', mw, 'delivery', to_char(m0, 'YYYY-MM'),
            'status', case
              when tier = 'pending' then 'awaiting results'
+             when cp is null and grp not like 'paper:%' then 'never traded'
              when m0 > current_date then case when filled then 'awaiting delivery' else 'missed' end
              when filled then 'running'
              else 'missed — market''s buy' end,
