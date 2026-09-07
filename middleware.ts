@@ -11,12 +11,14 @@ import { NextRequest, NextResponse } from 'next/server'
 // Public product surface: landing, auth, member area (which does its own
 // Supabase session gate client-side), and static graph data. Everything else
 // (the ops pages) stays behind the basic-auth password.
-const PUBLIC_EXACT = new Set(['/', '/node_graph.json', '/grid_geo.json', '/tx.json', '/market_flow.json', '/favicon.ico'])
+const PUBLIC_EXACT = new Set(['/', '/tx.json', '/favicon.ico'])
 const PUBLIC_PREFIX = [
   '/signin', '/signup', '/reset', '/app', '/terms', '/privacy', '/methodology',
   // Product routes: open here, gated client-side by MemberGate (Supabase
   // session) with the data locked behind authenticated-only RPCs.
   '/bids', '/map', '/path',
+  // The record, as published — deliberately public: it IS the pitch.
+  '/record',
   '/api/health', '/api/claim', '/api/verify-holder', '/api/artifact', '/api/unsubscribe',
 ]
 // Ops console routes — the only ones worth a basic-auth challenge. Anything
