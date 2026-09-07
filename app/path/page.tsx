@@ -5,6 +5,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { sb } from '@/lib/supabase'
+import { ProvenanceStrip } from '../provenance-strip'
 
 type Award = { auction: string; tou: string; hedge: string; cp: number; mw: number; holders: number; start: string; end: string }
 type Payoff = { m: string; tou: string; obl: number; opt: number; hours: number }
@@ -300,6 +301,7 @@ function Dossier() {
         not a forecast or a recommendation. Reference limits are what our margin rule
         supports, identical for every member.
       </p>
+      <ProvenanceStrip />
     </div>
   )
 }

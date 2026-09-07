@@ -8,6 +8,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { signed, usd } from '@/lib/fmt'
 import { rpc } from '@/lib/rpc'
 import { DailyChart, type DailyRow } from '../../daily-chart'
+import { ProvenanceStrip } from '../../provenance-strip'
 import { SheetFlowChart, type ClassKey } from './sheet-flow'
 
 type Prog = { grp: string; source: string; sink: string; tou: string; hedge: string; tier: string; bid: number | null; clearing: number | null; mw: number; delivery: string; status: string; hours: number; cost: number | null; paid: number | null }
@@ -205,6 +206,7 @@ export default function MethodScore() {
               )
             })}
           </div>
+          <ProvenanceStrip sheet={active} />
           {camps.ghost.length > 0 && (
             <p className="mt-2 text-[12px] text-[#61767e]">
               Plus {camps.ghost.length} recommended paths that never traded at all — the liquidity

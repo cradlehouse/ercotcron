@@ -4,6 +4,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { rpc } from '@/lib/rpc'
 import { DailyChart, type DailyRow } from '../../daily-chart'
+import { ProvenanceStrip } from '../../provenance-strip'
 
 
 
@@ -213,6 +214,7 @@ export default function MyBook() {
           </tbody>
         </table>
       </div>
+      <ProvenanceStrip />
     </div>
   )
 }

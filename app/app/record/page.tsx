@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usdFixed as usd } from '@/lib/fmt'
 import { rpc } from '@/lib/rpc'
+import { ProvenanceStrip } from '../../provenance-strip'
 
 type Bid = {
   batch_id: string; auction_name: string; submitted_on: string
@@ -170,6 +171,7 @@ export default function ModelBook() {
         the score is struck only when a delivery month settles in full. Nothing on this page is
         a recommendation to buy or sell anything.
       </p>
+      <ProvenanceStrip />
     </div>
   )
 }
