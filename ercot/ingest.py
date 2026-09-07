@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from . import config, db
 from .client import ErcotClient, field
@@ -104,7 +104,7 @@ def ingest_dam(client: ErcotClient, days_ahead: int = 1, days_back: int = 0) -> 
     days_back backfills a gap (the range start moves back that many days).
     """
     keep = tracked_points(os.environ.get("DAM_TRACKED_POINTS", "*"))
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = _date(now - timedelta(days=days_back))
     end = _date(now + timedelta(days=days_ahead))
 
@@ -166,7 +166,7 @@ def _hour_ending(value: object) -> int:
 def ingest_rtm(client: ErcotClient) -> Result:
     """Settled 15-minute SPP for the current operating day."""
     keep = tracked_points()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     day = _date(now)
 
     result = Result()
@@ -231,7 +231,7 @@ def ingest_rtm(client: ErcotClient) -> Result:
 def ingest_lmp5(client: ErcotClient, since_minutes: int = 20) -> Result:
     """Five-minute SCED LMP for the recent window."""
     keep = tracked_points()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = floor_to_5min(now - timedelta(minutes=since_minutes))
 
     result = Result()
@@ -279,7 +279,7 @@ def ingest_lmp5(client: ErcotClient, since_minutes: int = 20) -> Result:
 def ingest_rtd(client: ErcotClient, since_minutes: int = 15) -> Result:
     """RTD indicative LMP. Every run time is its own forecast vintage."""
     keep = tracked_points()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = floor_to_5min(now - timedelta(minutes=since_minutes))
 
     result = Result()
@@ -336,7 +336,7 @@ def ingest_points(client: ErcotClient) -> Result:
     Derived from a report we already read rather than a separate catalogue
     endpoint, so it needs no additional subscription or parameter guesswork.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     day = _date(now - timedelta(days=1))
 
     seen: dict[str, tuple[str, str | None, str | None]] = {}

@@ -37,7 +37,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
-import httpx  # noqa: E402
+import httpx
 
 BASE = "https://www.ercot.com"
 ARCHIVE = BASE + "/services/comm/mkt_notices/archives"
@@ -46,13 +46,13 @@ TIMEOUT = httpx.Timeout(60.0, connect=30.0)
 NOTICE_ID_RX = re.compile(r"\b([A-Z]-[A-Z]\d{6}-\d{2})\b")
 ROW_RX = re.compile(
     r"<tr[^>]*>\s*<td[^>]*>\s*(\d{2}/\d{2}/\d{4})\s*</td>\s*<td[^>]*>(.*?)</td>",
-    re.S)
+    re.DOTALL)
 HREF_RX = re.compile(r'href="(/services/comm/mkt_notices/[^"]+)"')
 
 MODEL_RX = re.compile(
     r"network operations model|model load|nomcr|topolog|"
     r"generic transmission|\bGTC\b|constraint|state estimator|"
-    r"planning model|network model", re.I)
+    r"planning model|network model", re.IGNORECASE)
 
 COLUMNS = ["notice_id", "posted_at", "title", "notice_type", "audience",
            "days_affected", "effective_date", "body", "url",
@@ -117,7 +117,7 @@ def fetch_detail(url: str) -> dict:
     resp = httpx.get(url, timeout=TIMEOUT, follow_redirects=True)
     resp.raise_for_status()
     text = _clean(re.sub(r"<script.*?</script>|<style.*?</style>", " ",
-                         resp.text, flags=re.S))
+                         resp.text, flags=re.DOTALL))
     got: dict[str, str] = {}
     for i, label in enumerate(FIELDS):
         start = text.find(label)
@@ -186,6 +186,7 @@ def main() -> int:
         return 0
 
     import os
+
     import psycopg
     with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=30) as conn:
         with conn.cursor() as cur:

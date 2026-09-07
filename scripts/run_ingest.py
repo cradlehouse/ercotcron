@@ -18,8 +18,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ercot import db, ingest  # noqa: E402
-from ercot.jobs import JOBS, client, run_job  # noqa: E402
+from ercot import db, ingest
+from ercot.jobs import JOBS, client, run_job
 
 
 def main() -> int:
@@ -62,7 +62,7 @@ def main() -> int:
         print(
             "\nZero rows. The request succeeded, so this is usually a wrong query "
             "parameter name rather than an outage — run:\n"
-            f"  python scripts/describe_endpoint.py <endpoint>",
+            "  python scripts/describe_endpoint.py <endpoint>",
             file=sys.stderr,
         )
         return 2

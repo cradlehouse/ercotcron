@@ -38,6 +38,7 @@ import csv
 import datetime as dt
 import pathlib as _pl
 import sys as _sys
+
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 import json
 import os
@@ -45,12 +46,12 @@ import pathlib
 import statistics
 
 import openpyxl
-from openpyxl.styles import Alignment, Font, PatternFill
 from dotenv import load_dotenv
+from openpyxl.styles import Alignment, Font, PatternFill
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
-import psycopg  # noqa: E402
+import psycopg
 
 REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 DL = pathlib.Path.home() / "Downloads"
@@ -61,7 +62,7 @@ UPLOAD_COLS = ["Bid ID", "CRR ID", "Account Holder", "Source", "Sink", "MW",
                "Start Date", "End Date", "Description"]
 
 
-from ercot.calendar import tou_of  # noqa: E402 — the one TOU calendar
+from ercot.calendar import tou_of
 
 
 def next_auction(today: dt.date, kind: str | None):
@@ -69,7 +70,7 @@ def next_auction(today: dt.date, kind: str | None):
     wb = openpyxl.load_workbook(CALENDAR, data_only=True)
     ws = wb["CRR Activity Calendar"]
     hdr = [str(c.value).strip() if c.value else "" for c in ws[4]]
-    col = {h: i for i, h in enumerate(hdr)}
+    {h: i for i, h in enumerate(hdr)}
     opens = next(h for h in hdr if "Bid Window Opens" in h)
     closes = next(h for h in hdr if "Bid Window" in h and "Clos" in h)
     out = []
@@ -269,7 +270,7 @@ def main() -> int:
     head = ["Source", "Sink", "TOU", "Type", "MW", "BID THIS", "Prev bid",
             "Worth", "Usually clears", "Trim", "Why trimmed", "Action"]
     ws.append(head)
-    for i, h in enumerate(head, 1):
+    for i, _h in enumerate(head, 1):
         cc = ws.cell(3, i)
         cc.font = Font(bold=True, color="FFFFFF")
         cc.fill = PatternFill("solid", fgColor="2F4858")

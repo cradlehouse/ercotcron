@@ -12,7 +12,8 @@ import logging
 import threading
 import time
 from collections import deque
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import httpx
 

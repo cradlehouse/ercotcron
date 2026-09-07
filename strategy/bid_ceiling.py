@@ -43,6 +43,7 @@ import collections
 import datetime as dt
 import pathlib as _pl
 import sys as _sys
+
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 import json
 import os
@@ -50,18 +51,18 @@ import pathlib
 import statistics
 
 import openpyxl
-from openpyxl.styles import Alignment, Font, PatternFill
 from dotenv import load_dotenv
+from openpyxl.styles import Alignment, Font, PatternFill
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
-import psycopg  # noqa: E402
+import psycopg
 
 REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 OUT = pathlib.Path.home() / "Downloads" / "steve_bid_ceilings.xlsx"
 
 
-from ercot.calendar import tou_of  # noqa: E402 — the one TOU calendar
+from ercot.calendar import tou_of
 
 
 def read_book(path: pathlib.Path):
@@ -229,7 +230,7 @@ def main() -> int:
             "BID UP TO $/MWh", "You bid", "Worth", "Usually clears",
             "Headroom", "Trim %", "Why trimmed", "Verdict"]
     ws.append(head)
-    for i, h in enumerate(head, 1):
+    for i, _h in enumerate(head, 1):
         cc = ws.cell(1, i)
         cc.font = Font(bold=True, color="FFFFFF")
         cc.fill = PatternFill("solid", fgColor="2F4858")

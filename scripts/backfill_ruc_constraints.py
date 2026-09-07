@@ -16,17 +16,27 @@ archive is dense; default window is 90 days to prove value before going deep.
 """
 from __future__ import annotations
 
-import argparse, csv, io, json, os, pathlib, sys, time, zipfile
+import argparse
+import csv
+import io
+import json
+import os
+import pathlib
+import sys
+import time
 import urllib.request
-from datetime import datetime, timedelta, timezone
+import zipfile
+from datetime import UTC, datetime, timedelta
 
 from dotenv import load_dotenv
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
-import psycopg  # noqa: E402
-from ercot.client import ErcotClient  # noqa: E402
+import psycopg
+
+from ercot.client import ErcotClient
 
 DDL = """
 create table if not exists ruc_constraints (
@@ -97,19 +107,19 @@ def main() -> int:
                 time.sleep(6 * (a + 1))
 
     # archive listing, newest first; keep everything within the window
-    cutoff = datetime.now(timezone.utc) - timedelta(days=args.days)
+    cutoff = datetime.now(UTC) - timedelta(days=args.days)
     docs, page = [], 1
     while True:
         d = json.loads(raw("https://api.ercot.com/api/public-reports/archive/"
                            f"NP5-755-CD?size=1000&page={page}"))
         arcs = d.get("archives") or []
         docs.extend(a for a in arcs
-                    if datetime.fromisoformat(a["postDatetime"]).replace(tzinfo=timezone.utc) >= cutoff)
+                    if datetime.fromisoformat(a["postDatetime"]).replace(tzinfo=UTC) >= cutoff)
         # The API 400s on pages beyond totalPages instead of returning an empty
         # list, so honour the meta rather than probing past the end.
         total_pages = (d.get("_meta") or {}).get("totalPages") or page
         if (not arcs or page >= total_pages
-                or datetime.fromisoformat(arcs[-1]["postDatetime"]).replace(tzinfo=timezone.utc) < cutoff):
+                or datetime.fromisoformat(arcs[-1]["postDatetime"]).replace(tzinfo=UTC) < cutoff):
             break
         page += 1
     print(f"daily files in window: {len(docs)}", flush=True)

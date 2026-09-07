@@ -15,12 +15,24 @@ ALERTS: a position is stale-flagged when either endpoint carries material
   network that no longer exists — which is exactly what a counterparty who has
   noticed will price against you.
 """
-import calendar, collections, datetime as dt, json, os, pathlib, sys
+import calendar
+import collections
+import datetime as dt
+import json
+import os
+import pathlib
+import sys
+
 import numpy as np
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from dotenv import load_dotenv; load_dotenv(ROOT / ".env")
 import psycopg
+from dotenv import load_dotenv
+
+from ercot.calendar import tou_hours, tou_of
+
+load_dotenv(ROOT / ".env")
 
 REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 CACHE = pathlib.Path.home() / "ercotcron-archive" / "cache"
@@ -28,7 +40,6 @@ TAGS = ["sep24","nov24","dec24","jan25","feb25","aug25","sep25","oct25","nov25",
         "dec25","jan26","feb26","mar26","apr26","may26","jun26","jul26"]
 MON = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
 
-from ercot.calendar import tou_of, tou_hours  # noqa: E402 — the one TOU calendar
 
 def hours_in(year, month, tou):
     return tou_hours(year, month)[tou]
@@ -84,7 +95,7 @@ with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as c:
                           from crr_awards where end_date >= '2026-09-01'""")
         for r in scur:
             agg[r[:7]] += float(r[7])
-    live = [k + (v,) for k, v in agg.items()]
+    live = [(*k, v) for k, v in agg.items()]
     cur = c.cursor()
     exp = json.loads((REF / "constraint_exposure.json").read_text())
     cur.execute("select constraint_name, recent_rerate, possibly_retired from constraint_novelty")
@@ -151,6 +162,7 @@ for holder, src, snk, tou, hedge, start, end, mw in live:
 print(f"marked {sum(h['n'] for h in holders.values()):,} groups; unmarked (no price history): {unmarked:,}")
 out = sorted(holders.items(), key=lambda kv: -abs(kv[1]["stale_mark"]))
 import csv as _csv
+
 tgt = pathlib.Path.home() / "Downloads" / "target_list.csv"
 with tgt.open("w", newline="") as fh:
     w = _csv.writer(fh)
@@ -159,7 +171,7 @@ with tgt.open("w", newline="") as fh:
         w.writerow([hname, h["n"], round(h["mw"]), round(h["mark"]), round(h["stale_mw"]),
                     round(h["stale_mark"]), "; ".join(sorted(h["stale_paths"])[:3])])
 print(f"wrote {tgt}")
-print(f"\nTOP 12 OUTREACH TARGETS (by $ of marked value sitting on stale constraints)")
+print("\nTOP 12 OUTREACH TARGETS (by $ of marked value sitting on stale constraints)")
 print(f"{'holder':<10}{'positions':>10}{'MW':>10}{'mark $':>14}{'stale MW':>10}{'stale mark $':>14}")
 for hname, h in out[:12]:
     print(f"{hname:<10}{h['n']:>10,}{h['mw']:>10,.0f}{h['mark']:>14,.0f}{h['stale_mw']:>10,.0f}{h['stale_mark']:>14,.0f}")

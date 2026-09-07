@@ -152,7 +152,7 @@ def archive_zip(doc: Document, blob: bytes) -> bool:
                         resp.status_code, resp.text[:160])
             return False
         return True
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.warning("archive %s failed: %s", doc.file_name, exc)
         return False
 
@@ -253,12 +253,15 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
                     ins, _ = db.upsert_rows("crr_bids", BID_COLS, batch,
                                             conflict=["auction_name", "row_num"],
                                             update=BID_UPDATE)
-                    b_seen += len(batch); b_ins += ins; batch = []
+                    b_seen += len(batch)
+                    b_ins += ins
+                    batch = []
             if batch:
                 ins, _ = db.upsert_rows("crr_bids", BID_COLS, batch,
                                         conflict=["auction_name", "row_num"],
                                         update=BID_UPDATE)
-                b_seen += len(batch); b_ins += ins
+                b_seen += len(batch)
+                b_ins += ins
 
     log.info("crr %s: %d awards (%d new), %d prices, %d bids, archived=%s",
              doc.auction_name, len(award_rows), inserted, len(price_rows),
@@ -281,7 +284,7 @@ def ingest_recent(limit: int = 3, report_type: str = "monthly") -> dict[str, obj
     for d in docs:
         try:
             results.append(ingest_auction(d, report_type))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             # One unreadable download must not discard the auctions that did
             # load. The long-term batch failed entirely on a single file that
             # came back as something other than a zip.
@@ -298,7 +301,7 @@ def ingest_recent(limit: int = 3, report_type: str = "monthly") -> dict[str, obj
 
 
 def ingest_job(_client: object = None, limit: int = 2,
-               report_type: str = "monthly") -> "Result":  # noqa: F821
+               report_type: str = "monthly") -> Result:  # noqa: F821
     """Scheduler entry point.
 
     Takes and ignores an ErcotClient so it matches the Job signature. CRR
@@ -314,7 +317,7 @@ def ingest_job(_client: object = None, limit: int = 2,
     # rebuilt. Refreshing here keeps "ingested" and "queryable" the same event.
     try:
         db.refresh_crr_pnl()
-    except Exception as exc:  # noqa: BLE001 — a stale view must not fail ingest
+    except Exception as exc:
         log.warning("crr_pnl refresh failed (data is loaded, view is stale): %s", exc)
     result = Result()
     result.rows_seen = int(out["awards_seen"])

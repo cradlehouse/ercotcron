@@ -30,7 +30,7 @@ import io
 import pathlib
 import re
 import sys
-from datetime import date, datetime
+from datetime import date
 
 from dotenv import load_dotenv
 
@@ -38,8 +38,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
-import httpx  # noqa: E402
-import pypdf  # noqa: E402
+import httpx
+import pypdf
 
 TIMEOUT = httpx.Timeout(180.0, connect=30.0)
 
@@ -140,6 +140,7 @@ def main() -> int:
         raise SystemExit("cannot ingest without a report date on the title slide")
 
     import os
+
     import psycopg
     with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=30) as conn:
         with conn.cursor() as cur:

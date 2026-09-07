@@ -19,11 +19,10 @@ import logging
 import threading
 import time
 import traceback
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
-from . import config, db
+from . import config, db, fundamentals
 from .client import ErcotClient, field
-from . import fundamentals
 from .ingest import DEFAULT_POINTS, _hour_ending, _num, excluded_type, tracked_points
 from .timeutil import (
     dam_interval_start,
@@ -242,8 +241,8 @@ def _run(market: str, points: list[str], start: date, end: date) -> None:
     began = time.monotonic()
     run_id = db.start_run(
         f"backfill_{market}",
-        datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc),
-        datetime.combine(end, datetime.min.time(), tzinfo=timezone.utc),
+        datetime.combine(start, datetime.min.time(), tzinfo=UTC),
+        datetime.combine(end, datetime.min.time(), tzinfo=UTC),
     )
     client = ErcotClient()
     done = 0
@@ -263,15 +262,15 @@ def _run(market: str, points: list[str], start: date, end: date) -> None:
                 log.info("backfill %s %s %s→%s: %d rows (%d new)", market, point, lo, hi, s, n)
         db.finish_run(run_id, status="ok" if seen else "empty",
                       rows_seen=seen, rows_inserted=new, rows_revised=changed)
-        _state.update(finished=datetime.now(timezone.utc).isoformat(), error=None)
+        _state.update(finished=datetime.now(UTC).isoformat(), error=None)
         log.info("backfill %s done: %d rows, %d new, %.1f min",
                  market, seen, new, (time.monotonic() - began) / 60)
-    except Exception as exc:  # noqa: BLE001 — a thread that raises dies silently
+    except Exception as exc:
         log.exception("backfill %s failed", market)
         db.finish_run(run_id, status="error",
                       rows_seen=seen, rows_inserted=new, rows_revised=changed,
                       error=f"{exc}\n{traceback.format_exc()}")
-        _state.update(error=str(exc), finished=datetime.now(timezone.utc).isoformat())
+        _state.update(error=str(exc), finished=datetime.now(UTC).isoformat())
     finally:
         _state["running"] = False
         _lock.release()
@@ -292,7 +291,7 @@ def start(market: str, points: list[str], start_date: date, end_date: date) -> d
     _state.clear()
     _state.update(running=True, market=market, points=len(points),
                   windows=windows, progress=f"0/{len(points) * windows}",
-                  started=datetime.now(timezone.utc).isoformat())
+                  started=datetime.now(UTC).isoformat())
     threading.Thread(
         target=_run, args=(market, points, start_date, end_date), daemon=True,
         name=f"backfill-{market}",

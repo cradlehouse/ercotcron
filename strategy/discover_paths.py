@@ -24,6 +24,7 @@ import collections
 import datetime as dt
 import pathlib as _pl
 import sys as _sys
+
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 import json
 import os
@@ -35,7 +36,7 @@ from dotenv import load_dotenv
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
-import psycopg  # noqa: E402
+import psycopg
 
 REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 BOOK = pathlib.Path.home() / "Downloads" / "Saaico 2027 First - Dec 2025 with calcs.xlsx"
@@ -46,7 +47,7 @@ MIN_HOURS = 2000
 HEADROOM = 1.5
 
 
-from ercot.calendar import tou_of  # noqa: E402 — the one TOU calendar
+from ercot.calendar import tou_of
 
 
 def steve_pairs() -> set[tuple[str, str]]:

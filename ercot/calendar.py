@@ -20,7 +20,7 @@ supabase/migrations/20260907060000_tou_sql.sql. Change both together.
 from __future__ import annotations
 
 import datetime as dt
-from functools import lru_cache
+from functools import cache
 
 
 def _nth_weekday(year: int, month: int, weekday: int, n: int) -> dt.date:
@@ -37,7 +37,7 @@ def _last_weekday(year: int, month: int, weekday: int) -> dt.date:
     return d - dt.timedelta(days=(d.weekday() - weekday) % 7)
 
 
-@lru_cache(maxsize=None)
+@cache
 def nerc_holidays(year: int) -> frozenset[dt.date]:
     """Observed NERC holidays for a year (Sunday -> following Monday)."""
     fixed = [dt.date(year, 1, 1), dt.date(year, 7, 4), dt.date(year, 12, 25)]

@@ -16,10 +16,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import httpx  # noqa: E402
+import httpx
 
-from ercot import config  # noqa: E402
-from ercot.client import ErcotClient, ErcotError  # noqa: E402
+from ercot import config
+from ercot.client import ErcotClient, ErcotError
 
 
 def describe_response_fields(client: ErcotClient, endpoint: str) -> None:
@@ -87,7 +87,7 @@ def describe_parameters(client: ErcotClient, endpoint: str) -> None:
             continue
 
         print(f"  (from {url})")
-        for method, spec_body in match.items():
+        for _method, spec_body in match.items():
             if not isinstance(spec_body, dict):
                 continue
             for param in spec_body.get("parameters") or []:

@@ -16,13 +16,12 @@ from __future__ import annotations
 import json
 import os
 import pathlib
-import sys
 
 from dotenv import load_dotenv
 
 load_dotenv(pathlib.Path(__file__).resolve().parents[1] / ".env")
 
-import psycopg  # noqa: E402
+import psycopg
 
 REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 MIGRATION = (pathlib.Path(__file__).resolve().parents[1]

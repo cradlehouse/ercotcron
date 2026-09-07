@@ -25,6 +25,7 @@ import collections
 import datetime as dt
 import pathlib as _pl
 import sys as _sys
+
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 import json
 import os
@@ -36,7 +37,7 @@ from dotenv import load_dotenv
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
-import psycopg  # noqa: E402
+import psycopg
 
 REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 CACHES = [pathlib.Path.home() / "ercotcron-archive" / "cache", pathlib.Path("/tmp")]
@@ -52,7 +53,7 @@ MATERIALITY = 0.10
 CAP = 400          # rows written to the platform
 
 
-from ercot.calendar import tou_of  # noqa: E402 — the one TOU calendar
+from ercot.calendar import tou_of
 
 
 def main() -> int:
@@ -235,9 +236,7 @@ def main() -> int:
         margin_limit = r["ceiling"] / 1.5
         clr = r["cleared"]
         ref = min(margin_limit, max(3 * clr, 0.1)) if clr and clr < 0.5 else margin_limit
-        if r["worth"] is None or ref < 0.1:
-            tier = "red"
-        elif clr and clr > 0 and ref / clr <= 1.0:
+        if r["worth"] is None or ref < 0.1 or (clr and clr > 0 and ref / clr <= 1.0):
             tier = "red"
         else:
             tier = "amber"   # Market rows are never green

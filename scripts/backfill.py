@@ -29,10 +29,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from ercot import config, db  # noqa: E402
-from ercot.client import ErcotClient, field  # noqa: E402
-from ercot.ingest import DEFAULT_POINTS, _hour_ending, _num, tracked_points  # noqa: E402
-from ercot.timeutil import (  # noqa: E402
+from ercot import config, db
+from ercot.client import ErcotClient, field
+from ercot.ingest import DEFAULT_POINTS, _hour_ending, _num, tracked_points
+from ercot.timeutil import (
     dam_interval_start,
     floor_to_5min,
     is_repeat_hour,

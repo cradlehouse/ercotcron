@@ -13,6 +13,7 @@ import collections
 import datetime as dt
 import pathlib as _pl
 import sys as _sys
+
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 import json
 import os
@@ -28,7 +29,8 @@ TAGS = {7: ["jul26"], 8: ["aug25"], 9: ["sep24", "sep25"], 10: ["oct25"],
 REQUIRED_MARGIN = 1.5
 MATERIALITY = 0.05
 
-from ercot.calendar import tou_of  # noqa: E402 — the one TOU calendar
+from ercot.calendar import tou_of
+
 
 def hours_2028(month):
     out = collections.Counter()

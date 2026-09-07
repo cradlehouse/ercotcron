@@ -40,7 +40,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
-from ercot import crr  # noqa: E402  (public MIS listing + download, no auth)
+from ercot import crr
 
 COLUMNS = ["auction_name", "row_num", "source", "sink", "time_of_use",
            "hedge_type", "start_date", "end_date", "mw", "min_price",
@@ -138,6 +138,7 @@ def main() -> int:
         return 0
 
     import os
+
     import psycopg
     with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=30) as conn:
         conn.execute("set statement_timeout='10min'")

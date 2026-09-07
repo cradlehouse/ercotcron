@@ -1,0 +1,9 @@
+#!/bin/sh
+# The gate the review asked for: nothing red leaves this machine.
+# Installed via: git config core.hooksPath .githooks
+set -e
+cd "$(git rev-parse --show-toplevel)"
+echo "pre-push: ruff" && .venv/bin/ruff check ercot strategy scripts tests
+echo "pre-push: pytest" && .venv/bin/python -m pytest tests/ -q
+echo "pre-push: tsc" && npx tsc --noEmit
+echo "pre-push: all green"

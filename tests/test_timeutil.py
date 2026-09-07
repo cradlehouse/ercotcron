@@ -7,7 +7,8 @@ transition days are tested explicitly. In 2026 US DST starts 8 March and ends
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+import itertools
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -25,7 +26,7 @@ HOUR = timedelta(hours=1)
 
 
 def utc(y, m, d, h, mi=0):
-    return datetime(y, m, d, h, mi, tzinfo=timezone.utc)
+    return datetime(y, m, d, h, mi, tzinfo=UTC)
 
 
 class TestDamIntervalStart:
@@ -54,7 +55,7 @@ class TestDamIntervalStart:
         hours = [dam_interval_start(date(2026, 3, 8), he) for he in (1, 2, 4, 5)]
         assert hours == sorted(hours)
         assert len(set(hours)) == 4
-        assert all(b - a == HOUR for a, b in zip(hours, hours[1:]))
+        assert all(b - a == HOUR for a, b in itertools.pairwise(hours))
 
     def test_fall_back_repeated_hour_is_distinct(self):
         # 1 Nov 2026: 02:00 CDT falls back to 01:00 CST, so 01:00-02:00 happens

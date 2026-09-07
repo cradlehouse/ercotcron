@@ -29,7 +29,6 @@ import argparse
 import json
 import pathlib
 import re
-import sys
 
 import numpy as np
 from scipy.sparse import csc_matrix, lil_matrix
@@ -184,7 +183,7 @@ def main() -> int:
     buses, branches = parse_raw(raw)
     print(f"buses {len(buses):,}   branches (with reactance) {len(branches):,}")
 
-    ptdf_fn, idx, slack, ids = build_ptdf(buses, branches)
+    ptdf_fn, idx, slack, _ids = build_ptdf(buses, branches)
     print(f"slack bus {slack} ({buses[slack]['name']})  — factorisation built")
 
     # ---- verification: properties a correct PTDF matrix must satisfy

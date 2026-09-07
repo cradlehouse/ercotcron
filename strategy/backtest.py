@@ -28,11 +28,11 @@ import os
 import statistics
 import sys
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import db  # noqa: E402
+import db
 
 # Day-ahead market closes at 10:00 CPT for the next operating day. A decision
 # made after this is not a decision, it is hindsight.
@@ -70,7 +70,7 @@ def as_of_for(target_interval: datetime) -> datetime:
     before the operating day. CPT is UTC-5 in daylight time."""
     day_before = (target_interval - timedelta(days=1)).date()
     return datetime.combine(
-        day_before, datetime.min.time(), tzinfo=timezone.utc
+        day_before, datetime.min.time(), tzinfo=UTC
     ) + timedelta(hours=DAM_CLOSE_HOUR_CPT + 5)
 
 
@@ -168,8 +168,8 @@ def main() -> int:
     args = p.parse_args()
 
     points = [s.strip() for s in args.points.split(",") if s.strip()] or db.tracked_points()
-    end = (datetime.fromisoformat(args.end).replace(tzinfo=timezone.utc)
-           if args.end else datetime.now(timezone.utc))
+    end = (datetime.fromisoformat(args.end).replace(tzinfo=UTC)
+           if args.end else datetime.now(UTC))
     start = end - timedelta(days=args.days)
 
     print(f"{len(points)} points, {args.days} days, {args.folds} folds")
@@ -201,7 +201,7 @@ def main() -> int:
             hits.append(result["hit_rate"])
         window = f"{fold.test_start:%Y-%m-%d}..{fold.test_end:%Y-%m-%d}"
         print(f"{i:>4} {window:<26} {result['orders']:>7} {result['unmatched']:>10} "
-              f"{str(result['hit_rate'] or '-'):>6} {result['net_pnl']:>10,.2f}")
+              f"{result['hit_rate'] or '-'!s:>6} {result['net_pnl']:>10,.2f}")
 
     print(f"\ntotal: {totals['orders']:,} orders, {totals['unmatched']:,} unmatched, "
           f"${totals['net_pnl']:,.2f} net (1 MW, $0.10/MWh fees)")

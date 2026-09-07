@@ -31,8 +31,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
-import httpx  # noqa: E402
-import openpyxl  # noqa: E402
+import httpx
+import openpyxl
 
 LISTING = "https://www.ercot.com/misapp/servlets/IceDocListJsonWS"
 DOWNLOAD = "https://www.ercot.com/misdownload/servlets/mirDownload"
@@ -71,7 +71,7 @@ on conflict (report_month, inr) do update set
   comment = excluded.comment
 """
 
-INR_RX = re.compile(r"^\d{2}INR", re.I)
+INR_RX = re.compile(r"^\d{2}INR", re.IGNORECASE)
 
 
 def list_gis_reports() -> list[dict]:
@@ -220,6 +220,7 @@ def main() -> int:
         return 0
 
     import os
+
     import psycopg
     with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=30) as conn:
         conn.execute("set statement_timeout='10min'")

@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Callable
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
@@ -200,13 +200,13 @@ def run_job(name: str) -> dict[str, object]:
         raise KeyError(f"unknown job: {name}")
 
     started = time.monotonic()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     run_id = db.start_run(job.name, now - timedelta(hours=1), now)
     log.info("job %s starting", job.name)
 
     try:
         result = job.run(client())
-    except Exception as exc:  # noqa: BLE001 — deliberately broad, see docstring
+    except Exception as exc:
         log.exception("job %s failed", job.name)
         db.finish_run(run_id, status="error", error=f"{exc}\n{traceback.format_exc()}")
         _heartbeat(job.name, ok=False)

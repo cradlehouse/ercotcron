@@ -7,7 +7,7 @@ rather than as a null column in production.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import httpx
 import pytest
@@ -93,7 +93,7 @@ class TestDam:
         assert row["price"] == 31.25
         assert row["hour_ending"] == 1
         assert row["delivery_date"] == date(2026, 7, 15)
-        assert row["interval_start"] == datetime(2026, 7, 15, 5, tzinfo=timezone.utc)
+        assert row["interval_start"] == datetime(2026, 7, 15, 5, tzinfo=UTC)
 
     def test_keeps_every_point_by_default(self, captured):
         # Sep 4 change: DAM keeps ALL nodes unless DAM_TRACKED_POINTS restricts.
@@ -137,7 +137,7 @@ class TestDam:
         )
         ingest.ingest_dam(client)
         assert as_dict(captured)["interval_start"] == datetime(
-            2026, 11, 1, 7, tzinfo=timezone.utc)
+            2026, 11, 1, 7, tzinfo=UTC)
 
 
 class TestRtm:
@@ -151,7 +151,7 @@ class TestRtm:
         row = as_dict(captured)
         assert captured["table"] == "rt_spp"
         assert row["delivery_interval"] == 3
-        assert row["interval_start"] == datetime(2026, 7, 15, 5, 30, tzinfo=timezone.utc)
+        assert row["interval_start"] == datetime(2026, 7, 15, 5, 30, tzinfo=UTC)
 
 
 class TestLmp5:
@@ -164,8 +164,8 @@ class TestLmp5:
         assert ingest.ingest_lmp5(client).rows_seen == 1
         row = as_dict(captured)
         assert captured["table"] == "rt_lmp_5min"
-        assert row["interval_start"] == datetime(2026, 7, 15, 10, 5, tzinfo=timezone.utc)
-        assert row["sced_timestamp"] == datetime(2026, 7, 15, 10, 7, tzinfo=timezone.utc)
+        assert row["interval_start"] == datetime(2026, 7, 15, 10, 5, tzinfo=UTC)
+        assert row["sced_timestamp"] == datetime(2026, 7, 15, 10, 7, tzinfo=UTC)
         assert row["congestion"] == 68.0
 
 
@@ -178,9 +178,9 @@ class TestRtd:
         assert ingest.ingest_rtd(client).rows_seen == 1
         row = as_dict(captured)
         assert captured["table"] == "rtd_lmp"
-        assert row["rtd_timestamp"] == datetime(2026, 7, 15, 10, 0, tzinfo=timezone.utc)
+        assert row["rtd_timestamp"] == datetime(2026, 7, 15, 10, 0, tzinfo=UTC)
         # intervalEnding 05:20 names the interval starting 05:15.
-        assert row["interval_start"] == datetime(2026, 7, 15, 10, 15, tzinfo=timezone.utc)
+        assert row["interval_start"] == datetime(2026, 7, 15, 10, 15, tzinfo=UTC)
 
 
 class TestResultStatus:

@@ -9,9 +9,10 @@ thousands, and it keeps the revision triggers in charge of history.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Iterable, Iterator, Sequence
+from typing import Any
 
 import psycopg
 from psycopg import sql

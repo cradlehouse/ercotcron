@@ -21,7 +21,7 @@ import argparse
 import os
 import pathlib
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from dotenv import load_dotenv
 
@@ -29,12 +29,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
-import psycopg  # noqa: E402
+import psycopg
 
-from ercot import config  # noqa: E402
-from ercot.client import ErcotClient  # noqa: E402
-from ercot.fundamentals import CONSTRAINT_EP, _num, field  # noqa: E402
-from ercot.timeutil import is_repeat_hour, parse_ercot_timestamp  # noqa: E402
+from ercot import config
+from ercot.client import ErcotClient
+from ercot.fundamentals import CONSTRAINT_EP, _num, field
+from ercot.timeutil import is_repeat_hour, parse_ercot_timestamp
 
 COLS = ("sced_timestamp", "constraint_id", "contingency", "constraint_name",
         "shadow_price", "max_shadow_price", "limit_mw", "value_mw",
@@ -99,7 +99,7 @@ def main() -> int:
         return 1
 
     client = ErcotClient()
-    end = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    end = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
     start = end - timedelta(days=args.days)
     step = timedelta(hours=args.chunk_hours)
 

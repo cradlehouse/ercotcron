@@ -32,15 +32,15 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
-import httpx  # noqa: E402
-import openpyxl  # noqa: E402
+import httpx
+import openpyxl
 
 PLANNING_PAGE = "https://www.ercot.com/gridinfo/planning"
 ANCHOR_TITLE = "Transmission Project and Information Tracking"
 TIMEOUT = httpx.Timeout(180.0, connect=30.0)
 
 # Sheet name carries both the kind and the release date: FutureTPIT071326NoCost
-SHEET_RX = re.compile(r"^(Future|Planned|Completed|Cancelled)TPIT(\d{6})", re.I)
+SHEET_RX = re.compile(r"^(Future|Planned|Completed|Cancelled)TPIT(\d{6})", re.IGNORECASE)
 
 COLUMNS = ["report_date", "sheet", "project_number", "phase", "title",
            "description", "comments", "from_location", "to_location", "status",
@@ -180,6 +180,7 @@ def main() -> int:
         return 0
 
     import os
+
     import psycopg
     with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=30) as conn:
         conn.execute("set statement_timeout='10min'")

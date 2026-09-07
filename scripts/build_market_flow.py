@@ -21,6 +21,7 @@ import collections
 import datetime as dt
 import pathlib as _pl
 import sys as _sys
+
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 import json
 import os
@@ -33,7 +34,7 @@ from dotenv import load_dotenv
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
-import psycopg  # noqa: E402
+import psycopg
 
 CACHES = [pathlib.Path.home() / "ercotcron-archive" / "cache", pathlib.Path("/tmp")]
 
@@ -61,7 +62,7 @@ MAX_STRANDS = 2000          # sampled for rendering; aggregates use everything
 MIN_MONTHS_FOR_STRAND = 4   # a strand needs a visible trajectory
 
 
-from ercot.calendar import tou_of  # noqa: E402 — the one TOU calendar
+from ercot.calendar import tou_of
 
 
 def load_month(tag: str) -> dict:
@@ -171,7 +172,7 @@ def main() -> int:
         return len(BUCKETS) - 1
 
     bucket_month: dict[tuple[int, int], list] = collections.defaultdict(list)
-    for key, mm in path_months.items():
+    for mm in path_months.values():
         for mi, (cp, prem, paid) in mm.items():
             bucket_month[(bucket_of(cp), mi)].append((prem, paid))
 
@@ -223,7 +224,7 @@ def main() -> int:
                         "cp": round(avg_cp, 3)})
 
     payload = {
-        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+        "generated_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
         "months": months,
         "buckets": bucket_series,
         "strands": strands,

@@ -17,9 +17,16 @@ evolution of one outage across days is visible rather than collapsed.
 """
 from __future__ import annotations
 
-import argparse, io, json, os, pathlib, sys, time, zipfile
+import argparse
+import io
+import json
+import os
+import pathlib
+import sys
+import time
 import urllib.request
-from datetime import datetime, timedelta, timezone
+import zipfile
+from datetime import UTC, datetime, timedelta
 
 import openpyxl
 from dotenv import load_dotenv
@@ -28,8 +35,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
-import psycopg  # noqa: E402
-from ercot.client import ErcotClient  # noqa: E402
+import psycopg
+
+from ercot.client import ErcotClient
 
 DDL = """
 create table if not exists resource_outages (
@@ -74,7 +82,7 @@ def num(x):
 
 def ts(x):
     if isinstance(x, datetime):
-        return x.replace(tzinfo=timezone.utc) if x.tzinfo is None else x
+        return x.replace(tzinfo=UTC) if x.tzinfo is None else x
     return None
 
 
@@ -100,19 +108,19 @@ def main() -> int:
                     raise
                 time.sleep(6 * (a + 1))
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=args.days)
+    cutoff = datetime.now(UTC) - timedelta(days=args.days)
     docs, page = [], 1
     while True:
         d = json.loads(raw("https://api.ercot.com/api/public-reports/archive/"
                            f"NP1-346-ER?size=1000&page={page}"))
         arcs = d.get("archives") or []
         docs.extend(a for a in arcs
-                    if datetime.fromisoformat(a["postDatetime"]).replace(tzinfo=timezone.utc) >= cutoff)
+                    if datetime.fromisoformat(a["postDatetime"]).replace(tzinfo=UTC) >= cutoff)
         # The API 400s on pages beyond totalPages instead of returning an empty
         # list, so honour the meta rather than probing past the end.
         total_pages = (d.get("_meta") or {}).get("totalPages") or page
         if (not arcs or page >= total_pages
-                or datetime.fromisoformat(arcs[-1]["postDatetime"]).replace(tzinfo=timezone.utc) < cutoff):
+                or datetime.fromisoformat(arcs[-1]["postDatetime"]).replace(tzinfo=UTC) < cutoff):
             break
         page += 1
     print(f"daily snapshots in window: {len(docs)}", flush=True)

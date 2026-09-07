@@ -11,14 +11,16 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import UTC, date
 
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, Header, HTTPException
 
-from . import backfill as backfill_mod, config, crr as crr_mod, db
+from . import backfill as backfill_mod
+from . import config, db
+from . import crr as crr_mod
 from .jobs import JOBS, run_job
 
 logging.basicConfig(
@@ -58,13 +60,13 @@ async def lifespan(_app: FastAPI):
             stale = db.close_interrupted_runs()
             if stale:
                 log.warning("closed %d run(s) interrupted by a restart", stale)
-        except Exception as exc:  # noqa: BLE001 — startup must not be fatal
+        except Exception as exc:
             log.warning("could not close interrupted runs: %s", exc)
 
         try:
             created = db.ensure_partitions(months_ahead=3)
             log.info("partitions verified: %d", len(created))
-        except Exception as exc:  # noqa: BLE001 — startup must not be fatal
+        except Exception as exc:
             log.warning("partition check failed at startup: %s", exc)
     else:
         log.warning("SCHEDULER_ENABLED=false — API only, nothing will be ingested")
@@ -89,9 +91,9 @@ def _overdue_jobs() -> list[str]:
     that silently stops scheduling records nothing, which is exactly the
     failure this exists to surface.
     """
-    from datetime import datetime, timedelta, timezone as tz
+    from datetime import datetime, timedelta
     last = db.last_run_per_job()
-    now = datetime.now(tz.utc)
+    now = datetime.now(UTC)
     overdue = []
     for name, job in JOBS.items():
         if "day_of_week" in job.trigger:
@@ -130,7 +132,7 @@ def health() -> dict[str, object]:
             cur.execute("""select count(distinct settlement_point) from dam_spp
                             where delivery_date = current_date - 1""")
             dam_points = int((cur.fetchone() or [0])[0])
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.warning("health check database probe failed: %s", exc)
 
     checks["jobs_on_schedule"] = not overdue
@@ -162,7 +164,7 @@ def runs(limit: int = 20, x_trigger_secret: str = Header(default="")) -> dict[st
     _require_ops(x_trigger_secret)
     try:
         return {"runs": db.recent_runs(min(limit, 200))}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         log.warning("/runs database read failed: %s", exc)
         raise HTTPException(
             status_code=503,
@@ -202,7 +204,7 @@ def stats(x_trigger_secret: str = Header(default="")) -> dict[str, object]:
     _require_ops(x_trigger_secret)
     try:
         return db.table_stats()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=503, detail=f"cannot read table stats: {exc}") from exc
 
 
@@ -260,5 +262,5 @@ def crr_ingest(
         )
     try:
         return crr_mod.ingest_recent(limit=min(limit, 12), report_type=report_type)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=f"crr ingest failed: {exc}") from exc

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import collections
 import datetime as dt
+import itertools
 import json
 import logging
 import os
@@ -15,14 +16,13 @@ import os
 import psycopg
 
 from ercot import ingest
+from ercot.calendar import tou_of
 
 log = logging.getLogger(__name__)
 
 TOP_POINTS = 120
 TOP_PATHS = 40
 TOP_CONSTRAINTS = 25
-
-from ercot.calendar import tou_of  # noqa: F401 — the one TOU calendar
 
 
 def _conn():
@@ -118,7 +118,7 @@ def build_products(_c=None) -> ingest.Result:
                                  "value": round(min(9, 2 + abs(pos[0]["beta"]) * 40), 1),
                                  "label": cname})
             side = pos if len(pos) >= 2 else neg
-            for a, b in zip(side, side[1:3]):
+            for a, b in itertools.pairwise(side):
                 pair = tuple(sorted((a["node"], b["node"])))
                 if pair[0] != pair[1] and pair not in seen:
                     seen.add(pair)
@@ -154,10 +154,10 @@ def build_products(_c=None) -> ingest.Result:
                 grid.append([[round(ca[0], 4), round(ca[1], 4)],
                              [round(cb[0], 4), round(cb[1], 4)]])
         pos_map = {n["name"]: (n["lat"], n["lon"]) for n in nodes}
-        crr_geo = [{"a": pos_map[l["source"]], "b": pos_map[l["target"]], "v": l["value"],
-                    "label": f'{l["source"]} → {l["target"]}'}
-                   for l in crr_links
-                   if l["source"] in pos_map and l["target"] in pos_map]
+        crr_geo = [{"a": pos_map[lk["source"]], "b": pos_map[lk["target"]], "v": lk["value"],
+                    "label": f'{lk["source"]} → {lk["target"]}'}
+                   for lk in crr_links
+                   if lk["source"] in pos_map and lk["target"] in pos_map]
 
         import re
         def cpos(cname):

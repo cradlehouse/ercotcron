@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import logging
 import statistics
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime
 
 import httpx
 
-from . import config, db
+from . import db
 from .ingest import Result
 
 log = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ def ingest_weather(_client: object = None, past_days: int = 2,
         for lat, lon in sites:
             try:
                 hourly = _fetch_site(lat, lon, past_days, forecast_days)
-            except Exception as exc:  # noqa: BLE001 — one bad site must not lose the region
+            except Exception as exc:
                 log.warning("open-meteo %s (%s,%s) failed: %s", region, lat, lon, exc)
                 continue
             times = hourly.get("time") or []
@@ -83,7 +83,7 @@ def ingest_weather(_client: object = None, past_days: int = 2,
                 # silently redefined hour to hour by which sites responded.
                 if len(values) != len(sites):
                     continue
-                moment = datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc)
+                moment = datetime.fromisoformat(stamp).replace(tzinfo=UTC)
                 rows[(moment, region, model)] = (
                     moment, region, model, round(statistics.mean(values), 2),
                 )

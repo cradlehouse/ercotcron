@@ -1,7 +1,7 @@
 """The one TOU calendar — the holiday rules the scorers used to disagree on."""
 import datetime as dt
 
-from ercot.calendar import nerc_holidays, tou_of, tou_hours
+from ercot.calendar import nerc_holidays, tou_hours, tou_of
 
 
 class TestHolidays:

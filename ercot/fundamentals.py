@@ -9,13 +9,12 @@ kept, which is what makes 105k stored rows out of 3.8M fetched.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from . import config, db
 from .client import ErcotClient, field
-from .ingest import Result, _num
+from .ingest import Result, _hour_ending, _num
 from .timeutil import dam_interval_start, is_repeat_hour, parse_ercot_timestamp
-from .ingest import _hour_ending
 
 log = logging.getLogger(__name__)
 
@@ -111,19 +110,19 @@ def _renewable(client: ErcotClient, endpoint: str, table: str,
 
 
 def ingest_wind(client: ErcotClient, days_back: int = 1, days_ahead: int = 7) -> Result:
-    now = datetime.now(timezone.utc).astimezone(config.CENTRAL).date()
+    now = datetime.now(UTC).astimezone(config.CENTRAL).date()
     return _renewable(client, WIND_EP, "wind_power", WIND_REGIONS, WIND_METRICS,
                       now - timedelta(days=days_back), now + timedelta(days=days_ahead))
 
 
 def ingest_solar(client: ErcotClient, days_back: int = 1, days_ahead: int = 7) -> Result:
-    now = datetime.now(timezone.utc).astimezone(config.CENTRAL).date()
+    now = datetime.now(UTC).astimezone(config.CENTRAL).date()
     return _renewable(client, SOLAR_EP, "solar_power", SOLAR_REGIONS, SOLAR_METRICS,
                       now - timedelta(days=days_back), now + timedelta(days=days_ahead))
 
 
 def ingest_load(client: ErcotClient, days_back: int = 1, days_ahead: int = 7) -> Result:
-    now = datetime.now(timezone.utc).astimezone(config.CENTRAL).date()
+    now = datetime.now(UTC).astimezone(config.CENTRAL).date()
     return load_range(client, now - timedelta(days=days_back), now + timedelta(days=days_ahead))
 
 
@@ -171,7 +170,7 @@ def load_range(client: ErcotClient, start: date, end: date) -> Result:
 
 def ingest_constraints(client: ErcotClient, since_minutes: int = 60) -> Result:
     """Binding transmission constraints and their shadow prices."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now - timedelta(minutes=since_minutes)
     result = Result()
     rows: dict[tuple, tuple] = {}

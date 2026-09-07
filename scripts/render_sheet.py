@@ -11,7 +11,6 @@ record has a second, human-readable home outside the database.
 """
 from __future__ import annotations
 
-import datetime as dt
 import os
 import pathlib
 import sys
@@ -20,7 +19,7 @@ from dotenv import load_dotenv
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
-import psycopg  # noqa: E402
+import psycopg
 
 INK, PANEL, LINE, AMBER, MIST, BRIGHT = "#15242c", "#1e3038", "#2c424c", "#eda63a", "#93a6ab", "#f2f6f6"
 

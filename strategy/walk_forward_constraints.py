@@ -33,13 +33,12 @@ import math
 import os
 import pathlib
 import statistics
-import sys
 
 from dotenv import load_dotenv
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
-import psycopg  # noqa: E402
+import psycopg
 
 REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 CARDS = json.loads((REF / "constraint_cards.json").read_text())
@@ -143,7 +142,7 @@ def main() -> int:
                         where region='SystemWide' and actual_mw is not null
                           and delivery_date >= %s and delivery_date < %s
                         group by 1""", (start, holdout_from))
-        wind = {d: float(w) for d, w in cur.fetchall()}
+        {d: float(w) for d, w in cur.fetchall()}
 
         flags = {}
         for cname in pairs:
@@ -219,7 +218,7 @@ def main() -> int:
 
     if folds:
         edges = [f["edge"] for f in folds]
-        rules = [f["rule"] for f in folds]
+        [f["rule"] for f in folds]
         pos = sum(1 for e in edges if e > 0)
         m = statistics.fmean(edges)
         se = statistics.stdev(edges) / math.sqrt(len(edges)) if len(edges) > 1 else 0
@@ -233,7 +232,7 @@ def main() -> int:
                   f"({h2-h1:+.3f})")
         shapes = [f["shape"] for f in folds if f.get("shape")]
         if shapes:
-            print(f"\nTRADE SHAPE across folds:")
+            print("\nTRADE SHAPE across folds:")
             print(f"  win rate      {statistics.fmean(s['win_rate'] for s in shapes):.1f}% "
                   f"(range {min(s['win_rate'] for s in shapes):.0f}-"
                   f"{max(s['win_rate'] for s in shapes):.0f})")
