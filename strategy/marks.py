@@ -179,3 +179,24 @@ for hname, h in out[:12]:
 json.dump({k: {kk: (sorted(vv) if isinstance(vv, set) else vv) for kk, vv in v.items()}
            for k, v in holders.items()}, open(REF / "holder_marks.json", "w"))
 print("wrote", REF / "holder_marks.json")
+
+# ---- provenance: every run gets a row in mark_runs (run id, engine SHA,
+# methodology version) — the strip on the site shows the latest one.
+import subprocess
+import uuid as _uuid
+
+try:
+    sha = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+                         capture_output=True, text=True, timeout=10).stdout.strip() or "unknown"
+except Exception:
+    sha = "unknown"
+run_id = f"mk-{today:%Y%m%d}-{_uuid.uuid4().hex[:6]}"
+with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as _c:
+    _c.execute(
+        """insert into mark_runs (run_id, engine_sha, methodology_v, input_watermarks, params)
+           values (%s, %s, %s, %s, %s)""",
+        (run_id, sha, "1.2",
+         json.dumps({"dam_months": TAGS, "as_of": str(today)}),
+         json.dumps({"source": "strategy/marks.py"})))
+    _c.commit()
+print(f"logged mark run {run_id} (engine {sha[:8]})")
