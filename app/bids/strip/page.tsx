@@ -6,6 +6,7 @@
    emits one ERCOT-format row per selected month. Data: the strip_2028 artifact
    (strategy/strip_scan.py). */
 import { useEffect, useMemo, useState } from 'react'
+import { rpc } from '@/lib/rpc'
 
 const MONTH_NAMES: Record<number, string> = { 7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec' }
 const MONTH_DAYS: Record<number, number> = { 7: 31, 8: 31, 9: 30, 10: 31, 11: 30, 12: 31 }
@@ -23,6 +24,16 @@ export default function StripSheet() {
   const [hedgeLens, setHedgeLens] = useState<'both' | 'OPT' | 'OBL'>('both')
   const [checked, setChecked] = useState<Record<string, boolean>>({})
   const [mw, setMw] = useState<Record<string, number>>({})
+  // The CSV's Account Holder column belongs to the READER's claimed code,
+  // not the design partner's — hard-coding XSAAIC put his account name in
+  // every member's export.
+  const [holder, setHolder] = useState('')
+  useEffect(() => {
+    rpc<{ holder_code: string; status: string }[]>('my_claims').then(({ data }) => {
+      const ok = (data ?? []).find(c => c.status === 'approved')
+      if (ok) setHolder(ok.holder_code)
+    })
+  }, [])
 
   useEffect(() => {
     fetch('/api/artifact/strip_2028')
@@ -69,7 +80,7 @@ export default function StripSheet() {
       for (const [m, cell] of Object.entries(r.months)) {
         if (!cell || cell.ceiling < 0.05 || !qualifies(cell)) continue
         const mo = Number(m)
-        lines.push(`,,XSAAIC,${r.source},${r.sink},${q},${cell.ceiling.toFixed(2)},${r.tou},BUY,${r.hedge},${mo}/1/2028,${mo}/${MONTH_DAYS[mo]}/2028,strip`)
+        lines.push(`,,${holder},${r.source},${r.sink},${q},${cell.ceiling.toFixed(2)},${r.tou},BUY,${r.hedge},${mo}/1/2028,${mo}/${MONTH_DAYS[mo]}/2028,strip`)
       }
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
