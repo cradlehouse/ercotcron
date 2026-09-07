@@ -41,7 +41,9 @@ def score_paper(_c=None) -> ingest.Result:
         for batch, auction in batches:
             cur.execute("""select source, sink, time_of_use, hedge_type,
                                   avg(clearing_price), sum(mw)
-                             from crr_awards where auction_name = %s group by 1,2,3,4""",
+                             from crr_awards
+                            where auction_name = %s and crr_type = 'STANDARD'
+                            group by 1,2,3,4""",
                         (auction,))
             award_rows = cur.fetchall()
             clears = {tuple(r[:4]): float(r[4]) for r in award_rows}
@@ -188,7 +190,9 @@ def score_sheets(_c=None) -> ingest.Result:
             # a '-reconstructed' vintage scores against its real auction
             auction = sheet.split('-')[0]
             cur.execute("""select source, sink, time_of_use, hedge_type, avg(clearing_price)
-                             from crr_awards where auction_name = %s group by 1,2,3,4""",
+                             from crr_awards
+                            where auction_name = %s and crr_type = 'STANDARD'
+                            group by 1,2,3,4""",
                         (auction,))
             clears = {tuple(r[:4]): float(r[4]) for r in cur.fetchall()}
             if not clears:

@@ -125,6 +125,7 @@ def main() -> int:
                        avg(clearing_price) cp, sum(mw) mw, max(ingested_at) ing
                   from crr_awards
                  where auction_name like '%%Monthly'
+                   and crr_type = 'STANDARD'  -- PREAWARD rows restate old positions, not this auction's clear
                  group by 1,2,3,4,5""")
             for s, k, t, h, _a, cp, mw, ing in scur:
                 agg.setdefault((s, k, t, h), []).append((ing, float(cp), float(mw or 0)))

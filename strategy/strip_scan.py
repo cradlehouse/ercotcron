@@ -96,6 +96,7 @@ with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as c:
                avg(clearing_price), sum(mw)
           from crr_awards
          where auction_name ilike '%%2028%%'
+           and crr_type = 'STANDARD'  -- PREAWARD rows restate old positions, not this auction's clear
            and start_date >= '2028-07-01' and end_date <= '2028-12-31'
          group by 1,2,3,4,5""")
     clears = {}
