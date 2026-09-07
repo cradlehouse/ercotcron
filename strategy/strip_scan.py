@@ -11,6 +11,9 @@ Output: public/strip_2028.json for the /bids/strip page.
 """
 import collections
 import datetime as dt
+import pathlib as _pl
+import sys as _sys
+_sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 import json
 import os
 
@@ -22,16 +25,10 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "public", "strip_2028.json")
 MONTHS = [7, 8, 9, 10, 11, 12]
 TAGS = {7: ["jul26"], 8: ["aug25"], 9: ["sep24", "sep25"], 10: ["oct25"],
         11: ["nov24", "nov25"], 12: ["dec24", "dec25"]}
-HOLS = {dt.date(2024,1,1),dt.date(2024,5,27),dt.date(2024,7,4),dt.date(2024,9,2),dt.date(2024,11,28),dt.date(2024,12,25),
-        dt.date(2025,1,1),dt.date(2025,5,26),dt.date(2025,7,4),dt.date(2025,9,1),dt.date(2025,11,27),dt.date(2025,12,25),
-        dt.date(2026,1,1),dt.date(2026,5,25),dt.date(2026,7,3),dt.date(2026,9,7),dt.date(2026,11,26),dt.date(2026,12,25),
-        dt.date(2028,1,1),dt.date(2028,5,29),dt.date(2028,7,4),dt.date(2028,9,4),dt.date(2028,11,23),dt.date(2028,12,25)}
 REQUIRED_MARGIN = 1.5
 MATERIALITY = 0.05
 
-def tou_of(d, he):
-    wk = d.weekday() >= 5 or d in HOLS
-    return ("PeakWE" if wk else "PeakWD") if 7 <= he <= 22 else "Off-peak"
+from ercot.calendar import tou_of  # noqa: E402 — the one TOU calendar
 
 def hours_2028(month):
     out = collections.Counter()

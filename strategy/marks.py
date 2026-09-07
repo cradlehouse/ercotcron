@@ -7,8 +7,7 @@ MARK MODEL (v1, deliberately simple and documentable):
   August is priced off Augusts), falling back to the all-months median where a
   calendar month has no history. OPT pays max(0, sink-source); OBL the signed
   mean. Position mark = sum over remaining months of MW x TOU-hours x value.
-  Hours use the weekend rule; NERC holidays are approximated as weekends —
-  stated, not hidden (worth <1% on a monthly strip).
+  Hours use the shared ercot/calendar.py TOU rule (NERC holidays included).
 
 ALERTS: a position is stale-flagged when either endpoint carries material
   exposure (|beta| >= 0.02) to a constraint re-rated in the last 90 days or
@@ -29,13 +28,10 @@ TAGS = ["sep24","nov24","dec24","jan25","feb25","aug25","sep25","oct25","nov25",
         "dec25","jan26","feb26","mar26","apr26","may26","jun26","jul26"]
 MON = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
 
-def tou_of(d, he):
-    return "Off-peak" if not (7 <= he <= 22) else ("PeakWD" if d.weekday() < 5 else "PeakWE")
+from ercot.calendar import tou_of, tou_hours  # noqa: E402 — the one TOU calendar
 
 def hours_in(year, month, tou):
-    n = calendar.monthrange(year, month)[1]
-    wd = sum(1 for day in range(1, n + 1) if dt.date(year, month, day).weekday() < 5)
-    return {"PeakWD": 16 * wd, "PeakWE": 16 * (n - wd), "Off-peak": 8 * n}[tou]
+    return tou_hours(year, month)[tou]
 
 def load_month(tag):
     p = CACHE / f"dam_{tag}.json"

@@ -22,18 +22,7 @@ TOP_POINTS = 120
 TOP_PATHS = 40
 TOP_CONSTRAINTS = 25
 
-HOLS = {dt.date(y, m, d) for (y, m, d) in [
-    (2024,1,1),(2024,5,27),(2024,7,4),(2024,9,2),(2024,11,28),(2024,12,25),
-    (2025,1,1),(2025,5,26),(2025,7,4),(2025,9,1),(2025,11,27),(2025,12,25),
-    (2026,1,1),(2026,5,25),(2026,7,3),(2026,9,7),(2026,11,26),(2026,12,25),
-    (2027,1,1),(2027,5,31),(2027,7,5),(2027,9,6),(2027,11,25),(2027,12,24),
-    (2028,1,1),(2028,5,29),(2028,7,4),(2028,9,4),(2028,11,23),(2028,12,25),
-]}
-
-
-def tou_of(d: dt.date, he: int) -> str:
-    wk = d.weekday() >= 5 or d in HOLS
-    return ("PeakWE" if wk else "PeakWD") if 7 <= he <= 22 else "Off-peak"
+from ercot.calendar import tou_of  # noqa: F401 — the one TOU calendar
 
 
 def _conn():
@@ -426,10 +415,7 @@ def score_sheets(_c=None) -> ingest.Result:
                               join dam_spp k on k.interval_start = s.interval_start
                              where s.settlement_point = %s and k.settlement_point = %s
                                and s.delivery_date >= %s and s.delivery_date < %s
-                               and (case when s.hour_ending between 7 and 22
-                                         then case when extract(isodow from s.delivery_date) < 6
-                                                   then 'PeakWD' else 'PeakWE' end
-                                         else 'Off-peak' end) = %s""",
+                               and crr_time_of_use(s.delivery_date, s.hour_ending) = %s""",
                                     (src, snk, start, end, tou))
                         hours_of[key] = cur.fetchone()
                     n_h, obl_sum, opt_sum = hours_of[key]

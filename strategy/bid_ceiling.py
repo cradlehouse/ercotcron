@@ -41,6 +41,9 @@ from __future__ import annotations
 import argparse
 import collections
 import datetime as dt
+import pathlib as _pl
+import sys as _sys
+_sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 import json
 import os
 import pathlib
@@ -58,10 +61,7 @@ REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
 OUT = pathlib.Path.home() / "Downloads" / "steve_bid_ceilings.xlsx"
 
 
-def tou_of(d: dt.date, he: int) -> str:
-    if not (7 <= he <= 22):
-        return "Off-peak"
-    return "PeakWD" if d.weekday() < 5 else "PeakWE"
+from ercot.calendar import tou_of  # noqa: E402 — the one TOU calendar
 
 
 def read_book(path: pathlib.Path):

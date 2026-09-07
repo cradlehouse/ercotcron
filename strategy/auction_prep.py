@@ -36,6 +36,9 @@ import argparse
 import collections
 import csv
 import datetime as dt
+import pathlib as _pl
+import sys as _sys
+_sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
 import json
 import os
 import pathlib
@@ -58,10 +61,7 @@ UPLOAD_COLS = ["Bid ID", "CRR ID", "Account Holder", "Source", "Sink", "MW",
                "Start Date", "End Date", "Description"]
 
 
-def tou_of(d: dt.date, he: int) -> str:
-    if not (7 <= he <= 22):
-        return "Off-peak"
-    return "PeakWD" if d.weekday() < 5 else "PeakWE"
+from ercot.calendar import tou_of  # noqa: E402 — the one TOU calendar
 
 
 def next_auction(today: dt.date, kind: str | None):
