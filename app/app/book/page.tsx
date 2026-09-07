@@ -155,7 +155,7 @@ export default function MyBook() {
                             : dd.length === 0
                               ? <div className="text-[12px] text-[#93a6ab]">No settled days yet this month for this block.</div>
                               : <>
-                                  <DailyChart rows={dd} />
+                                  <DailyChart rows={dd} path={{ source: r.source, sink: r.sink, tou: r.tou, hedge: r.hedge, mw: Number(r.mw) }} />
                                   <div className="mt-1 text-[11px] text-[#61767e]">
                                     Green bars = days that paid more than their pro-rata cost; red = days that didn&apos;t.
                                     Dashes mark the month&apos;s remaining days; dotted line is cumulative net.

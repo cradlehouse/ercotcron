@@ -124,7 +124,7 @@ export default function MethodScore() {
                 ? <div className="text-[12px] text-[#7d9096]">pulling the daily record…</div>
                 : dd.length === 0
                   ? <div className="text-[12px] text-[#93a6ab]">No settled days yet.</div>
-                  : <DailyChart rows={dd} month={r.delivery} />}
+                  : <DailyChart rows={dd} month={r.delivery} path={{ source: r.source, sink: r.sink, tou: r.tou, hedge: r.hedge, mw: Number(r.mw) }} />}
             </td>
           </tr>
         )}

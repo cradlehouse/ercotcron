@@ -237,7 +237,8 @@ export function SheetFlowChart({ sheet, camp }: { sheet: string; camp?: ClassKey
               </span>
               <button onClick={() => setPinned(null)} className="ml-auto text-[11.5px] text-[#7d9096] hover:text-[#dbe4e6]">close ×</button>
             </div>
-            <div className="mt-2"><DailyChart rows={rows} month={data.month} /></div>
+            <div className="mt-2"><DailyChart rows={rows} month={data.month}
+              path={{ source: s.r.source, sink: s.r.sink, tou: s.r.tou, hedge: s.r.hedge, mw: Number(s.r.mw) }} /></div>
           </div>
         )
       })()}
