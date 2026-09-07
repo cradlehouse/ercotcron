@@ -39,8 +39,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 import psycopg
 
-REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
-CACHES = [pathlib.Path.home() / "ercotcron-archive" / "cache", pathlib.Path("/tmp")]
+from strategy.common import CACHES, REF, dated_copy, load_ref
+
 # Window sep25..jun26 (10 months) + the target month's own history (oct24;
 # oct25 sits inside the window). Jul/Aug/Sep 2026 deliberately absent: the
 # standing rule holds out the trailing 2 months, and monthly caches force
@@ -134,7 +134,7 @@ def main() -> int:
             cp3 = sum(e[1] for e in entries[:3]) / min(3, len(entries))
             universe.append((*key, cp3, len(entries), max(e[2] for e in entries)))
         # staleness flags for the confidence column
-        exp = json.loads((REF / "constraint_exposure.json").read_text())
+        exp = load_ref("constraint_exposure.json")
         cur.execute("select constraint_name, recent_rerate, possibly_retired from constraint_novelty")
         nov = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
     stale_nodes: dict[str, str] = {}
@@ -228,6 +228,8 @@ def main() -> int:
     print(f"skipped — endpoint not in price data: {skipped_pts:,}; thin history: {skipped_hours:,}")
 
     (REF / "market_scan_full.json").write_text(json.dumps(results))
+    # the lost-September lesson: every scan output keeps a dated copy
+    dated_copy(REF / "market_scan_full.json")
     top = results[:CAP]
 
     # ---- 4. publish the shortlist

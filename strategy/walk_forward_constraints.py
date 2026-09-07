@@ -40,8 +40,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 import psycopg
 
-REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
-CARDS = json.loads((REF / "constraint_cards.json").read_text())
+from strategy.common import REF, load_ref
+
+CARDS = load_ref("constraint_cards.json")
 SKIP = {"1025__B"}                     # unstable betas — negative_knowledge
 TRAIN_MIN_MONTHS = 6
 STEP_MONTHS = 2

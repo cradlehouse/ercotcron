@@ -26,7 +26,6 @@ import pathlib as _pl
 import sys as _sys
 
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
-import json
 import os
 import pathlib
 import statistics
@@ -38,8 +37,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 import psycopg
 
-REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
-BOOK = pathlib.Path.home() / "Downloads" / "Saaico 2027 First - Dec 2025 with calcs.xlsx"
+from strategy.common import load_ref
+
+BOOK = pathlib.Path(os.environ.get(
+    "BOOK_XLSX",
+    str(pathlib.Path.home() / "Downloads" / "Saaico 2027 First - Dec 2025 with calcs.xlsx")))
 WINNERS = ("XWOLF1", "XWOLF2", "XWOLFP", "XDCEN1", "XDCEN2", "XDCEN3", "XDCEND",
            "XDCENG", "XDCND2", "XSESSW", "XSESCA", "XSESKP", "XPEAK1", "XPEAK2", "XPEAKE")
 MAX_CANDIDATES = 120      # keep the price pull bounded — the DB just died once
@@ -111,7 +113,7 @@ def main() -> int:
         print(f"price grid: {len(P):,} hours")
 
         # risk flags for the trim
-        exp = json.loads((REF / "constraint_exposure.json").read_text())
+        exp = load_ref("constraint_exposure.json")
         by_node = collections.defaultdict(list)
         for cname, entries in exp.items():
             for e in entries:

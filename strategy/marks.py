@@ -34,8 +34,8 @@ from ercot.calendar import tou_hours, tou_of
 
 load_dotenv(ROOT / ".env")
 
-REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
-CACHE = pathlib.Path.home() / "ercotcron-archive" / "cache"
+from strategy.common import CACHE, OUT, REF, load_ref, scan_today
+
 TAGS = ["sep24","nov24","dec24","jan25","feb25","aug25","sep25","oct25","nov25",
         "dec25","jan26","feb26","mar26","apr26","may26","jun26","jul26"]
 MON = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
@@ -97,7 +97,7 @@ with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as c:
             agg[r[:7]] += float(r[7])
     live = [(*k, v) for k, v in agg.items()]
     cur = c.cursor()
-    exp = json.loads((REF / "constraint_exposure.json").read_text())
+    exp = load_ref("constraint_exposure.json")
     cur.execute("select constraint_name, recent_rerate, possibly_retired from constraint_novelty")
     nov = {r[0]: (r[1], r[2]) for r in cur.fetchall()}
 stale_nodes = {}
@@ -134,7 +134,7 @@ def month_value(src, snk, tou, hedge, cal_month):
         return None
     return v["per"].get(cal_month, v["med"])
 
-today = dt.date(2026, 9, 1)
+today = scan_today().replace(day=1)
 holders = collections.defaultdict(lambda: {"mw": 0.0, "mark": 0.0, "stale_mw": 0.0,
                                            "stale_mark": 0.0, "n": 0, "stale_paths": set()})
 unmarked = 0
@@ -163,7 +163,8 @@ print(f"marked {sum(h['n'] for h in holders.values()):,} groups; unmarked (no pr
 out = sorted(holders.items(), key=lambda kv: -abs(kv[1]["stale_mark"]))
 import csv as _csv
 
-tgt = pathlib.Path.home() / "Downloads" / "target_list.csv"
+OUT.mkdir(parents=True, exist_ok=True)
+tgt = OUT / "target_list.csv"
 with tgt.open("w", newline="") as fh:
     w = _csv.writer(fh)
     w.writerow(["holder", "positions", "mw", "mark_$", "stale_mw", "stale_mark_$", "sample_stale_paths"])

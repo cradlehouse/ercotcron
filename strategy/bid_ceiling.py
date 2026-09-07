@@ -45,7 +45,6 @@ import pathlib as _pl
 import sys as _sys
 
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
-import json
 import os
 import pathlib
 import statistics
@@ -58,8 +57,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 import psycopg
 
-REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
-OUT = pathlib.Path.home() / "Downloads" / "steve_bid_ceilings.xlsx"
+from strategy.common import OUT as _OUTDIR
+from strategy.common import load_ref
+
+OUT = _OUTDIR / "steve_bid_ceilings.xlsx"
 
 
 from ercot.calendar import tou_of
@@ -150,7 +151,7 @@ def main() -> int:
         print(f"paths with auction clearing history: {len(cleared)}")
 
         # --- risk flags from the novelty layer
-        exp = json.loads((REF / "constraint_exposure.json").read_text())
+        exp = load_ref("constraint_exposure.json")
         by_node = collections.defaultdict(list)
         for cname, entries in exp.items():
             for e in entries:

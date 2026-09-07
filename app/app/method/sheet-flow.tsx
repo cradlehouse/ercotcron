@@ -108,6 +108,7 @@ export function SheetFlowChart({ sheet, camp }: { sheet: string; camp?: ClassKey
     const day = Math.max(1, Math.min(daysInMonth, Math.round(((px - M.l) / (W - M.l - M.r)) * (daysInMonth - 1)) + 1))
     let best = -1, bestD = 10
     series.forEach((s, i) => {
+      if (camp && s.cls !== camp) return
       const v = s.ys[day - 1]
       if (v === null) return
       const d = Math.abs(y(v) - py)
@@ -136,10 +137,10 @@ export function SheetFlowChart({ sheet, camp }: { sheet: string; camp?: ClassKey
         <text x={M.l - 6} y={zero + 4} textAnchor="end" fontSize={12} fill="#93a6ab">0%</text>
 
         <g fill="none" strokeWidth={1}>
-          {series.map((s, i) => (
+          {series.map((s, i) => (camp && s.cls !== camp) ? null : (
             <path key={i} d={line(s.ys, true)}
               stroke={CLASSES.find(c => c.key === s.cls)!.color}
-              strokeOpacity={camp && s.cls !== camp ? 0.03 : hover ? (hover.i === i ? 0 : 0.08) : 0.14} />
+              strokeOpacity={hover ? (hover.i === i ? 0 : 0.08) : 0.14} />
           ))}
         </g>
         <g fill="none" strokeWidth={2.5} strokeOpacity={hover ? 0.35 : 1}>
@@ -178,21 +179,39 @@ export function SheetFlowChart({ sheet, camp }: { sheet: string; camp?: ClassKey
           for (let i = 1; i < ends.length; i++) {
             if (ends[i].yy - ends[i - 1].yy < 19) ends[i].yy = ends[i - 1].yy + 19
           }
-          return ends.map(e => (
-            <text key={e.h.key} x={W - M.r + 8} y={e.yy + 4} fontSize={13} fill="#dbe4e6">
-              <tspan fill={e.h.color}>●</tspan> {e.h.label} ({e.h.n}){' '}
-              <tspan fill="#93a6ab">{e.v! >= 0 ? '+' : '−'}{Math.abs(e.v! * 100).toFixed(0)}%</tspan>
-            </text>
-          ))
+          return ends.map(e => {
+            const mem = series.filter(s => s.cls === e.h.key)
+            const ahead = mem.filter(s => ([...s.ys].reverse().find(v => v !== null) ?? -1) >= 0).length
+            return (
+              <text key={e.h.key} x={W - M.r + 8} y={e.yy + 4} fontSize={13} fill="#dbe4e6">
+                <tspan fill={e.h.color}>●</tspan> {e.h.label} ({e.h.n}){' '}
+                <tspan fill="#93a6ab">{e.v! >= 0 ? '+' : '−'}{Math.abs(e.v! * 100).toFixed(0)}%</tspan>
+                <tspan x={W - M.r + 8} dy={14} fontSize={11} fill="#61767e">{ahead} of {e.h.n} ahead — the winners carry the line</tspan>
+              </text>
+            )
+          })
         })()}
         {[1, 5, 10, 15, 20, 25, daysInMonth].map(d => (
           <text key={d} x={x(d)} y={H - 8} textAnchor="middle" fontSize={12} fill="#61767e">{d}</text>
         ))}
       </svg>
+      <div className="mt-2 rounded border border-line/60 bg-panel/40 px-3 py-2 text-[12px] text-[#93a6ab]">
+        <span className="text-[#dbe4e6]">How to read the colors:</span>{' '}
+        color says <span className="text-[#dbe4e6]">who owns the trade</span>, height says whether
+        it&apos;s paying. <span style={{ color: '#34d399' }}>● green</span> — our fills.{' '}
+        <span style={{ color: '#f87171' }}>● red</span> — we said bid, the market paid more; a{' '}
+        <em>climbing</em> red strand is a winner bought at a price we refused.{' '}
+        <span style={{ color: '#c07b5a' }}>● clay</span> — our don&apos;t-bid list, tracked at the
+        market&apos;s price. Above 0% = that trade has already paid back its cost-to-date, whoever
+        holds it. The heavy group lines are dollar-weighted, so a few large winners can hold a
+        line up while most of its strands sit below zero — that is the real shape of this book,
+        not an error.
+      </div>
       <p className="mt-1 text-[12px] text-[#61767e]">
         Each strand: one traded recommendation&apos;s cumulative return per $1 at its clearing
-        price, day by day through {data.month}. Heavy lines are the three camps. Hover a strand
-        to identify it; click to pin its daily over/under below. Hypothetical — no positions held.
+        price, day by day through {data.month}. Hover a strand to identify it; click to pin its
+        daily over/under below. Click a camp tile above to see only that camp. Hypothetical — no
+        positions held.
       </p>
       {camp && (() => {
         const members = series.filter(s => s.cls === camp)

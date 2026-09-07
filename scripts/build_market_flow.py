@@ -34,9 +34,12 @@ from dotenv import load_dotenv
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
+import sys as _s
+
 import psycopg
 
-CACHES = [pathlib.Path.home() / "ercotcron-archive" / "cache", pathlib.Path("/tmp")]
+_s.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from strategy.common import CACHES
 
 # Delivery months charted: every settled month with a monthly auction whose
 # prices we cache. Sep-2024 through Aug-2026 (Aug is settled; Sep-2026 is

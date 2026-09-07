@@ -21,7 +21,9 @@ import os
 import numpy as np
 import psycopg
 
-CACHE = os.path.expanduser("~/ercotcron-archive/cache")
+from strategy.common import CACHE as _CACHE
+
+CACHE = str(_CACHE)
 OUT = os.path.join(os.path.dirname(__file__), "..", "public", "strip_2028.json")
 MONTHS = [7, 8, 9, 10, 11, 12]
 TAGS = {7: ["jul26"], 8: ["aug25"], 9: ["sep24", "sep25"], 10: ["oct25"],

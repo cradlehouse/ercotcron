@@ -40,7 +40,6 @@ import pathlib as _pl
 import sys as _sys
 
 _sys.path.insert(0, str(_pl.Path(__file__).resolve().parents[1]))
-import json
 import os
 import pathlib
 import statistics
@@ -53,7 +52,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 import psycopg
 
-REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
+from strategy.common import load_ref
+
 DL = pathlib.Path.home() / "Downloads"
 CALENDAR = DL / "CRRActivityCalendar_2025-2027_UPD_02-05-2025.xlsx"
 TOU_HOURS = DL / "CRR_Time_of_Use_Hours_2022-2025.xlsx"
@@ -190,7 +190,7 @@ def main() -> int:
                          from crr_awards where source = any(%s) and sink = any(%s)
                         group by 1,2,3,4""", (nodes, nodes))
         cleared = {(r[0], r[1], r[2], r[3]): float(r[4] or 0) for r in cur.fetchall()}
-        exp = json.loads((REF / "constraint_exposure.json").read_text())
+        exp = load_ref("constraint_exposure.json")
         by_node = collections.defaultdict(list)
         for cname, entries in exp.items():
             for e in entries:

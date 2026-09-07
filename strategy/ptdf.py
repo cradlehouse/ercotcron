@@ -34,7 +34,7 @@ import numpy as np
 from scipy.sparse import csc_matrix, lil_matrix
 from scipy.sparse.linalg import factorized
 
-REF = pathlib.Path.home() / "ercotcron-archive" / "ref"
+from strategy.common import REF, load_ref
 
 
 def parse_raw(path: pathlib.Path):
@@ -199,7 +199,7 @@ def main() -> int:
           if mx > 1.001 else f"  max |PTDF| on this branch:         {mx:.4f}")
 
     # ---- shift factors for tradeable nodes
-    n2b = json.loads((REF / "node_to_bus_canonical.json").read_text())
+    n2b = load_ref("node_to_bus_canonical.json")
     node_bus = {n: int(v[0]) for n, v in n2b.items() if v and int(v[0]) in idx}
     print(f"\ntradeable nodes mapped into this case: {len(node_bus):,}/{len(n2b):,}")
 
