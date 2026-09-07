@@ -10,6 +10,7 @@
 // (61% within 2x), so the tool prices and the trader sizes.
 
 import { useMemo, useState } from 'react'
+import { usdFixed as usd } from '@/lib/fmt'
 
 export interface TicketRow {
   key: string
@@ -49,8 +50,6 @@ export interface AuctionMeta {
   holder: string
 }
 
-const usd = (v: number | null | undefined, dp = 2) =>
-  v === null || v === undefined ? '—' : `$${v.toFixed(dp)}`
 const money = (v: number) =>
   v >= 1000 ? `$${Math.round(v).toLocaleString('en-US')}` : `$${v.toFixed(0)}`
 

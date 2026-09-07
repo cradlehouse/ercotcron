@@ -8,7 +8,8 @@
 // append-only, scored by the same rules pre-registered in the methodology
 // (§10). Member-gated for beta; the public Scorecard grows from this surface.
 import { useEffect, useMemo, useState } from 'react'
-import { sb } from '@/lib/supabase'
+import { usdFixed as usd } from '@/lib/fmt'
+import { rpc } from '@/lib/rpc'
 
 type Bid = {
   batch_id: string; auction_name: string; submitted_on: string
@@ -23,7 +24,6 @@ type Bid = {
 
 const n = (v: number | string | null | undefined): number | null =>
   v === null || v === undefined ? null : Number(v)
-const usd = (v: number | null, dp = 2) => (v === null ? '—' : `$${v.toFixed(dp)}`)
 const money = (v: number) =>
   `${v < 0 ? '−' : ''}$${Math.abs(v) >= 1000 ? Math.round(Math.abs(v)).toLocaleString('en-US') : Math.abs(v).toFixed(0)}`
 
@@ -39,9 +39,10 @@ export default function ModelBook() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    sb.rpc('get_model_book').then(({ data, error }) => {
-      if (error) setError(error.message)
-      else setBids(data as Bid[])
+    // Session is guaranteed by the member layout's gate.
+    rpc<Bid[]>('get_model_book').then(({ data, error }) => {
+      if (error) setError(error)
+      else setBids(data)
     })
   }, [])
 

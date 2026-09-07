@@ -1,6 +1,7 @@
 'use client'
 // Member home: trial status + the products. Decision-focused, not a terminal.
 import { useEffect, useState } from 'react'
+import { rpc } from '@/lib/rpc'
 import { sb } from '@/lib/supabase'
 
 type Profile = { plan: string; trial_ends: string | null }
@@ -21,16 +22,18 @@ export default function MemberHome() {
   const [agreeTick, setAgreeTick] = useState(false)
 
   useEffect(() => {
+    // The layout's MemberGate guarantees a session; getSession here is only
+    // for the user id the profile query needs.
     sb.auth.getSession().then(async ({ data }) => {
-      if (!data.session) { window.location.href = '/signin'; return }
+      if (!data.session) return
       const { data: p } = await sb.from('profiles')
         .select('plan, trial_ends').eq('user_id', data.session.user.id).single()
       setProfile((p as unknown as Profile) ?? { plan: 'trial', trial_ends: null })
       const [{ data: cl }, { data: acc }] = await Promise.all([
-        sb.rpc('my_claims'),
-        sb.rpc('my_terms_acceptance', { p_version: TERMS_VERSION }),
+        rpc<Claim[]>('my_claims'),
+        rpc<boolean>('my_terms_acceptance', { p_version: TERMS_VERSION }),
       ])
-      setClaims((cl as Claim[]) ?? [])
+      setClaims(cl ?? [])
       setAccepted(Boolean(acc))
       setReady(true)
     })
@@ -56,7 +59,7 @@ export default function MemberHome() {
         </label>
         <button disabled={!agreeTick}
           onClick={async () => {
-            await sb.rpc('accept_terms', { p_version: TERMS_VERSION, p_user_agent: navigator.userAgent })
+            await rpc('accept_terms', { p_version: TERMS_VERSION, p_user_agent: navigator.userAgent })
             setAccepted(true)
           }}
           className="mt-4 rounded bg-[#eda63a] px-4 py-2 text-sm font-medium text-[#15242c] disabled:opacity-40">
@@ -120,8 +123,8 @@ export default function MemberHome() {
             else if (r.status === 'unknown')
               setClaimMsg("That code isn't in ERCOT's CRR holder registry — check the spelling, or email team@shadowprice.io if the account is newly registered.")
             else setClaimMsg('Something went wrong — try again.')
-            const { data: cl } = await sb.rpc('my_claims')
-            setClaims((cl as Claim[]) ?? [])
+            const { data: cl } = await rpc<Claim[]>('my_claims')
+            setClaims(cl ?? [])
           }}>
             <input value={code} onChange={e => setCode(e.target.value.toUpperCase())}
               placeholder="ACCOUNT CODE"

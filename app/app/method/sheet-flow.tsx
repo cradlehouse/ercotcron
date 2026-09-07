@@ -5,7 +5,7 @@
 // refused, and the red don't-bids. Same construction as the landing chart,
 // but the x-axis is the days of one delivery month.
 import { useEffect, useRef, useState } from 'react'
-import { sb } from '@/lib/supabase'
+import { rpc } from '@/lib/rpc'
 import { DailyChart } from '../../daily-chart'
 
 type FlowRow = {
@@ -36,7 +36,7 @@ export function SheetFlowChart({ sheet, camp }: { sheet: string; camp?: ClassKey
   const [boxW, setBoxW] = useState(920)
 
   useEffect(() => {
-    sb.rpc('get_sheet_flow', { p_sheet: sheet }).then(({ data: d }) => d && setData(d as Flow))
+    rpc<Flow>('get_sheet_flow', { p_sheet: sheet }).then(({ data: d }) => d && setData(d))
   }, [sheet])
   useEffect(() => {
     if (!wrapRef.current) return

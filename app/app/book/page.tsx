@@ -2,7 +2,7 @@
 // My book: the signed-in holder's live positions, graded our way.
 // Data: get_my_book() — scoped server-side to the caller's APPROVED claims.
 import { Fragment, useEffect, useState } from 'react'
-import { sb } from '@/lib/supabase'
+import { rpc } from '@/lib/rpc'
 import { DailyChart, type DailyRow } from '../../daily-chart'
 
 
@@ -38,26 +38,24 @@ export default function MyBook() {
     setOpenKey(key)
     if (!daily[key]) {
       setDaily(d => ({ ...d, [key]: 'loading' }))
-      const { data } = await sb.rpc('get_position_daily', {
+      const { data } = await rpc<DailyRow[]>('get_position_daily', {
         p_src: r.source, p_snk: r.sink, p_tou: r.tou, p_hedge: r.hedge,
       })
-      setDaily(d => ({ ...d, [key]: (data as DailyRow[]) ?? [] }))
+      setDaily(d => ({ ...d, [key]: data ?? [] }))
     }
   }
-  const [authed, setAuthed] = useState<boolean | null>(null)
 
   useEffect(() => {
-    sb.auth.getSession().then(async ({ data }) => {
-      if (!data.session) { window.location.href = '/signin'; return }
-      setAuthed(true)
-      const { data: b, error } = await sb.rpc('get_my_book')
-      setRows(error ? [] : ((b as BookRow[]) ?? []))
-      const { data: rm } = await sb.rpc('get_running_month')
-      setRun((rm as RunRow[]) ?? [])
-    })
+    // Session is guaranteed by the member layout's gate.
+    ;(async () => {
+      const { data: b, error } = await rpc<BookRow[]>('get_my_book')
+      setRows(error ? [] : (b ?? []))
+      const { data: rm } = await rpc<RunRow[]>('get_running_month')
+      setRun(rm ?? [])
+    })()
   }, [])
 
-  if (authed === null || rows === null)
+  if (rows === null)
     return <div className="p-6 text-sm text-[#93a6ab]">loading your book…</div>
 
   if (rows.length === 0)

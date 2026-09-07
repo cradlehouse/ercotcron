@@ -22,7 +22,8 @@
 import { useEffect, useState } from 'react'
 import { Empty, ErrorNote, Panel } from '@/app/components'
 import { num } from '@/lib/prices'
-import { sb, type PathValuation } from '@/lib/supabase'
+import { rpc } from '@/lib/rpc'
+import { type PathValuation } from '@/lib/supabase'
 import { Ticket, type AuctionMeta, type TicketRow } from './ticket'
 
 // From ERCOT's CRR Activity Calendar (WMS-approved edition on file). October
@@ -77,10 +78,13 @@ export default function BidsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([sb.rpc('get_bid_sheet'), sb.rpc('my_claims')]).then(([s, c]) => {
-      if (s.error) setError(s.error.message)
-      else setSheet(s.data as SheetPayload)
-      const claims = (c.data as { holder_code: string; status: string }[]) ?? []
+    Promise.all([
+      rpc<SheetPayload>('get_bid_sheet'),
+      rpc<{ holder_code: string; status: string }[]>('my_claims'),
+    ]).then(([s, c]) => {
+      if (s.error) setError(s.error)
+      else setSheet(s.data)
+      const claims = c.data ?? []
       setOwned(new Set(claims.filter(x => x.status === 'approved').map(x => x.holder_code)))
       setLoading(false)
     })

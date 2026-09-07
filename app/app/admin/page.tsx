@@ -2,7 +2,7 @@
 // Admin is admin: who's here, when they last showed up, what they've claimed.
 // Method stays method — this is the operator's desk.
 import { useEffect, useState } from 'react'
-import { sb } from '@/lib/supabase'
+import { rpc } from '@/lib/rpc'
 
 type AdminUser = {
   email: string; created: string; confirmed: boolean; last_sign_in: string | null
@@ -24,10 +24,9 @@ export default function AdminScreen() {
   const [state, setState] = useState<'loading' | 'denied' | 'ok'>('loading')
 
   useEffect(() => {
-    sb.auth.getSession().then(async ({ data }) => {
-      if (!data.session) { window.location.href = '/signin'; return }
-      const { data: res } = await sb.rpc('get_admin_users')
-      const list = (res as { users?: AdminUser[] } | null)?.users
+    // Session is guaranteed by the member layout's gate.
+    rpc<{ users?: AdminUser[] }>('get_admin_users').then(({ data: res }) => {
+      const list = res?.users
       if (list) { setUsers(list); setState('ok') } else setState('denied')
     })
   }, [])

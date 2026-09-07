@@ -4,7 +4,9 @@
    CRR paths, constraint cheap->expensive links, and shared-driver pairs.
    Data: the node_graph artifact, rebuilt nightly by ercot/products.py. */
 import { useMemo, useRef, useState, useEffect } from 'react'
-import * as d3 from 'd3'
+import { geoMercator, geoPath } from 'd3-geo'
+import { hierarchy, pack } from 'd3-hierarchy'
+import { curveBundle, line as shapeLine } from 'd3-shape'
 import { MarketFlowChart } from '../market-flow-chart'
 
 const KINDS: Record<string, { label: string; color: string }> = {
@@ -53,11 +55,11 @@ function GridView({ geo, tx, onPathClick, highlight }: { geo: GeoLayer; tx: any;
   }, [geo, scope, month])
   const W = 860, H = 820
   const proj = useMemo(() => {
-    const p = d3.geoMercator()
+    const p = geoMercator()
     p.fitExtent([[10, 10], [W - 10, H - 10]], tx)
     return p
   }, [tx])
-  const path = useMemo(() => d3.geoPath(proj), [proj])
+  const path = useMemo(() => geoPath(proj), [proj])
   const pt = (lat: number, lon: number) => proj([lon, lat]) ?? [0, 0]
   const mwMax = Math.max(...geo.nodes.map(n => n.mw), 1)
 
@@ -181,14 +183,14 @@ export default function NodeMapPage() {
 
   const { leaves, circles, paths } = useMemo(() => {
     if (!graph) return { leaves: [], circles: [], paths: [] as any[] }
-    const root = d3.hierarchy(graph.tree)
+    const root = hierarchy(graph.tree)
       .sum((d: any) => d[sizeBy] || 0)
       .sort((a: any, b: any) => (b.value || 0) - (a.value || 0))
-    d3.pack().size([size, size]).padding(10)(root as any)
+    pack().size([size, size]).padding(10)(root as any)
 
     const byName = new Map<string, any>()
     root.leaves().forEach((n: any) => byName.set(n.data.name, n))
-    const line = d3.line().curve(d3.curveBundle.beta(0.9)).x((d: any) => d.x).y((d: any) => d.y)
+    const line = shapeLine().curve(curveBundle.beta(0.9)).x((d: any) => d.x).y((d: any) => d.y)
 
     const paths = graph.links.map((l, i) => {
       const s = byName.get(l.source); const t = byName.get(l.target)

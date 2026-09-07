@@ -5,14 +5,12 @@
 // daily over/under); then evidence tables in descending interest, with
 // never-traded collapsed. Paper batches (real stored bids) get their own tab.
 import { Fragment, useEffect, useState } from 'react'
-import { sb } from '@/lib/supabase'
+import { signed, usd } from '@/lib/fmt'
+import { rpc } from '@/lib/rpc'
 import { DailyChart, type DailyRow } from '../../daily-chart'
 import { SheetFlowChart, type ClassKey } from './sheet-flow'
 
 type Prog = { grp: string; source: string; sink: string; tou: string; hedge: string; tier: string; bid: number | null; clearing: number | null; mw: number; delivery: string; status: string; hours: number; cost: number | null; paid: number | null }
-
-const usd = (v: number) => `$${Math.abs(v).toLocaleString()}`
-const signed = (v: number) => `${v >= 0 ? '+' : '−'}${usd(v)}`
 
 function campOf(r: Prog): 'won' | 'outbid' | 'refused' | 'ghost' {
   if (r.tier === 'red') return 'refused'
@@ -36,10 +34,9 @@ export default function MethodScore() {
   const [showGhosts, setShowGhosts] = useState(false)
 
   useEffect(() => {
-    sb.auth.getSession().then(async ({ data }) => {
-      if (!data.session) { window.location.href = '/signin'; return }
-      const { data: pr } = await sb.rpc('get_method_progress')
-      if (Array.isArray(pr) && pr.length > 0) { setProg(pr as Prog[]); setState('admin') } else setState('member')
+    // Session is guaranteed by the member layout's gate.
+    rpc<Prog[]>('get_method_progress').then(({ data: pr }) => {
+      if (Array.isArray(pr) && pr.length > 0) { setProg(pr); setState('admin') } else setState('member')
     })
   }, [])
 
@@ -49,11 +46,11 @@ export default function MethodScore() {
     setOpenRow(key)
     if (!daily[key]) {
       setDaily(d => ({ ...d, [key]: 'loading' }))
-      const { data } = await sb.rpc('get_path_daily', {
+      const { data } = await rpc<{ d: string; hours: number; paid_per_mwh: number }[]>('get_path_daily', {
         p_src: r.source, p_snk: r.sink, p_tou: r.tou, p_hedge: r.hedge,
         p_month: `${r.delivery}-01`,
       })
-      const rows = ((data as { d: string; hours: number; paid_per_mwh: number }[]) ?? []).map(x => ({
+      const rows = (data ?? []).map(x => ({
         d: x.d, hours: x.hours,
         paid_in: Math.round((r.clearing ?? 0) * x.hours * r.mw),
         paid_out: Math.round(x.paid_per_mwh * r.mw),
