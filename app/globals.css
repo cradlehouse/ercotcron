@@ -31,3 +31,11 @@ td.tnum,
 .tnum {
   font-variant-numeric: tabular-nums;
 }
+
+/* Disclosure blocks (the bid sheet's folded caveats): theme-amber marker. */
+details > summary {
+  cursor: pointer;
+}
+details > summary::marker {
+  color: #eda63a;
+}

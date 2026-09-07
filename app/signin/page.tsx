@@ -46,19 +46,25 @@ export default function SignIn() {
         <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={20} /> <span><span className="text-[#eda63a]">shadow</span>price</span></Link>
         <h1 className="mt-6 text-lg font-medium">Sign in</h1>
         <form onSubmit={submit} className="mt-6 space-y-3">
-          <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-            placeholder="email"
-            className="w-full rounded border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-[#eda63a]" />
-          <input type="password" required value={password}
-            onChange={e => setPassword(e.target.value)} placeholder="password"
-            className="w-full rounded border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-[#eda63a]" />
+          <div>
+            <label htmlFor="email" className="mb-1 block text-xs text-[#93a6ab]">Email</label>
+            <input id="email" type="email" required value={email} onChange={e => setEmail(e.target.value)}
+              autoComplete="email" inputMode="email"
+              className="w-full rounded border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-[#eda63a]" />
+          </div>
+          <div>
+            <label htmlFor="password" className="mb-1 block text-xs text-[#93a6ab]">Password</label>
+            <input id="password" type="password" required value={password}
+              onChange={e => setPassword(e.target.value)} autoComplete="current-password"
+              className="w-full rounded border border-line bg-panel px-3 py-2 text-sm outline-none focus:border-[#eda63a]" />
+          </div>
           <button disabled={busy}
             className="w-full rounded bg-[#e8eef0] px-3 py-2 text-sm font-medium text-[#15242c] hover:bg-[#f6fafb] disabled:opacity-50">
             {busy ? 'signing in…' : 'Sign in'}
           </button>
         </form>
         {msg && <p className="mt-3 text-xs text-amber-400">{msg}</p>}
-        <div className="mt-3 flex gap-4 text-xs text-[#7d9096]">
+        <div className="mt-3 flex flex-wrap gap-4 text-xs text-[#7d9096]">
           <button onClick={magicLink} disabled={busy} className="hover:text-[#dbe4e6]">
             Email me a sign-in link
           </button>

@@ -21,24 +21,11 @@
 
 import { useEffect, useState } from 'react'
 import { Empty, ErrorNote, Panel } from '@/app/components'
+import { AUCTION, daysToClose, windowLine } from '@/lib/auction'
 import { num } from '@/lib/prices'
 import { rpc } from '@/lib/rpc'
 import { type PathValuation } from '@/lib/supabase'
 import { Ticket, type AuctionMeta, type TicketRow } from './ticket'
-
-// From ERCOT's CRR Activity Calendar (WMS-approved edition on file). October
-// 2026 TOU hours are computed, not assumed (products.tou_of over the whole
-// month): 22 weekdays x16, 9 weekend days x16, remainder off-peak; no NERC
-// holiday in October and DST ends Nov 1, so 31 x 24 = 744 hours exactly.
-const AUCTION: Omit<AuctionMeta, 'daysLeft' | 'holder'> = {
-  name: '2026.OCT.Monthly.Auction',
-  opens: '2026-09-08',
-  closes: '2026-09-10',
-  deliveryStart: '10/1/2026',
-  deliveryEnd: '10/31/2026',
-  deliveryLabel: '1–31 Oct 2026',
-  hours: { PeakWD: 352, PeakWE: 144, 'Off-peak': 248 },
-}
 
 // Which holder code a private valuation book belongs to. Rows from these
 // books are invisible without an approved claim on the code.
@@ -109,9 +96,7 @@ export default function BidsPage() {
     offered.set(k, (offered.get(k) ?? 0) + (num(o.mw) ?? 0))
   }
   const active = new Set((sheet.points ?? []).filter(p => p.active).map(p => p.name))
-  const daysLeft = Math.ceil(
-    (new Date(`${AUCTION.closes}T17:00:00-05:00`).getTime() - Date.now()) / 86_400_000,
-  )
+  const daysLeft = daysToClose()
   const auction: AuctionMeta = { ...AUCTION, daysLeft, holder: ownedHolder }
 
   const ticket: TicketRow[] = []
@@ -223,34 +208,56 @@ export default function BidsPage() {
     <div className="space-y-5">
       <Panel
         title={AUCTION.name}
-        subtitle={`bids open ${AUCTION.opens} · close ${AUCTION.closes} (${daysLeft >= 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left` : 'CLOSED — the next monthly sheet posts here after the next valuation run'}) · delivery ${AUCTION.deliveryLabel}`}
+        subtitle={windowLine(daysLeft)}
       >
         {allRows.length === 0 ? (
           <Empty message="No valuations published." hint="The next valuation run posts them here." />
         ) : (
-          <div className="space-y-1 text-[13px] text-zinc-400">
-            <p className="max-w-[70ch]">
-              <span className="font-semibold text-zinc-200">Every green figure is a reference
-              limit price</span> — the highest limit our margin rule supports for that path,
-              not an instruction. How the auction works: everyone pays the same clearing price
-              (where supply meets demand), not their own bid, so a limit at the full reference
-              adds wins without adding cost, and each reference sits far enough below the
-              path&apos;s valued payout that a fill at the full reference has historically
-              returned about $1.50 per $1 paid. Whether to bid, at what limit, and at what
-              size is your decision alone.
-            </p>
-            <p className="max-w-[70ch] text-[12px] text-zinc-500">
-              Two instrument types on this sheet: an <span className="text-zinc-300">option
-              (OPT)</span> pays you or pays nothing — the price is all you can ever lose. An{' '}
-              <span className="text-zinc-300">obligation (OBL)</span> settles both directions —
-              a bad month bills you, with no floor.
-            </p>
-            <p className="text-[11px] text-zinc-600">
-              valued on day-ahead prices to {allRows[0]?.window_end ?? ''} (trailing 2 months
-              always held out) · {AUCTION.deliveryLabel} hour blocks: {AUCTION.hours.PeakWD} weekday-peak
-              (PeakWD) / {AUCTION.hours.PeakWE} weekend-peak (PeakWE) / {AUCTION.hours['Off-peak']} off-peak
-            </p>
-          </div>
+          // The one disclosure block. Every "what this is and is not" caveat
+          // that used to repeat across the sheet lives here, expandable —
+          // plus the always-visible legal footer at the bottom of the page.
+          <details open className="text-[13px] text-[#93a6ab]">
+            <summary className="cursor-pointer select-none font-medium text-[#dbe4e6]">
+              How to read this — and what it is not
+            </summary>
+            <div className="mt-2.5 space-y-2.5">
+              <p className="max-w-[70ch]">
+                <span className="font-semibold text-[#dbe4e6]">Every green figure is a reference
+                limit price</span> — the highest limit our margin rule supports for that path,
+                not an instruction. How the auction works: everyone pays the same clearing price
+                (where supply meets demand), not their own bid, so a limit at the full reference
+                adds wins without adding cost, and each reference sits far enough below the
+                path&apos;s valued payout that a fill at the full reference has historically
+                returned about $1.50 per $1 paid. Whether to bid, at what limit, and at what
+                size is your decision alone.
+              </p>
+              <p className="max-w-[70ch]">
+                Two instrument types on this sheet: an <span className="text-[#dbe4e6]">option
+                (OPT)</span> pays you or pays nothing — the price is all you can ever lose. An{' '}
+                <span className="text-[#dbe4e6]">obligation (OBL)</span> settles both directions —
+                a bad month bills you, with no floor.
+              </p>
+              <p className="max-w-[70ch]">
+                <span className="text-[#dbe4e6]">Worth</span> — what the path actually paid per MWh
+                over the valuation window of day-ahead settlement. <span className="text-[#dbe4e6]">Bid
+                price</span> — worth, trimmed where a driving constraint changed recently, history is
+                thin, or the value rides on rare spikes. <span className="text-[#dbe4e6]">Likely
+                outlay</span> — your MW × delivery-month hours × the price it usually clears at.{' '}
+                <span className="text-[#dbe4e6]">Max outlay</span> — the same if it clears at your
+                full bid, the worst case you authorise by submitting.
+              </p>
+              <p className="max-w-[70ch] border-l-2 border-red-500/60 pl-3 text-[#dbe4e6]">
+                This is not a forecast. It stops overpaying and points at verified mispricing; it
+                cannot promise the delivery month resembles the year behind it. Every prediction rule tested
+                on this data failed out of sample — pricing discipline is what survived.
+              </p>
+              <p className="max-w-[70ch] text-[12px] text-[#7d9096]">
+                valued on day-ahead prices to {allRows[0]?.window_end ?? ''} (trailing 2 months
+                always held out) · {AUCTION.deliveryLabel} hour blocks: {AUCTION.hours.PeakWD} weekday-peak
+                (PeakWD) / {AUCTION.hours.PeakWE} weekend-peak (PeakWE) / {AUCTION.hours['Off-peak']} off-peak
+              </p>
+            </div>
+          </details>
         )}
       </Panel>
 
@@ -261,7 +268,7 @@ export default function BidsPage() {
           title="Don't bid — and exactly why"
           subtitle="the auction has charged more than these paths returned"
         >
-          <p className="mb-3 max-w-[70ch] text-[12.5px] text-zinc-500">
+          <p className="mb-3 max-w-[70ch] text-[12.5px] text-[#93a6ab]">
             Each row shows the price the auction has actually cleared at next to what the path
             has actually paid. Wherever clearing exceeds worth, the buyer funds the gap — and
             across 296 firms and 113M MWh, that gap averaged −$0.14/MWh.
@@ -270,7 +277,7 @@ export default function BidsPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] border-collapse">
               <thead>
-                <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-zinc-500">
+                <tr className="border-b border-line text-left text-[10px] uppercase tracking-wider text-[#93a6ab]">
                   <th className="px-3 py-2 font-medium">Path</th>
                   <th className="px-3 py-2 text-right font-medium">Worth</th>
                   <th className="px-3 py-2 text-right font-medium">Usually clears</th>
@@ -289,17 +296,17 @@ export default function BidsPage() {
                       className="border-b border-line/60 last:border-0"
                     >
                       <td className="px-3 py-2.5">
-                        <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-zinc-300">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[13px] font-medium text-[#dbe4e6]">
                           <span>{r.source}</span>
-                          <span className="text-zinc-600">→</span>
+                          <span className="text-[#7d9096]">→</span>
                           <span>{r.sink}</span>
                         </div>
-                        <div className="mt-0.5 text-[11px] text-zinc-600">
+                        <div className="mt-0.5 text-[11px] text-[#7d9096]">
                           {r.time_of_use}
                           {BOOK_HOLDER[r.book] !== undefined && ` · ${num(r.mw)?.toFixed(0)} MW held`}
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-right tnum text-zinc-300">{usd(r.value_mean)}</td>
+                      <td className="px-3 py-2.5 text-right tnum text-[#dbe4e6]">{usd(r.value_mean)}</td>
                       <td className="px-3 py-2.5 text-right tnum text-red-400">
                         {cleared !== null ? usd(r.cleared_price) : 'below 10¢ — too small to trade'}
                       </td>
@@ -307,7 +314,7 @@ export default function BidsPage() {
                         {gap !== null && gap > 0 ? `${usd(gap)}/MWh` : '—'}
                       </td>
                       {hasBookRows && (
-                        <td className="px-3 py-2.5 text-right tnum text-zinc-500">
+                        <td className="px-3 py-2.5 text-right tnum text-[#93a6ab]">
                           {BOOK_HOLDER[r.book] !== undefined ? usd(r.bid_price) : '—'}
                         </td>
                       )}
@@ -318,14 +325,14 @@ export default function BidsPage() {
             </table>
           </div>
           {red.length > 20 && (
-            <p className="mt-2 text-[11px] text-zinc-600">largest 20 of {red.length} shown</p>
+            <p className="mt-2 text-[11px] text-[#7d9096]">largest 20 of {red.length} shown</p>
           )}
         </Panel>
       )}
 
       {(excluded.length > 0 || unpriced.length > 0) && (
         <Panel title="Not assessable" subtitle="excluded rather than guessed">
-          <p className="text-[12.5px] text-zinc-500">
+          <p className="text-[12.5px] text-[#93a6ab]">
             {excluded.length > 0 &&
               `${excluded.length} path${excluded.length === 1 ? '' : 's'} reference a settlement point no longer active in ERCOT's registry. `}
             {unpriced.length > 0 &&
@@ -335,24 +342,17 @@ export default function BidsPage() {
         </Panel>
       )}
 
-      <Panel title="What these numbers are" subtitle="and what they are not">
-        <div className="space-y-2.5 text-[13px] text-zinc-400">
-          <p className="max-w-[70ch]">
-            <span className="text-zinc-200">Worth</span> — what the path actually paid per MWh
-            over the valuation window of day-ahead settlement. <span className="text-zinc-200">Bid
-            price</span> — worth, trimmed where a driving constraint changed recently, history is
-            thin, or the value rides on rare spikes. <span className="text-zinc-200">Likely
-            outlay</span> — your MW × delivery-month hours × the price it usually clears at.{' '}
-            <span className="text-zinc-200">Max outlay</span> — the same if it clears at your
-            full bid, the worst case you authorise by submitting.
-          </p>
-          <p className="max-w-[70ch] border-l-2 border-red-500/60 pl-3 text-zinc-300">
-            This is not a forecast. It stops overpaying and points at verified mispricing; it
-            cannot promise the delivery month resembles the year behind it. Every prediction rule tested
-            on this data failed out of sample — pricing discipline is what survived.
-          </p>
-        </div>
-      </Panel>
+      {/* The one persistent legal line — always visible, whatever loaded above.
+          The sentence is verbatim per the pre-launch legal review; do not edit. */}
+      <p className="max-w-[80ch] text-[12px] leading-relaxed text-[#93a6ab]">
+        HYPOTHETICAL PERFORMANCE DISCLOSURE: Shadowprice&apos;s self-scored results are
+        hypothetical — no actual bids were submitted and no positions were held. Hypothetical
+        results have inherent limitations: they do not reflect actual market participation
+        (fills are assumed at posted clearing prices, capped at awarded volume), and no
+        representation is made that any account will or is likely to achieve similar results.
+        All figures on this sheet are historical description, not a forecast or a
+        recommendation.
+      </p>
     </div>
   )
 }

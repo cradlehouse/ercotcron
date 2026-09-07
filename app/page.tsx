@@ -11,8 +11,8 @@ export default function Landing() {
       <header className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-6 py-5">
         <span className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={22} /> <span><span className="text-[#eda63a]">shadow</span>price</span></span>
         <nav className="flex items-center gap-4 whitespace-nowrap text-sm text-[#93a6ab]">
-          <a href="#products" className="hover:text-[#dbe4e6]">Products</a>
-          <a href="#method" className="hover:text-[#dbe4e6]">Method</a>
+          <a href="#products" className="hidden hover:text-[#dbe4e6] sm:inline">Products</a>
+          <a href="#method" className="hidden hover:text-[#dbe4e6] sm:inline">Method</a>
           <Link href="/signin" className="hover:text-[#dbe4e6]">Sign in</Link>
           <Link href="/signup"
             className="rounded bg-[#e8eef0] px-3 py-1.5 font-medium text-[#15242c] hover:bg-[#f6fafb]">
@@ -39,6 +39,11 @@ export default function Landing() {
           </Link>
           <span className="text-xs text-[#7d9096]">$250/mo after · cancel anytime</span>
         </div>
+        <p className="mt-4">
+          <Link href="/record" className="text-[13px] text-[#93a6ab] hover:text-[#dbe4e6]">
+            The record, as published →
+          </Link>
+        </p>
       </section>
 
       <section id="market" className="border-t border-line">
@@ -117,7 +122,7 @@ export default function Landing() {
       </section>
 
       <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6 text-[13px] text-[#61767e]">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-6 py-6 text-[13px] text-[#7d9096]">
           <span className="flex items-center gap-3">© {new Date().getFullYear()} Shadowprice
             <Link href="/methodology" className="hover:text-[#93a6ab]">Methodology</Link>
             <Link href="/terms" className="hover:text-[#93a6ab]">Terms</Link>
