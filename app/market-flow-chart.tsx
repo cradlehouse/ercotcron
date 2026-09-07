@@ -71,9 +71,9 @@ export function MarketFlowChart({ focus, onSelect }: {
 
   useEffect(() => {
     fetch('/api/artifact/market_flow')
-      .then(r => (r.ok ? r.json() : fetch('/market_flow.json').then(f => f.json())))
+      .then(r => (r.ok ? r.json() : null))
       .then(setData)
-      .catch(() => fetch('/market_flow.json').then(f => f.json()).then(setData).catch(() => null))
+      .catch(() => null)
   }, [])
 
   const geom = useMemo(() => {

@@ -163,12 +163,12 @@ export default function NodeMapPage() {
   const chartRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const grab = (name: string, fallback: string) =>
+    const grab = (name: string) =>
       fetch(`/api/artifact/${name}`)
-        .then(r => (r.ok ? r.json() : fetch(fallback).then(f => f.json())))
-        .catch(() => fetch(fallback).then(f => f.json()).catch(() => null))
-    grab('node_graph', '/node_graph.json').then(setGraph)
-    grab('grid_geo', '/grid_geo.json').then(setGeo)
+        .then(r => (r.ok ? r.json() : null))
+        .catch(() => null)
+    grab('node_graph').then(setGraph)
+    grab('grid_geo').then(setGeo)
     fetch('/tx.json').then(r => r.json()).then(setTx).catch(() => setTx(null))
   }, [])
 

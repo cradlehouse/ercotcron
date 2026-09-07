@@ -141,8 +141,17 @@ def health() -> dict[str, object]:
             "dam_points_yesterday": dam_points, "jobs": sorted(JOBS)}
 
 
+def _require_ops(x_trigger_secret: str) -> None:
+    """Diagnostic reads are gated like /trigger: /runs returns tracebacks and
+    /stats counts multi-million-row tables — neither belongs on the open
+    internet. Same header, same secret, no second credential to manage."""
+    secret = config.trigger_secret()
+    if not secret or x_trigger_secret != secret:
+        raise HTTPException(status_code=401, detail="invalid trigger secret")
+
+
 @app.get("/runs")
-def runs(limit: int = 20) -> dict[str, object]:
+def runs(limit: int = 20, x_trigger_secret: str = Header(default="")) -> dict[str, object]:
     """Recent ingest runs.
 
     Reports a database failure as a message rather than a bare 500. This is the
@@ -150,6 +159,7 @@ def runs(limit: int = 20) -> dict[str, object]:
     500 here sends you looking for a bug in the service when the real answer is
     usually an unset or malformed DATABASE_URL.
     """
+    _require_ops(x_trigger_secret)
     try:
         return {"runs": db.recent_runs(min(limit, 200))}
     except Exception as exc:  # noqa: BLE001
@@ -161,7 +171,8 @@ def runs(limit: int = 20) -> dict[str, object]:
 
 
 @app.get("/schedule")
-def schedule() -> dict[str, object]:
+def schedule(x_trigger_secret: str = Header(default="")) -> dict[str, object]:
+    _require_ops(x_trigger_secret)
     return {
         "jobs": [
             {
@@ -186,8 +197,9 @@ def trigger(job_name: str, x_trigger_secret: str = Header(default="")) -> dict[s
 
 
 @app.get("/stats")
-def stats() -> dict[str, object]:
+def stats(x_trigger_secret: str = Header(default="")) -> dict[str, object]:
     """Row counts and database size — the guard rail before a large backfill."""
+    _require_ops(x_trigger_secret)
     try:
         return db.table_stats()
     except Exception as exc:  # noqa: BLE001
@@ -195,7 +207,8 @@ def stats() -> dict[str, object]:
 
 
 @app.get("/backfill")
-def backfill_status() -> dict[str, object]:
+def backfill_status(x_trigger_secret: str = Header(default="")) -> dict[str, object]:
+    _require_ops(x_trigger_secret)
     return backfill_mod.status()
 
 

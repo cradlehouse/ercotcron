@@ -3,7 +3,7 @@
    Since NPRR1288 the auction sells individual months, so a strip is six
    monthly bids. Each path shows per-month: our rate, the ceiling (rate/1.5),
    the month's clearing price from PRIOR 2028 sequences, and margin. CSV
-   emits one ERCOT-format row per selected month. Data: /strip_2028.json
+   emits one ERCOT-format row per selected month. Data: the strip_2028 artifact
    (strategy/strip_scan.py). */
 import { useEffect, useMemo, useState } from 'react'
 
@@ -26,9 +26,9 @@ export default function StripSheet() {
 
   useEffect(() => {
     fetch('/api/artifact/strip_2028')
-      .then(r => (r.ok ? r.json() : fetch('/strip_2028.json').then(f => f.json())))
+      .then(r => (r.ok ? r.json() : null))
       .then(setData)
-      .catch(() => fetch('/strip_2028.json').then(f => f.json()).then(setData).catch(() => setData(null)))
+      .catch(() => setData(null))
   }, [])
 
   // Discipline derived from LONG-TERM auctions specifically (661k positions,
