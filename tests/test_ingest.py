@@ -95,7 +95,17 @@ class TestDam:
         assert row["delivery_date"] == date(2026, 7, 15)
         assert row["interval_start"] == datetime(2026, 7, 15, 5, tzinfo=timezone.utc)
 
-    def test_filters_untracked_points(self, captured):
+    def test_keeps_every_point_by_default(self, captured):
+        # Sep 4 change: DAM keeps ALL nodes unless DAM_TRACKED_POINTS restricts.
+        client = client_returning(
+            ["deliveryDate", "hourEnding", "settlementPoint", "settlementPointPrice"],
+            [["2026-07-15", "1", "HB_NORTH", 31.25],
+             ["2026-07-15", "1", "LZ_WEST", 28.0]],
+        )
+        assert ingest.ingest_dam(client).rows_seen == 2
+
+    def test_dam_tracked_points_restricts(self, captured, monkeypatch):
+        monkeypatch.setenv("DAM_TRACKED_POINTS", "HB_NORTH")
         client = client_returning(
             ["deliveryDate", "hourEnding", "settlementPoint", "settlementPointPrice"],
             [["2026-07-15", "1", "HB_NORTH", 31.25],

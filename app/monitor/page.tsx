@@ -76,7 +76,7 @@ export default async function MonitorPage({
     const parts = Object.entries(merged)
       .filter(([, v]) => v !== undefined)
       .map(([k, v]) => `${k}=${encodeURIComponent(v!)}`)
-    return parts.length ? `/?${parts.join('&')}` : '/'
+    return parts.length ? `/monitor?${parts.join('&')}` : '/monitor'
   }
 
   const [latest, curve, latency] = await Promise.all([

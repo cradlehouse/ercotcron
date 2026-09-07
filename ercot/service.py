@@ -82,18 +82,24 @@ app = FastAPI(title="ercotcron", lifespan=lifespan)
 def _overdue_jobs() -> list[str]:
     """Jobs whose last recorded start is older than their cadence allows.
 
-    Cadence is derived from the trigger: an 'hour' field means a daily job
-    (grace 26h — one missed slot trips it), anything else runs sub-hourly
-    (grace 2h). A registered job with NO run row at all is overdue by
-    definition — a job that silently stops scheduling records nothing, which
-    is exactly the failure this exists to surface.
+    Cadence is derived from the trigger: 'day_of_week' means weekly (grace
+    7d + 26h — one missed slot trips it, not six healthy days), an 'hour'
+    field means daily (grace 26h), anything else runs sub-hourly (grace 2h).
+    A registered job with NO run row at all is overdue by definition — a job
+    that silently stops scheduling records nothing, which is exactly the
+    failure this exists to surface.
     """
     from datetime import datetime, timedelta, timezone as tz
     last = db.last_run_per_job()
     now = datetime.now(tz.utc)
     overdue = []
     for name, job in JOBS.items():
-        grace = timedelta(hours=26) if "hour" in job.trigger else timedelta(hours=2)
+        if "day_of_week" in job.trigger:
+            grace = timedelta(days=7, hours=26)
+        elif "hour" in job.trigger:
+            grace = timedelta(hours=26)
+        else:
+            grace = timedelta(hours=2)
         seen = last.get(name)
         if seen is None or now - seen > grace:
             overdue.append(name)

@@ -28,7 +28,9 @@ services:
 
 # Create the env group in the Render dashboard with:
 #   ERCOT_USERNAME, ERCOT_PASSWORD, ERCOT_SUBSCRIPTION_KEY, DATABASE_URL,
-#   TRIGGER_SECRET, and optionally TRACKED_POINTS and HEARTBEAT_URL_<JOB>.
+#   TRIGGER_SECRET, SUPABASE_URL + SUPABASE_SERVICE_KEY (raw auction archive —
+#   without them the pre-parse zip copy silently no-ops), and optionally
+#   TRACKED_POINTS / DAM_TRACKED_POINTS and HEARTBEAT_URL_<JOB>.
 envVarGroups:
   - name: ercot-secrets
     envVars:
@@ -42,3 +44,7 @@ envVarGroups:
         sync: false
       - key: TRIGGER_SECRET
         generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
