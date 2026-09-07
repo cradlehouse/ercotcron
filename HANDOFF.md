@@ -1,6 +1,7 @@
 # Handoff — state, risks, next steps
 
-Written 26 Jul 2026.
+Written 26 Jul 2026. Factual corrections 7 Sep 2026 (test count; the
+"never run against a real database" claim) — otherwise left as written.
 
 **Running end to end.** Ingest is live on Render, the dashboard is live at
 https://ercotcron.vercel.app, and real ERCOT prices are flowing. All four feeds
@@ -8,7 +9,8 @@ have completed successful runs against the production database.
 
 ## Verified
 
-- **67 tests pass** (`.venv/bin/python -m pytest`, ~0.4s, no network). Covers
+- **83 tests pass** (`.venv/bin/python -m pytest tests/`, ~0.6s, no network,
+  count as of 7 Sep 2026 — the suite has grown with the feeds). Covers
   DST conversion both directions, the repeat-hour flag, interval flooring,
   auth-token caching and refresh, rate limiting, retry/backoff, pagination, and
   the bitemporal insert/revision paths against a fake database.
@@ -57,9 +59,11 @@ returns only `LMP`, so the energy/congestion/loss component columns stay null.
 Fixed in the process: both Azure B2C auth constants were wrong (the policy name
 and the client id), so every request 404'd at the token step.
 
-**3. Nothing has run against a real database.** The tests use a fake connection.
-Constraint names, the ON CONFLICT targets, and the partition routing are all
-unexercised against live Postgres.
+**3. ~~Nothing has run against a real database.~~ CLOSED.** This section
+predated the deploy and contradicted item 1 above. Ingest has been writing to
+production Postgres since 26 Jul 2026: constraint names, the ON CONFLICT
+targets, and partition routing are all exercised daily by the live jobs. The
+tests still use a fake connection by design (no network, no database).
 
 ## Deliberate choices worth knowing
 

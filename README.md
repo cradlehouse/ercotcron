@@ -1,25 +1,53 @@
-# ercotcron
+# ercotcron — Shadowprice
 
-Scheduled ingestion of ERCOT wholesale electricity prices into Postgres, with a
-read-only monitoring dashboard.
+Scheduled ingestion of ERCOT wholesale prices, constraints, CRR auction
+results, and fundamentals into Postgres — plus the Next.js site that turns
+them into CRR bid sheets, marks, and a public track record.
 
-Three feeds, three cadences:
+Four pieces:
 
-| feed | table | grain | schedule (America/Chicago) |
-| --- | --- | --- | --- |
-| Day-Ahead Market SPP | `dam_spp` | hourly | 12:45, then hourly retries until it lands |
-| Real-Time Market SPP | `rt_spp` | 15-minute | every 15 minutes, at :05 past |
-| Real-Time LMP | `rt_lmp_5min` | 5-minute | every 5 minutes |
-| RTD indicative LMP | `rtd_lmp` | 5-minute forecast | every 5 minutes |
+- **Ingest** — one long-lived Python service on Render (`ercot/service.py`,
+  APScheduler), running the 17 jobs below on Chicago-local schedules.
+- **Database** — Supabase Postgres. 67 migrations, RLS on everything, and
+  security-definer RPCs for anything a browser is allowed to ask for.
+- **Site** — Next.js 15.5 on Vercel. Public product pages, member pages behind
+  Supabase auth, ops pages behind basic auth. Reads only through the anon key
+  and RLS; it never holds `DATABASE_URL` or the service-role key.
+- **Research** — `strategy/` CLIs (backtests, path discovery, marks, auction
+  prep). Currently laptop-run against the same database, not deployed.
+
+## Scheduled jobs
+
+All times America/Chicago (see below for why). Defined in `ercot/jobs.py`.
+
+| job | cadence | what it ingests / does |
+| --- | --- | --- |
+| `lmp5` | every 5 min | 5-minute SCED LMP, last 20 minutes |
+| `rtd` | every 5 min, :02 offset | RTD indicative forecast vintages, last 15 minutes |
+| `constraints` | every 10 min, :06 offset | binding transmission constraints and shadow prices, 60-minute lookback |
+| `rtm` | :04 :19 :34 :49 | settled 15-minute SPP, current operating day |
+| `lmp5_catchup` | hourly at :08 | 5-minute repair pass over the last 3 hours |
+| `wind` | hourly at :20 | regional wind actual + forecast, 8-day window |
+| `solar` | hourly at :24 | regional solar actual + forecast, 8-day window |
+| `load_fcast` | hourly at :28 | seven-day load forecast by weather zone |
+| `signals` | hourly at :34 | rebuild the scanner's materialised views |
+| `weather` | hourly at :42 | independent wind forecasts (ECMWF/GFS/ICON) via Open-Meteo |
+| `dam` | 11:47, 18:47 | day-ahead SPP, today and tomorrow |
+| `partitions` | daily 03:10 | create monthly partitions three months ahead |
+| `products` | daily 04:15 | rebuild the `node_graph` + `grid_geo` artifacts the site serves |
+| `crr` | daily 08:40 | CRR monthly auction results, newest 2 auctions |
+| `crr_lt` | daily 08:50 | CRR long-term auction results, newest 2 |
+| `paper_score` | daily 09:05 | score open paper-trade batches against posted results |
+| `points` | Mon 09:00 | settlement point catalogue refresh |
 
 ## Why the pieces are shaped this way
 
-**One long-lived Render service, not six cron jobs.** A single process is what
-makes the shared bearer token, the shared rate limiter, and APScheduler's
-overlap protection possible. Six cron containers would each cold-start and
+**One long-lived Render service, not seventeen cron jobs.** A single process is
+what makes the shared bearer token, the shared rate limiter, and APScheduler's
+overlap protection possible. Separate cron containers would each cold-start and
 re-authenticate every tick — roughly 288 needless token requests a day from the
 5-minute job alone — and Render's cron scheduler is UTC-only, which would drift
-the day-ahead job by an hour at every DST transition. Schedules live in
+every wall-clock job by an hour at each DST transition. Schedules live in
 `ercot/jobs.py`, pinned to `America/Chicago`.
 
 **Prices are bitemporal.** ERCOT restates prices after the fact. Every table
@@ -40,17 +68,98 @@ layer is Central.
 **Empty is a distinct run status.** A request that succeeds and returns zero
 rows is the signature of a wrong query-parameter name, and it looks exactly like
 a quiet market. `ingest_runs` records `empty` separately from `ok` and `error`
-so the health page can surface it.
+so the health page can surface it. (The `constraints` job is the deliberate
+exception: constraints only exist while something is congested, so it uses a
+60-minute lookback to keep legitimate quiet spells from training you to ignore
+`empty`.)
+
+**The valuations stay locked in the database.** `path_valuations` and the other
+product tables are readable only through security-definer RPCs with their own
+gating; the anon key alone gets nothing. RLS is on every table, and member
+pages fetch through RPCs scoped server-side to the caller (for example
+`get_my_book()` returns only the signed-in holder's approved claims).
+
+## Site routes
+
+Public product pages:
+
+| route | what it is |
+| --- | --- |
+| `/` | landing |
+| `/map` | node relationship map — circle-pack of settlement points, from the nightly `node_graph` artifact |
+| `/bids` | the auction order ticket — what to bid, at what price, how many MW, by when |
+| `/bids/strip` | 2028 strip sheet for the Jul–Dec 2028 long-term auction |
+| `/paths` | path spreads — the payoff side of a CRR |
+| `/path` | one source→sink path in detail |
+| `/methodology` | the published mark methodology |
+| `/privacy`, `/terms` | policies |
+| `/signin`, `/signup`, `/reset` | Supabase auth |
+
+Member pages (Supabase auth):
+
+| route | what it is |
+| --- | --- |
+| `/app` | member home — trial status + the products |
+| `/app/book` | the signed-in holder's live positions, graded our way |
+| `/app/method` | the method judged one sheet at a time — won / outbid / refused, with money |
+| `/app/record` | the model's book — every paper batch put on record before auction results, and what happened |
+| `/app/admin` | operator's desk — who's here, what they've claimed |
+
+Ops pages (basic auth via `DASH_PASSWORD` in `middleware.ts`; reachable by URL,
+not in the nav — and the gate **denies** when no password is configured, it
+never fails open):
+
+| route | what it is |
+| --- | --- |
+| `/health` | did the crons run, did they return anything, what changed |
+| `/monitor` | latest price per point, interactive curve, range presets |
+| `/scanner` | z-scored spreads, persistence, tails, what the auction charges for uncertainty |
+| `/spikes` | what the 15-minute settled average concealed |
+| `/trades` | the three trades this data supports, each with its live scoreboard |
+| `/why` | why prices did what they did, and where that is repeatable enough to trade |
+
+Any route not on the public or ops lists 404s at the middleware rather than
+prompting for a password.
+
+API routes: `/api/artifact` (serves the nightly-built map/graph artifacts),
+`/api/claim` and `/api/verify-holder` (holder claim flow), `/api/unsubscribe`
+(outreach email opt-out). The claim and unsubscribe routes present
+`CLAIM_RPC_SECRET` to their RPCs server-side.
 
 ## Layout
 
 ```
-ercot/          ingest package — client, config, timeutil, ingest, jobs, service
-supabase/       SQL migrations (schema, partitions, views, RLS)
-scripts/        one-off CLI entry points (manual run, backfill, endpoint probe)
+ercot/          ingest package — client, config, timeutil, ingest, fundamentals,
+                crr, weather, products, jobs, service
+supabase/       SQL migrations (schema, partitions, views, RLS, RPCs)
+scripts/        one-off CLI entry points (manual run, backfills, endpoint probe,
+                sheet rendering, catalogue loads)
+strategy/       research CLIs — backtest, discover_paths, marks, auction_prep,
+                market_scan, strip_scan, ptdf, walk-forward (laptop-run)
 tests/          pytest suite, no network
-app/ lib/       Next.js dashboard (read-only, anon key, RLS)
+app/ lib/       Next.js site (anon key + RLS + RPCs only)
+docs/           strategy, methodology, legal; docs/archive/ holds superseded docs
 ```
+
+## Environment variables
+
+From `.env.example` (names only — see the file for the full commentary):
+
+| variable | purpose |
+| --- | --- |
+| `ERCOT_USERNAME` / `ERCOT_PASSWORD` | apiexplorer.ercot.com portal login; the token flow authenticates as you |
+| `ERCOT_SUBSCRIPTION_KEY` | primary Public API key — never fail over to the secondary at runtime |
+| `DATABASE_URL` | Supabase transaction-pooler string (port 6543); ingest only, bypasses RLS |
+| `TRIGGER_SECRET` | guards `POST /trigger/{job}`, which spends rate-limit budget |
+| `TRACKED_POINTS` | settlement points to store (default: hubs and load zones) |
+| `HEARTBEAT_URL_*` | optional per-job heartbeat URLs (healthchecks.io or similar) |
+| `SCHEDULER_ENABLED` | set false to run the API without the scheduler |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | optional raw CRR auction-zip archival to a private Storage bucket; service key, never near a browser |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the only two variables the Vercel site needs |
+| `DASH_PASSWORD` | basic auth for the ops pages |
+| `CLAIM_RPC_SECRET` | server secret the claim + unsubscribe API routes present to their RPCs |
+| `RESEND_API_KEY` | claim-verification and outreach email; optional, claims fall back to manual review |
+| `OUTREACH_POSTAL_ADDRESS` | CAN-SPAM postal address for outreach footers; env only, never rendered on the site |
 
 ## Local setup
 
@@ -68,13 +177,13 @@ endpoint parameters are right:
 .venv/bin/python scripts/run_ingest.py dam
 ```
 
-Tests (no network, no database):
+Tests (83 passing, no network, no database):
 
 ```bash
-.venv/bin/python -m pytest
+.venv/bin/python -m pytest tests/
 ```
 
-Dashboard:
+Site:
 
 ```bash
 npm install && npm run dev
@@ -87,33 +196,34 @@ env group with `ERCOT_USERNAME`, `ERCOT_PASSWORD`, `ERCOT_SUBSCRIPTION_KEY`,
 `DATABASE_URL`, and optionally `TRACKED_POINTS` and `HEARTBEAT_URL_*`.
 `DATABASE_URL` should be the Supabase **transaction pooler** string (port 6543).
 
-**Dashboard → Vercel.** Needs only `NEXT_PUBLIC_SUPABASE_URL` and
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`. It reads through RLS and must never be given
+**Site → Vercel.** Needs only `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` (plus `DASH_PASSWORD` and `CLAIM_RPC_SECRET`
+for the ops pages and claim flow). It reads through RLS and must never be given
 the service-role key or `DATABASE_URL`. Do not add a Vercel cron — that would
 double every ERCOT pull.
 
 `vercel.json` pins the install and build commands, and `.vercelignore` keeps the
 Python files out of the upload. Both are load-bearing: this repo holds a Python
-service and a Node dashboard side by side, and a bare `requirements.txt` at the
+service and a Node site side by side, and a bare `requirements.txt` at the
 root makes Vercel detect a Python project and run `uv pip install` before the
 Next.js build — which fails on any Python version lacking `psycopg-binary`
 wheels. Removing either file brings that back.
 
 ## Operating
 
-`GET /health` reports scheduler state and the last run per job. `GET /runs`
-returns recent run history. `POST /trigger/{job}` forces a run and is guarded
-because it spends ERCOT rate-limit budget — it takes the secret in an
-`X-Trigger-Secret` header, not as a bearer token:
+`GET /health` on the Render service reports scheduler state and the last run
+per job. `GET /runs` returns recent run history. `POST /trigger/{job}` forces a
+run and is guarded because it spends ERCOT rate-limit budget — it takes the
+secret in an `X-Trigger-Secret` header, not as a bearer token:
 
 ```bash
 curl -X POST -H "X-Trigger-Secret: $TRIGGER_SECRET" \
   https://YOUR-SERVICE.onrender.com/trigger/dam
 ```
 
-Jobs are `dam`, `rtm`, `lmp5`, `rtd`, `lmp5_catchup`, `partitions`, `points`.
+Job names are the ones in the table above.
 
-The dashboard's **health** page is the one to check: failed runs, empty runs,
+The site's **/health** page is the one to check: failed runs, empty runs,
 missing 15-minute intervals, publication lag, and revision counts. Gaps are
 repaired by re-running the relevant job over a wider window:
 
