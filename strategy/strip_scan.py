@@ -96,8 +96,10 @@ with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as c:
                avg(clearing_price), sum(mw)
           from crr_awards
          where auction_name ilike '%%2028%%'
-           and crr_type = 'STANDARD'  -- PREAWARD rows restate old positions, not this auction's clear
            and start_date >= '2028-07-01' and end_date <= '2028-12-31'
+           -- single-month product rows only: strip rows blend months the way
+           -- Bid24Hour rows blend TOU blocks
+           and date_trunc('month', start_date) = date_trunc('month', end_date)
          group by 1,2,3,4,5""")
     clears = {}
     path_mw = collections.Counter()

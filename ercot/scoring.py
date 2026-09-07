@@ -39,15 +39,31 @@ def score_paper(_c=None) -> ingest.Result:
                            or realized_value is null""")
         batches = cur.fetchall()
         for batch, auction in batches:
+            # LT auctions sell single-month AND multi-month strip products in
+            # one file; a strip row's price blends months the way a Bid24Hour
+            # row blends TOU blocks. Clears are therefore keyed per delivery
+            # window; grading picks the bid's own window, falling back to the
+            # all-window average when no window-exact product traded.
             cur.execute("""select source, sink, time_of_use, hedge_type,
-                                  avg(clearing_price), sum(mw)
+                                  start_date, end_date,
+                                  coalesce(avg(clearing_price) filter (where not bid24hour),
+                                           avg(clearing_price)) as cp,
+                                  sum(mw)
                              from crr_awards
-                            where auction_name = %s and crr_type = 'STANDARD'
-                            group by 1,2,3,4""",
+                            where auction_name = %s
+                            group by 1,2,3,4,5,6""",
                         (auction,))
             award_rows = cur.fetchall()
-            clears = {tuple(r[:4]): float(r[4]) for r in award_rows}
-            awarded_mw = {tuple(r[:4]): float(r[5] or 0) for r in award_rows}
+            clears_w: dict = {}
+            clears_sum: dict = {}
+            awarded_mw: dict = {}
+            for r in award_rows:
+                key = tuple(r[:4])
+                clears_w[(key, (r[4], r[5]))] = float(r[6])
+                n, tot = clears_sum.get(key, (0, 0.0))
+                clears_sum[key] = (n + 1, tot + float(r[6]))
+                awarded_mw[key] = awarded_mw.get(key, 0.0) + float(r[7] or 0)
+            clears = {k: tot / n for k, (n, tot) in clears_sum.items()}
             if not clears:
                 # Results not posted yet — OR the batch was stored under a
                 # guessed auction name that will never match (the 2028 batch
@@ -101,7 +117,9 @@ def score_paper(_c=None) -> ingest.Result:
                 month_start, month_end = month_window(dmonth)
                 settled = is_settled(month_start, month_end, src, snk)
                 in_delivery = (not settled) and month_start <= dt.date.today()
-                cp = clears.get((src, snk, tou, hedge))
+                key = (src, snk, tou, hedge)
+                cp = clears_w.get((key, (month_start, month_end - dt.timedelta(days=1))),
+                                  clears.get(key))
                 did_clear = cp is not None and float(bid) >= cp
                 n_clr += bool(did_clear)
                 pnl = rv = None
@@ -189,9 +207,11 @@ def score_sheets(_c=None) -> ingest.Result:
         for (sheet,) in cur.fetchall():
             # a '-reconstructed' vintage scores against its real auction
             auction = sheet.split('-')[0]
-            cur.execute("""select source, sink, time_of_use, hedge_type, avg(clearing_price)
+            cur.execute("""select source, sink, time_of_use, hedge_type,
+                                  coalesce(avg(clearing_price) filter (where not bid24hour),
+                                           avg(clearing_price))
                              from crr_awards
-                            where auction_name = %s and crr_type = 'STANDARD'
+                            where auction_name = %s
                             group by 1,2,3,4""",
                         (auction,))
             clears = {tuple(r[:4]): float(r[4]) for r in cur.fetchall()}

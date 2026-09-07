@@ -183,17 +183,18 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
             r.get("AccountHolder"), r.get("HedgeType") or "", r.get("BidType") or "",
             r.get("CRRType"), r.get("Source") or "", r.get("Sink") or "",
             start, end, _num(r.get("MW", "")), _num(r.get("ShadowPricePerMWH", "")),
+            r.get("Bid24Hour", "").strip().lower() == "yes",
         ))
 
     inserted, updated = db.upsert_rows(
         "crr_awards",
         ["auction_name", "crr_id", "time_of_use", "account_holder", "hedge_type",
          "bid_type", "crr_type", "source", "sink", "start_date", "end_date",
-         "mw", "clearing_price"],
+         "mw", "clearing_price", "bid24hour"],
         award_rows,
         conflict=["auction_name", "crr_id", "time_of_use"],
         update=["account_holder", "hedge_type", "bid_type", "crr_type", "source",
-                "sink", "start_date", "end_date", "mw", "clearing_price"],
+                "sink", "start_date", "end_date", "mw", "clearing_price", "bid24hour"],
     )
 
     price_rows = [
