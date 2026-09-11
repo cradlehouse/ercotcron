@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { sb } from '@/lib/supabase'
-import { AUCTION_MONTH, CLOSES_LABEL, daysToClose } from '@/lib/auction'
+import { AUCTION_MONTH, NEXT_MONTH, NEXT_AUCTION, RESULTS_DUE, CLOSES_LABEL, daysToClose, phase } from '@/lib/auction'
 import { LogoMark } from './logo'
 
 const SELF_HEADED = ['/', '/signin', '/signup', '/reset', '/terms', '/privacy', '/methodology']
@@ -32,10 +32,14 @@ export function NavBar() {
 
   const daysLeft = daysToClose()
   // One auction badge, driven by lib/auction.ts — never hand-typed here.
+  const nextOpens = new Date(`${NEXT_AUCTION.opens}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const resultsBy = new Date(`${RESULTS_DUE}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
   const badge =
     daysLeft >= 0
       ? `${AUCTION_MONTH} bids close ${CLOSES_LABEL} · ${daysLeft}d`
-      : `${AUCTION_MONTH} auction closed`
+      : phase() === 'awaiting-results'
+        ? `${AUCTION_MONTH} results by ${resultsBy}`
+        : `${NEXT_MONTH} bids open ${nextOpens}`
 
   const signOut = () => sb.auth.signOut().then(() => { window.location.href = '/' })
 

@@ -27,6 +27,32 @@ export const AUCTION: AuctionCalendar = {
   hours: { PeakWD: 352, PeakWE: 144, 'Off-peak': 248 },
 }
 
+/** ERCOT posts results on or before this date (CRR Activity Calendar). */
+export const RESULTS_DUE = '2026-09-17'
+
+/** The auction after the current one — swapped into AUCTION when its
+ *  valuation run publishes. Dates from ERCOT's CRR Activity Calendar:
+ *  NOV bid window opens Oct 13 (12:01am), closes Oct 15 (5pm), results
+ *  on or before Oct 22. NOV 2026 hours computed by ercot/calendar.py
+ *  (Thanksgiving moves 16 hours from PeakWD to PeakWE). */
+export const NEXT_AUCTION: AuctionCalendar = {
+  name: '2026.NOV.Monthly.Auction',
+  opens: '2026-10-13',
+  closes: '2026-10-15',
+  deliveryStart: '11/1/2026',
+  deliveryEnd: '11/30/2026',
+  deliveryLabel: '1–30 Nov 2026',
+  hours: { PeakWD: 320, PeakWE: 160, 'Off-peak': 240 },
+}
+export const NEXT_MONTH = NEXT_AUCTION.name.split('.')[1] ?? ''
+
+/** Where the cycle stands right now. */
+export function phase(now: number = Date.now()): 'open' | 'awaiting-results' | 'between' {
+  if (daysToClose(now) >= 0) return 'open'
+  const due = new Date(`${RESULTS_DUE}T23:59:00-05:00`).getTime()
+  return now <= due ? 'awaiting-results' : 'between'
+}
+
 /** 'OCT' — the delivery month, straight from ERCOT's auction name. */
 export const AUCTION_MONTH = AUCTION.name.split('.')[1] ?? ''
 
@@ -63,9 +89,11 @@ export function daysToClose(now: number = Date.now()): number {
 
 /** 'bids open 2026-09-08 · close 2026-09-10 (2 days left) · delivery 1–31 Oct 2026' */
 export function windowLine(daysLeft: number = daysToClose()): string {
-  const state =
-    daysLeft >= 0
-      ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`
-      : 'CLOSED — the next monthly sheet posts here after the next valuation run'
-  return `bids open ${AUCTION.opens} · close ${AUCTION.closes} (${state}) · delivery ${AUCTION.deliveryLabel}`
+  if (daysLeft >= 0) {
+    return `bids open ${AUCTION.opens} · close ${AUCTION.closes} (${daysLeft} day${daysLeft === 1 ? '' : 's'} left) · delivery ${AUCTION.deliveryLabel}`
+  }
+  const nextShort = new Date(`${NEXT_AUCTION.opens}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  return phase() === 'awaiting-results'
+    ? `bids closed ${CLOSES_LABEL} · results post by ${short(RESULTS_DUE)} · ${NEXT_MONTH} bids open ${nextShort}`
+    : `closed · ${NEXT_MONTH} sheet posts before its window opens ${nextShort}`
 }

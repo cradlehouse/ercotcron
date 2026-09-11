@@ -2,7 +2,7 @@
 // Member home: trial status + the products. Decision-focused, not a terminal.
 import { useEffect, useState } from 'react'
 import { rpc } from '@/lib/rpc'
-import { AUCTION_MONTH, WINDOW_LABEL } from '@/lib/auction'
+import { AUCTION_MONTH, NEXT_AUCTION, NEXT_MONTH, WINDOW_LABEL, daysToClose } from '@/lib/auction'
 import { sb } from '@/lib/supabase'
 
 type Profile = { plan: string; trial_ends: string | null }
@@ -146,7 +146,9 @@ export default function MemberHome() {
           <section className="rounded border border-line p-4">
             <div className="text-[15px] font-medium">Next auction</div>
             <p className="mt-1 text-[13.5px] leading-relaxed text-[#93a6ab]">
-              {AUCTION_MONTH} 2026 monthly — bids {WINDOW_LABEL}. Your bid sheet posts here when
+              {daysToClose() >= 0
+                ? `${AUCTION_MONTH} 2026 monthly — bids ${WINDOW_LABEL}.`
+                : `${NEXT_MONTH} 2026 monthly — bids open ${new Date(`${NEXT_AUCTION.opens}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}.`} Your bid sheet posts here when
               the October valuation run completes, with limits, sizing, and
               the ERCOT-format CSV.
             </p>

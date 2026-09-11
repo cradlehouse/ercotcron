@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { sb } from '@/lib/supabase'
-import { AUCTION_MONTH, OPENS_LABEL } from '@/lib/auction'
+import { AUCTION_MONTH, NEXT_AUCTION, NEXT_MONTH, OPENS_LABEL, daysToClose } from '@/lib/auction'
 import { LogoMark } from '../logo'
 
 export default function SignUp() {
@@ -56,7 +56,9 @@ export default function SignUp() {
         <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight"><LogoMark size={20} /> <span><span className="text-[#eda63a]">shadow</span>price</span></Link>
         <h1 className="mt-6 text-lg font-medium">Start your free trial</h1>
         <p className="mt-1 text-xs text-[#7d9096]">
-          30 days free, no card. {AUCTION_MONTH} auction bids open {OPENS_LABEL} — your sheet will be ready.
+          30 days free, no card. {daysToClose() >= 0
+            ? `${AUCTION_MONTH} auction bids open ${OPENS_LABEL}`
+            : `${NEXT_MONTH} auction bids open ${new Date(`${NEXT_AUCTION.opens}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}`} — your sheet will be ready.
         </p>
         <form onSubmit={submit} className="mt-6 space-y-3">
           <div>
