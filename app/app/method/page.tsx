@@ -84,7 +84,8 @@ export default function MethodScore() {
     const live = rs.filter(r => r.hours > 0)
     const cost = live.reduce((a, r) => a + (r.cost ?? 0), 0)
     const paid = live.reduce((a, r) => a + (r.paid ?? 0), 0)
-    return { cost, paid, net: paid - cost }
+    const ahead = live.filter(r => (r.paid ?? 0) > (r.cost ?? 0)).length
+    return { cost, paid, net: paid - cost, ahead, live: live.length }
   }
 
   const RowLine = ({ r }: { r: Prog }) => {
@@ -184,7 +185,7 @@ export default function MethodScore() {
             {(['won', 'outbid', 'refused'] as const).map(k => {
               const meta = CAMP_META[k]
               const rs = camps[k]
-              const { cost, paid, net } = sums(rs)
+              const { cost, paid, net, ahead, live } = sums(rs)
               const sel = camp === meta.chart
               return (
                 <button key={k} onClick={() => setCamp(sel ? null : meta.chart)}
@@ -199,6 +200,11 @@ export default function MethodScore() {
                       {cost < 0 ? `collected ${usd(cost)}` : `${usd(cost)} in`} → {paid < 0 ? '−' : ''}{usd(paid)} out ·{' '}
                       <span className={net >= 0 ? 'text-emerald-400' : 'text-red-400'}>{signed(net)} net</span>
                       {cost > 0 && <span className="text-[#7d9096]"> · {Math.round((paid / cost) * 100)}%</span>}
+                      {live > 0 && (
+                        <div className="mt-0.5 text-[11.5px] text-[#7d9096]">
+                          {ahead} of {live} rows ahead — {ahead < live / 2 ? 'the winners carry the total' : 'broadly spread'}
+                        </div>
+                      )}
                     </div>
                   ) : <div className="mt-2 text-[13.5px] text-[#61767e]">no settled days yet</div>}
                   <div className="mt-1 text-[11px] text-[#61767e]">{sel ? 'isolated on the chart — click to clear' : 'click to isolate + see group daily bars'}</div>
