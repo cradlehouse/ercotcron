@@ -11,7 +11,7 @@ import { DailyChart, type DailyRow } from '../../daily-chart'
 import { ProvenanceStrip } from '../../provenance-strip'
 import { SheetFlowChart, type ClassKey } from './sheet-flow'
 
-type Prog = { grp: string; source: string; sink: string; tou: string; hedge: string; tier: string; bid: number | null; clearing: number | null; mw: number; delivery: string; status: string; hours: number; cost: number | null; paid: number | null }
+type Prog = { grp: string; source: string; sink: string; tou: string; hedge: string; tier: string; bid: number | null; clearing: number | null; bought: number | null; mw: number; delivery: string; status: string; hours: number; cost: number | null; paid: number | null }
 
 function campOf(r: Prog): 'won' | 'outbid' | 'refused' | 'ghost' {
   if (r.tier === 'red') return 'refused'
@@ -85,7 +85,8 @@ export default function MethodScore() {
     const cost = live.reduce((a, r) => a + (r.cost ?? 0), 0)
     const paid = live.reduce((a, r) => a + (r.paid ?? 0), 0)
     const ahead = live.filter(r => (r.paid ?? 0) > (r.cost ?? 0)).length
-    return { cost, paid, net: paid - cost, ahead, live: live.length }
+    const backed = rs.filter(r => (r.bought ?? 0) > 0).length
+    return { cost, paid, net: paid - cost, ahead, live: live.length, backed, n: rs.length }
   }
 
   const RowLine = ({ r }: { r: Prog }) => {
@@ -185,7 +186,7 @@ export default function MethodScore() {
             {(['won', 'outbid', 'refused'] as const).map(k => {
               const meta = CAMP_META[k]
               const rs = camps[k]
-              const { cost, paid, net, ahead, live } = sums(rs)
+              const { cost, paid, net, ahead, live, backed, n } = sums(rs)
               const sel = camp === meta.chart
               return (
                 <button key={k} onClick={() => setCamp(sel ? null : meta.chart)}
@@ -195,6 +196,11 @@ export default function MethodScore() {
                     <span className="text-[12px] text-[#7d9096]">{rs.length} paths</span>
                   </div>
                   <div className="mt-1 text-[12px] text-[#7d9096]">{meta.blurb}</div>
+                  {k === 'won' && n > 0 && backed < n && (
+                    <div className="mt-0.5 text-[11.5px] text-[#93a6ab]">
+                      {backed} backed by real buyers · {n - backed} passed the price test only — not claimed
+                    </div>
+                  )}
                   {(cost !== 0 || paid !== 0) ? (
                     <div className="mt-2 text-[13.5px] text-[#dbe4e6]">
                       {cost < 0 ? `collected ${usd(cost)}` : `${usd(cost)} in`} → {paid < 0 ? '−' : ''}{usd(paid)} out ·{' '}

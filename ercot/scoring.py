@@ -218,6 +218,11 @@ def score_sheets(_c=None) -> ingest.Result:
             if not clears:
                 log.warning("sheet %s: no awards posted yet", sheet)
                 continue
+            cur.execute("""select source, sink, time_of_use, hedge_type, sum(mw)
+                             from crr_awards
+                            where auction_name = %s and bid_type = 'BUY'
+                            group by 1,2,3,4""", (auction,))
+            buys = {tuple(r[:4]): float(r[4] or 0) for r in cur.fetchall()}
             start = dt.date(int(auction[3:7]), months[auction[:3].upper()], 1)
             end = (start.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
             month_over = end <= dt.date.today()
@@ -257,11 +262,14 @@ def score_sheets(_c=None) -> ingest.Result:
                                 pnl = rv - cost
                 cur.execute("""update sheet_snapshots
                                   set clearing=%s, filled=%s, hours=%s,
+                                      bought_mw=%s,
                                       cost=coalesce(%s, cost),
                                       realized=coalesce(%s, realized),
                                       pnl=coalesce(%s, pnl), scored_at=now()
                                 where id=%s""",
-                            (cp, filled, hrs, cost, rv, pnl, rid))
+                            (cp, filled, hrs,
+                             buys.get((src, snk, tou, hedge)) if cp is not None else None,
+                             cost, rv, pnl, rid))
                 res.rows_seen += 1
             conn.commit()
             log.info("sheet %s: %d rows scored (month_over=%s)", sheet, len(rows), month_over)
