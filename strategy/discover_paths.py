@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Discovery: paths worth bidding that are NOT in Steve's book.
 
-    python strategy/discover_paths.py
+    python strategy/discover_paths.py --target 2026-11
 
 Candidate generation, not copied conviction. The four firms that beat the CRR
 market across nine measured months (Wolframium 9/9, DC Energy 8/9, SESCO and
@@ -10,8 +10,15 @@ offsets, so holding is not evidence of value. Every candidate is then priced by
 OUR method: realised congestion over a trailing window, trimmed for
 uncertainty, compared against what the auction actually charges for it.
 
+Valued by the house rule (strategy/valuation.py): the TYPICAL month, never
+the 12-month mean — until Oct 2026 this screen priced off the mean, which is
+how a lottery path (HKSN_SLR_ALL->ANCHOR_ALL) got a limit only 2 of 10
+months ever paid. Same fit window, fade tail and target-month cap as
+market_scan.
+
 Kept only when:
   ceiling > 1.5x its usual clearing price   (real headroom, not a rounding gap)
+  not fading                                (no recent decay, no 2-month collapse)
   >= 2,000 priced hours                     (not a thin fluke)
   not already in the reference book         (this is the "more than parrot" filter)
 
@@ -38,6 +45,8 @@ load_dotenv(ROOT / ".env")
 import psycopg
 
 from strategy.common import load_ref
+from strategy.market_scan import window
+from strategy.valuation import value_months
 
 BOOK = pathlib.Path(os.environ.get(
     "BOOK_XLSX",
@@ -66,6 +75,11 @@ def steve_pairs() -> set[tuple[str, str]]:
 
 
 def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--target", required=True, help="delivery month being bid, YYYY-MM")
+    args = ap.parse_args()
+    W = window(args.target)
     known = steve_pairs()
     print(f"reference book: {len(known)} source→sink pairs to exclude")
 
@@ -97,19 +111,20 @@ def main() -> int:
         nodes = sorted({n for p in cands for n in (p["src"], p["snk"])})
         print(f"candidates after excluding the book: {len(cands)} paths, {len(nodes)} nodes")
 
-        cur.execute("select max(delivery_date) from dam_spp")
-        end = (cur.fetchone()[0].replace(day=1) - dt.timedelta(days=1)).replace(day=1)
-        start = (end - dt.timedelta(days=372)).replace(day=1)
-        print(f"valuation window {start} .. {end}")
+        months = W["fit_months"] + W["tail_months"]
+        print(f"fit {W['fit_months'][0]}, {W['window_start']}..{W['window_end']} | fade tail {W['tail_months']}")
 
-        # ONE bounded price pull for every candidate node.
-        cur.execute("""select delivery_date, hour_ending, settlement_point, price
-                         from dam_spp where settlement_point = any(%s)
-                          and delivery_date >= %s and delivery_date < %s""",
-                    (nodes, start, end))
+        # ONE bounded price pull for every candidate node, month by month.
         P = collections.defaultdict(dict)
-        for d, he, sp, price in cur.fetchall():
-            P[(d, he)][sp] = float(price)
+        for ym in months:
+            lo = dt.date.fromisoformat(f"{ym}-01")
+            hi = (lo + dt.timedelta(days=32)).replace(day=1)
+            cur.execute("""select delivery_date, hour_ending, settlement_point, price
+                             from dam_spp where settlement_point = any(%s)
+                              and delivery_date >= %s and delivery_date < %s""",
+                        (nodes, lo, hi))
+            for d, he, sp, price in cur.fetchall():
+                P[(d, he)][sp] = float(price)
         print(f"price grid: {len(P):,} hours")
 
         # risk flags for the trim
@@ -129,9 +144,11 @@ def main() -> int:
                 return cn
         return None
 
+    fit_set = set(W["fit_months"])
     keep = []
     for p in cands:
         vals = []
+        bymonth = collections.defaultdict(list)
         for (d, he), pr in P.items():
             if tou_of(d, he) != p["tou"]:
                 continue
@@ -139,8 +156,18 @@ def main() -> int:
             if a is None or b is None:
                 continue
             diff = b - a
-            vals.append(max(0.0, diff) if p["hedge"] == "OPT" else diff)
+            pay = max(0.0, diff) if p["hedge"] == "OPT" else diff
+            ym = f"{d:%Y-%m}"
+            bymonth[ym].append(pay)
+            if ym in fit_set:
+                vals.append(pay)
         if len(vals) < MIN_HOURS:
+            continue
+        mm = {m: statistics.fmean(v) for m, v in bymonth.items() if len(v) >= 100}
+        v = value_months([mm[m] for m in W["fit_months"] if m in mm],
+                         [mm[m] for m in W["tail_months"] if m in mm],
+                         [mm[m] for m in W["target_months"] if m in mm])
+        if v is None or v.fading:
             continue
         mean = statistics.fmean(vals)
         med = statistics.median(vals)
@@ -149,17 +176,17 @@ def main() -> int:
         s = stale(p["src"]) or stale(p["snk"])
         if s:
             trim += 0.30; why.append(f"{s} changed <90d")
-        if med > 0 and mean > 3 * med:
+        if (med > 0 and mean > 3 * med) or any(r.startswith("spike") for r in v.reasons):
             trim += 0.25; why.append("spike-driven")
         trim = min(trim, 0.75)
-        ceiling = mean * (1 - trim)
+        ceiling = v.typical * (1 - trim)
         if p["cleared"] > 0 and ceiling < HEADROOM * p["cleared"]:
             continue
         if ceiling <= 0.05:
             continue
-        keep.append({**p, "mean": mean, "median": med,
+        keep.append({**p, "mean": mean, "median": med, "typical": v.typical,
                      "p05": sv[int(0.05 * len(sv))], "p95": sv[int(0.95 * len(sv))],
-                     "pct_pos": 100 * sum(1 for v in vals if v > 0) / len(vals),
+                     "pct_pos": 100 * sum(1 for x in vals if x > 0) / len(vals),
                      "hours": len(vals), "trim": trim, "ceiling": ceiling,
                      "why": "; ".join(why)})
 
@@ -178,14 +205,14 @@ def main() -> int:
                   (book, source, sink, time_of_use, hedge_type, mw, bids, bid_price,
                    value_mean, value_median, value_p05, value_p95, pct_hours_pos,
                    hours, edge, drivers, warnings, window_start, window_end,
-                   ceiling, cleared_price, trim_pct)
-                values ('Discovery',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   ceiling, cleared_price, trim_pct, value_typical)
+                values ('Discovery',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, [(r["src"], r["snk"], r["tou"], r["hedge"], r["mw"], r["holders"],
                    None, r["mean"], r["median"], r["p05"], r["p95"], r["pct_pos"],
                    r["hours"], r["ceiling"] - r["cleared"],
                    "; ".join(by_node.get(r["snk"], [])[:2]) or None,
-                   r["why"] or None, start, end,
-                   r["ceiling"], r["cleared"], r["trim"]) for r in keep])
+                   r["why"] or None, W["window_start"], W["window_end"],
+                   r["ceiling"], r["cleared"], r["trim"], r["typical"]) for r in keep])
         c.commit()
     print(f"\npublished {len(keep)} discovery paths to path_valuations (book='Discovery')")
     return 0

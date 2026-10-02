@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Whole-market scan: value every path the CRR auctions have actually cleared.
 
-    python strategy/market_scan.py
+    python strategy/market_scan.py --target 2026-11 [--dry-run]
 
 Until now the valuation screen graded one trader's book (59 combos) plus a
 shortlist from winning firms (11). This values the ENTIRE traded universe —
@@ -40,23 +40,59 @@ load_dotenv(ROOT / ".env")
 import psycopg
 
 from strategy.common import CACHES, REF, dated_copy, load_ref
+from strategy.valuation import value_months
 
-# Window sep25..jun26 (10 months) + the target month's own history (oct24;
-# oct25 sits inside the window). Jul/Aug/Sep 2026 deliberately absent: the
-# standing rule holds out the trailing 2 months, and monthly caches force
-# whole-month cuts, so the window ends Jun 30.
-MONTH_TAGS = ["oct24", "sep25", "oct25", "nov25", "dec25", "jan26", "feb26",
-              "mar26", "apr26", "may26", "jun26"]
-TARGET_MONTHS = ("2024-10", "2025-10")   # the delivery month being bid: October
+# The window is derived from the delivery month being bid (--target YYYY-MM):
+#   fit    the 10 months ending four months before delivery, plus the same
+#          month two years back (its one-year-back twin sits inside the window)
+#   tail   the two settled months between the window and the auction — HELD
+#          OUT of the fit (house rule), read only by the fade detector, which
+#          can remove a path but never price one (strategy/valuation.py)
+# OCT 2026: fit oct24 + sep25..jun26, tail jul26..aug26.
+# NOV 2026: fit nov24 + oct25..jul26, tail aug26..sep26.
 MIN_HOURS = 2000
 MATERIALITY = 0.10
 CAP = 400          # rows written to the platform
+_MON = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+
+
+def _shift(y: int, m: int, k: int) -> tuple[int, int]:
+    i = y * 12 + (m - 1) + k
+    return i // 12, i % 12 + 1
+
+
+def window(target: str) -> dict:
+    """Month tags and labels for a delivery month 'YYYY-MM'."""
+    y, m = (int(x) for x in target.split("-"))
+
+    def tag(ym):
+        return f"{_MON[ym[1] - 1]}{ym[0] % 100:02d}"
+
+    def lab(ym):
+        return f"{ym[0]}-{ym[1]:02d}"
+
+    fit = [_shift(y, m, -24)] + [_shift(y, m, k) for k in range(-13, -3)]
+    tail = [_shift(y, m, -3), _shift(y, m, -2)]
+    return {
+        "fit_tags": [tag(x) for x in fit], "tail_tags": [tag(x) for x in tail],
+        "fit_months": [lab(x) for x in fit], "tail_months": [lab(x) for x in tail],
+        "target_months": [lab(_shift(y, m, -24)), lab(_shift(y, m, -12))],
+        "window_start": f"{lab(_shift(y, m, -13))}-01",
+        "window_end": f"{lab(_shift(y, m, -3))}-01",
+    }
 
 
 from ercot.calendar import tou_of
 
 
 def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--target", required=True, help="delivery month being bid, YYYY-MM")
+    ap.add_argument("--dry-run", action="store_true", help="value and report; write nothing")
+    args = ap.parse_args()
+    W = window(args.target)
+    print(f"target {args.target}: fit {W['fit_tags']} | fade tail {W['tail_tags']}", flush=True)
     t0 = time.time()
 
     # ---- 1. price matrix from local caches
@@ -64,7 +100,7 @@ def main() -> int:
     hour_keys: list[tuple[dt.date, int]] = []
     point_idx: dict[str, int] = {}
     cols: list[dict[int, float]] = []      # per hour: point index -> price
-    for tag in MONTH_TAGS:
+    for tag in W["fit_tags"] + W["tail_tags"]:
         path = next((d / f"dam_{tag}.json" for d in CACHES if (d / f"dam_{tag}.json").exists()), None)
         if path is None:
             # one bounded pull, then cached forever
@@ -101,7 +137,10 @@ def main() -> int:
     tou_arr = np.array([tou_of(d, he) for d, he in hour_keys])
     masks = {t: tou_arr == t for t in ("Off-peak", "PeakWD", "PeakWE")}
     month_arr = np.array([d.strftime("%Y-%m") for d, _ in hour_keys])
-    months = sorted(set(month_arr))
+    # valuation statistics see fitted hours only; the tail is fade evidence
+    in_fit = np.isin(month_arr, W["fit_months"])
+    masks = {t: m & in_fit for t, m in masks.items()}
+    tail_masks = {t: (tou_arr == t) & ~in_fit for t in masks}
 
     # ---- 2. the traded universe, with what each combo actually cleared at
     print("fetching traded universe from crr_awards...", flush=True)
@@ -151,7 +190,7 @@ def main() -> int:
     print(f"universe: {len(universe):,} distinct path/TOU/hedge combos", flush=True)
 
     # ---- 3. value each combo
-    results = []
+    results, faded = [], []
     skipped_pts = skipped_hours = 0
     for i, (src, snk, tou, hedge, cleared, n_auc, mw) in enumerate(universe):
         si, ki = point_idx.get(src), point_idx.get(snk)
@@ -174,21 +213,21 @@ def main() -> int:
         # MONTHLY product the honest base is the typical month — the median of
         # the per-month means — which a single January cannot drag.
         mmask = month_arr[masks[tou]][~np.isnan(M[masks[tou], ki] - M[masks[tou], si])]
-        permonth = [float(pay[mmask == m].mean()) for m in months if (mmask == m).sum() >= 100]
-        typical = float(np.median(permonth)) if len(permonth) >= 6 else worth
-        # A regime that has already collapsed must not be priced off its fat
-        # past: three scan headliners went NEGATIVE in the held-out July while
-        # their medians still read $2-7. Price off the smaller of typical and
-        # the recent three months, and flag the decay.
-        recent = float(np.mean(permonth[-3:])) if len(permonth) >= 3 else typical
-        fading = len(permonth) >= 6 and recent < 0.3 * typical
-        typical = min(typical, max(recent, 0.0))
-        # The product being bid delivers in SEPTEMBER. A year-round blend is
-        # nonsense for a seasonal quantity, so cap the value at what actual
-        # Septembers paid (2024 and 2025) where that history exists.
-        sep_hist = [float(pay[mmask == m].mean()) for m in TARGET_MONTHS if (mmask == m).sum() >= 100]
-        if sep_hist:
-            typical = min(typical, max(float(np.mean(sep_hist)), 0.0))
+        permonth = {m: float(pay[mmask == m].mean()) for m in W["fit_months"] if (mmask == m).sum() >= 100}
+        tdiff = M[tail_masks[tou], ki] - M[tail_masks[tou], si]
+        tmonths = month_arr[tail_masks[tou]]
+        tpay = np.maximum(tdiff, 0.0) if hedge == "OPT" else tdiff
+        tail = [float(np.nanmean(tpay[tmonths == m])) for m in W["tail_months"]
+                if (~np.isnan(tdiff[tmonths == m])).sum() >= 100]
+        target = [permonth[m] for m in W["target_months"] if m in permonth]
+        # The typical month (median of monthly means), never the 12-month mean,
+        # capped by the recent months and by past payouts of the target month;
+        # fading = recent decay OR a two-month payout collapse in the held-out
+        # tail. One rule for every scan: strategy/valuation.py.
+        v = value_months(list(permonth.values()), tail, target)
+        if v is None:
+            continue
+        typical, fading = v.typical, v.fading
         cleared_f = float(cleared or 0)
         trim, why = 0.0, []
         s = stale_nodes.get(src) or stale_nodes.get(snk)
@@ -198,20 +237,22 @@ def main() -> int:
         if med > 0 and worth > 3 * med:
             trim += 0.25
             why.append("spike-driven")
-        if fading:
-            why.append("congestion fading — recent months far below the average")
+        elif any(r.startswith("spike") for r in v.reasons):
+            why.append("spike-driven")
         ceiling = typical * (1 - min(trim, 0.75))
         # Near-zero clearing prices make margin ratios explode into nonsense
         # (a $4 path over a $0.00 clear is "1600x"), and one-auction paths are
         # a single observation. Floors: the auction must have priced it at
         # least a nickel, across >= 3 auctions, and the absolute gap must be
         # worth collecting, not just the ratio.
-        if fading or ceiling < MATERIALITY or cleared_f < 0.05 or int(n_auc) < 3:
+        if ceiling < MATERIALITY or cleared_f < 0.05 or int(n_auc) < 3:
             continue
         margin = ceiling / cleared_f
         if margin <= 1.25 or (ceiling - cleared_f) < 0.10:
             continue
-        results.append({
+        # Removed by the fade detector: kept aside with the reason, so the
+        # removals are frozen as their own shadow sheet and graded too.
+        (faded if fading else results).append({
             "source": src, "sink": snk, "tou": tou, "hedge": hedge,
             "worth": round(worth, 4), "median": round(med, 4),
             "p05": round(float(np.percentile(pay, 5)), 3),
@@ -222,6 +263,8 @@ def main() -> int:
             "cleared": round(cleared_f, 4), "margin": round(margin, 3),
             "n_auctions": int(n_auc), "mw_max_auction": float(mw or 0),
             "trim": round(trim, 2), "warnings": "; ".join(why) or None,
+            "beat_rate": v.beat_rate, "tail": [round(x, 3) for x in tail],
+            "fade": "; ".join(r for r in v.reasons if not r.startswith("spike")) or None,
         })
         if (i + 1) % 10000 == 0:
             print(f"  {i+1:,}/{len(universe):,}  kept {len(results):,}", flush=True)
@@ -230,11 +273,20 @@ def main() -> int:
     print(f"\nvalued universe in {time.time()-t0:,.0f}s", flush=True)
     print(f"kept (margin>1.25x, >={MIN_HOURS}h, >=10c): {len(results):,}")
     print(f"skipped — endpoint not in price data: {skipped_pts:,}; thin history: {skipped_hours:,}")
+    faded.sort(key=lambda r: -r["margin"])
+    collapse = sum(1 for r in faded if "collapse" in (r["fade"] or ""))
+    print(f"removed by the fade detector: {len(faded):,} ({collapse:,} on the two-month collapse trigger)")
 
-    (REF / "market_scan_full.json").write_text(json.dumps(results))
+    tag = args.target.replace("-", "")
+    (REF / f"market_scan_full_{tag}.json").write_text(json.dumps(results))
+    (REF / f"market_scan_faded_{tag}.json").write_text(json.dumps(faded[:CAP]))
     # the lost-September lesson: every scan output keeps a dated copy
-    dated_copy(REF / "market_scan_full.json")
+    dated_copy(REF / f"market_scan_full_{tag}.json")
+    dated_copy(REF / f"market_scan_faded_{tag}.json")
     top = results[:CAP]
+    if args.dry_run:
+        print(f"dry run: {len(top)} rows NOT written to path_valuations")
+        return 0
 
     # ---- 4. publish the shortlist
     with psycopg.connect(os.environ["DATABASE_URL"], connect_timeout=40) as c:
@@ -248,12 +300,12 @@ def main() -> int:
                    window_start, window_end, ceiling, cleared_price, trim_pct,
                    value_typical)
                 values ('Market',%s,%s,%s,%s,%s,%s,null,%s,%s,%s,%s,%s,%s,%s,null,%s,
-                        '2025-09-01','2026-07-01',%s,%s,%s,%s)
+                        %s,%s,%s,%s,%s,%s)
             """, [(r["source"], r["sink"], r["tou"], r["hedge"],
                    r["mw_max_auction"], r["n_auctions"], r["worth"], r["median"],
                    r["p05"], r["p95"], r["pct_pos"], r["hours"],
-                   r["margin"], r["warnings"], r["ceiling"], r["cleared"], r["trim"],
-                   r["typical_month"])
+                   r["margin"], r["warnings"], W["window_start"], W["window_end"],
+                   r["ceiling"], r["cleared"], r["trim"], r["typical_month"])
                   for r in top])
         c.commit()
     print(f"published top {len(top)} to path_valuations as book='Market'")
