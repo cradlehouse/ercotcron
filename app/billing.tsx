@@ -30,9 +30,18 @@ async function go(path: string, body: object = {}): Promise<string | null> {
   return r.error ?? 'something went wrong'
 }
 
+/** Off until Stripe keys exist in the environment: a button that can only
+ *  answer "billing is not configured" is worse than no button. */
+export const BILLING_ENABLED = process.env.NEXT_PUBLIC_BILLING_ENABLED === '1'
+
 export function BillingButton({ mode, label }: { mode: 'subscribe' | 'manage'; label?: string }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  if (!BILLING_ENABLED) {
+    return mode === 'subscribe'
+      ? <a href="mailto:team@shadowprice.io?subject=Shadowprice%20subscription" className="text-[13px] text-[#eda63a]">Email us to subscribe</a>
+      : null
+  }
   return (
     <span className="inline-flex flex-col">
       <button
