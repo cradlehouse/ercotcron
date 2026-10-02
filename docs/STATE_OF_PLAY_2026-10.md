@@ -11,10 +11,10 @@ LAWYER_BRIEF.md (compliance posture), MARK_METHODOLOGY.md.
 
 - **Every trial expires Oct 3–6** — and `has_active_plan()` now enforces
   plans INSIDE the member RPCs (migration 20260907080000). When a trial
-  lapses, that user's product goes dark at the database. Steve
-  (steven@saaicoenergy.com) expires **Oct 6**. Either comp him
-  (`update profiles set plan='comp'`) or ship Stripe immediately. Tim = comp
-  + admin already; test accounts will lapse harmlessly.
+  lapses, that user's product goes dark at the database. **Steve was comped
+  2 Oct** (plan='comp', permanent, verified against the gate) — resolved.
+  Tim = comp + admin already; remaining trial accounts are test users and
+  lapse harmlessly. Stripe is the open build for anyone after Steve.
 - **Stripe is not built.** It was deferred ("llc and stripe later", 5 Sep).
   The trial cliff makes it now.
 - **Steve's Teams call** (he offered): walk his ERCOT upload flow; bring the
