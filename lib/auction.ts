@@ -2,40 +2,22 @@
 // anywhere on the site (nav badge, landing, signup, bid sheet) derives from
 // this module — never hand-type "Sep 8" in a component again.
 //
-// From ERCOT's CRR Activity Calendar (WMS-approved edition on file). October
-// 2026 TOU hours are computed, not assumed (products.tou_of over the whole
-// month): 22 weekdays x16, 9 weekend days x16, remainder off-peak; no NERC
-// holiday in October and DST ends Nov 1, so 31 x 24 = 744 hours exactly.
+// From ERCOT's CRR Activity Calendar (CRRActivityCalendar_2025-2027, the
+// WMS-approved edition on file). TOU hours are computed, not assumed
+// (ercot/calendar.py over the whole month). NOV 2026: Thanksgiving moves 16
+// hours from PeakWD to PeakWE. DEC 2026: Christmas falls on a Friday.
 
 export interface AuctionCalendar {
-  name: string          // ERCOT's own auction name, e.g. 2026.OCT.Monthly.Auction
+  name: string          // ERCOT's own auction name, e.g. 2026.NOV.Monthly.Auction
   opens: string         // ISO date bids open
   closes: string        // ISO date bids close (17:00 Central)
-  deliveryStart: string // e.g. 10/1/2026 — goes into the CSV verbatim
+  deliveryStart: string // e.g. 11/1/2026 — goes into the CSV verbatim
   deliveryEnd: string
   deliveryLabel: string
   hours: Record<string, number>
 }
 
 export const AUCTION: AuctionCalendar = {
-  name: '2026.OCT.Monthly.Auction',
-  opens: '2026-09-08',
-  closes: '2026-09-10',
-  deliveryStart: '10/1/2026',
-  deliveryEnd: '10/31/2026',
-  deliveryLabel: '1–31 Oct 2026',
-  hours: { PeakWD: 352, PeakWE: 144, 'Off-peak': 248 },
-}
-
-/** ERCOT posts results on or before this date (CRR Activity Calendar). */
-export const RESULTS_DUE = '2026-09-17'
-
-/** The auction after the current one — swapped into AUCTION when its
- *  valuation run publishes. Dates from ERCOT's CRR Activity Calendar:
- *  NOV bid window opens Oct 13 (12:01am), closes Oct 15 (5pm), results
- *  on or before Oct 22. NOV 2026 hours computed by ercot/calendar.py
- *  (Thanksgiving moves 16 hours from PeakWD to PeakWE). */
-export const NEXT_AUCTION: AuctionCalendar = {
   name: '2026.NOV.Monthly.Auction',
   opens: '2026-10-13',
   closes: '2026-10-15',
@@ -43,6 +25,22 @@ export const NEXT_AUCTION: AuctionCalendar = {
   deliveryEnd: '11/30/2026',
   deliveryLabel: '1–30 Nov 2026',
   hours: { PeakWD: 320, PeakWE: 160, 'Off-peak': 240 },
+}
+
+/** ERCOT posts results on or before this date (CRR Activity Calendar). */
+export const RESULTS_DUE = '2026-10-22'
+
+/** The auction after the current one — swapped into AUCTION when its
+ *  valuation run publishes. DEC bid window opens Nov 3 (12:01am), closes
+ *  Nov 5 (5pm), results on or before Nov 12. */
+export const NEXT_AUCTION: AuctionCalendar = {
+  name: '2026.DEC.Monthly.Auction',
+  opens: '2026-11-03',
+  closes: '2026-11-05',
+  deliveryStart: '12/1/2026',
+  deliveryEnd: '12/31/2026',
+  deliveryLabel: '1–31 Dec 2026',
+  hours: { PeakWD: 352, PeakWE: 144, 'Off-peak': 248 },
 }
 export const NEXT_MONTH = NEXT_AUCTION.name.split('.')[1] ?? ''
 

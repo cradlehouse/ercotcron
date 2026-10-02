@@ -234,3 +234,17 @@ class TestBillingApply:
         uid, secret = self._user(cur, plan="comp")
         self._apply(cur, secret, uid, "canceled")
         assert self._plan(cur, uid)[0] == "comp"
+
+
+class TestMemberScorecardHidesShadows:
+    def test_no_shadow_or_faded_sheet_reaches_members(self, cur):
+        uid = str(uuid.uuid4())
+        cur.execute("""insert into auth.users (id, email, aud, role)
+                       values (%s, %s, 'authenticated', 'authenticated')""",
+                    (uid, f"scorecard-test-{uid[:8]}@example.test"))
+        cur.execute("update profiles set plan = 'comp' where user_id = %s", (uid,))
+        as_user(cur, uid=uid)
+        cur.execute("""select distinct s->>'sheet' from jsonb_array_elements(get_method_score()->'sheets') s""")
+        sheets = {r[0] for r in cur.fetchall()}
+        assert sheets, "member saw no sheets at all"
+        assert not any("shadow" in s or s.endswith("-faded") for s in sheets), sheets

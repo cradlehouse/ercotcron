@@ -81,6 +81,8 @@ def value_months(fit: list[float], tail: list[float] | None = None,
     if target:
         typical = min(typical, max(float(statistics.fmean(target)), 0.0))
 
+    # Informational only — the median-month base already prices the spike
+    # out; scans do not turn this into a warning or a trim.
     if med > 0 and mean > 2 * med:
         reasons.append("spike-driven — the average month is more than twice the typical one")
 

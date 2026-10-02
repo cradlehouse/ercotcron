@@ -56,3 +56,14 @@ October only 3 discovery rows had a limit that fewer than half their fitted
 months beat. Two of them filled: both HKSN_SLR_ALL→ANCHOR_ALL blocks. Three
 rows is too few to test, so no prediction is registered. The rows are marked
 `spike_flag` in the CSV for the record.
+
+## Addendum, same day: the November sheet is sealed
+
+`NOV2026Monthly` was frozen in `sheet_snapshots` on 2 Oct 2026: 400 rows,
+all amber. The removed rows were frozen as `NOV2026Monthly-faded`: 355 rows,
+248 of them amber.
+
+The as-published exhibit is **sealed**: its SHA-256 is
+`94de57da6db39dabef5512dd54bc1d7d7c6b56ee7411ac86016ac9736adf1ea4`. The file
+goes up on /record once the NOV bid window closes, and anyone can check it
+against this hash.

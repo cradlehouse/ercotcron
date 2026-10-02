@@ -237,8 +237,6 @@ def main() -> int:
         if med > 0 and worth > 3 * med:
             trim += 0.25
             why.append("spike-driven")
-        elif any(r.startswith("spike") for r in v.reasons):
-            why.append("spike-driven")
         ceiling = typical * (1 - min(trim, 0.75))
         # Near-zero clearing prices make margin ratios explode into nonsense
         # (a $4 path over a $0.00 clear is "1600x"), and one-auction paths are

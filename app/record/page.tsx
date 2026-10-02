@@ -1,11 +1,17 @@
 // The record, as published — public exhibits (UI review #9).
-// Static page, no auth, no live data: the two as-published sheet freezes are
+// Static page, no auth, no live data: the as-published sheet freezes are
 // served verbatim from /public/record/ and linked here with their standing.
 import { LogoMark } from '../logo'
 
 export const metadata = { title: 'The record, as published — Shadowprice' }
 
 const EXHIBITS = [
+  {
+    href: null,
+    title: 'NOV 2026 monthly — bid sheet (sealed)',
+    published: 'frozen 2026-10-02',
+    standing: 'Pre-registered and sealed: frozen 11 days before its auction opens. The exhibit opens here after the bid window closes (Oct 15, 5pm Central); its SHA-256 is fixed now — 94de57da6db39dabef5512dd54bc1d7d7c6b56ee7411ac86016ac9736adf1ea4 — so the file that appears can be checked against what was frozen.',
+  },
   {
     href: '/record/OCT2026Monthly-2026-09-06.html',
     title: 'OCT 2026 monthly — bid sheet',
@@ -44,22 +50,27 @@ export default function PublicRecord() {
         </p>
 
         <div className="space-y-4">
-          {EXHIBITS.map(e => (
-            <a
-              key={e.href}
-              href={e.href}
-              target="_blank"
-              rel="noopener"
-              className="block rounded-lg border border-line bg-panel/50 p-4 transition-colors hover:bg-panel-2/40"
-            >
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-[14px] font-medium text-[#dbe4e6]">{e.title}</span>
-                <span className="font-mono text-[11px] text-[#61767e]">{e.published}</span>
-              </div>
-              <p className="mt-1 text-[12.5px] text-[#93a6ab]">{e.standing}</p>
-              <span className="mt-2 inline-block text-[12px] text-[#eda63a]">open the exhibit ↗</span>
-            </a>
-          ))}
+          {EXHIBITS.map(e => {
+            const body = (
+              <>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-[14px] font-medium text-[#dbe4e6]">{e.title}</span>
+                  <span className="font-mono text-[11px] text-[#61767e]">{e.published}</span>
+                </div>
+                <p className="mt-1 [overflow-wrap:anywhere] text-[12.5px] text-[#93a6ab]">{e.standing}</p>
+                {e.href && <span className="mt-2 inline-block text-[12px] text-[#eda63a]">open the exhibit ↗</span>}
+              </>
+            )
+            // A sealed exhibit is a card, not a link: only its hash is public yet.
+            return e.href ? (
+              <a key={e.title} href={e.href} target="_blank" rel="noopener"
+                className="block rounded-lg border border-line bg-panel/50 p-4 transition-colors hover:bg-panel-2/40">
+                {body}
+              </a>
+            ) : (
+              <div key={e.title} className="rounded-lg border border-dashed border-line bg-panel/30 p-4">{body}</div>
+            )
+          })}
         </div>
       </main>
     </div>

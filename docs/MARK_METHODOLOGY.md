@@ -1,6 +1,6 @@
 # Shadowprice — CRR Valuation Methodology
 
-**Version 1.2 — September 2026**
+**Version 1.3 — October 2026**
 **Instrument scope:** ERCOT Congestion Revenue Rights (Options and Obligations, all Time-of-Use blocks, monthly and long-term tenors)
 **Purpose:** Independent, reproducible marks for CRR positions, suitable for collateral assessment, portfolio wind-down, and transaction pricing. Marks are **not** fair-value measurements for financial reporting, audit evidence, or financial-reporting support, and may not be represented as such (see Terms of Service §3).
 
@@ -52,6 +52,7 @@ Applied multiplicatively, floored so that total trim never exceeds 75%:
 | Thin history | Fewer than 1,500 payoff-hours behind the rate | −20% |
 | Spike concentration | Mean payoff > 3× median payoff (value came from a few extreme hours) | −25% |
 | Fading congestion | Recent 3-month realized rate < 30% of the historical typical rate | mark uses `min(typical, recent)` |
+| Payout collapse (bid sheets) | The two most recent **settled** months each paid < 25% of the median fitted month — read through the held-out months (see §6) | path removed from the sheet; the removals are frozen as their own graded shadow sheet |
 
 Every applied trim is disclosed on the mark line. An untrimmed number is never silently substituted.
 
@@ -67,7 +68,7 @@ A path whose value history predates a structural change in its driving constrain
 
 ## 6. Validation
 
-Standing rule: **the most recent two months of data are always held out** — nothing is fitted or calibrated on them; they are used only to test.
+Standing rule: **the most recent two months of data are always held out** — nothing is fitted or calibrated on them; they are used only to test. One narrow exception, from v1.3: the bid-sheet payout-collapse check may *read* the held-out months, solely to remove a path. A held-out month can never raise, lower, or otherwise set a published value.
 
 - **Directional reliability (exposure map):** out-of-sample sign agreement between predicted and realized basis response is 96% overall; 97.3% on material exposures vs 93.4% for a random-node control; 97.9% when economically weighted (vs 87.5% control). Direction is trustworthy.
 - **Magnitude reliability:** only 60.6% of out-of-sample responses fall within 2× of the predicted magnitude. **Magnitude is not trustworthy** and is never used for position sizing or point-estimate certainty. Marks are therefore anchored on realized payoffs (§3), with the constraint layer used for *flags and trims*, not for magnitudes.
@@ -142,3 +143,4 @@ to buy, sell, or bid anything.
 | 1.0 | 2026-08-12 | Initial methodology. |
 | 1.1 | 2026-09-04 | Purpose amended: financial-reporting support removed from stated uses (aligns with ToS §3; attested-letter product shelved). Clarified that the 96% figure is the exposure map's sign accuracy, not sheet-level pick accuracy — sheet picks are scored publicly from the SEP-2026 settlement onward. Published bid sheets display a month-conditioned typical payout (median of per-month means, delivery-month-capped, recency-capped) as the expectation base; the annual mean remains as context and fallback. Position-sizing helper on the sheet reduced to equal-split budget arithmetic per §7. |
 | 1.2 | 2026-09-05 | Pre-launch legal review adopted: §10 added — pre-registered Scorecard publication rules (5-holder aggregation floor, 40% MW concentration cap pending counsel confirmation, fixed self-scoring rules, per-figure sample/window/class/run-ID stamps, hypothetical-performance legend, historical-only content). Budget allocator removed from the bid sheet entirely (supersedes v1.1's equal-split form); all sheet limits presented as reference limit prices, imperative phrasing removed. |
+| 1.3 | 2026-10-02 | Bid-sheet valuation unified (`strategy/valuation.py`), effective from the NOV 2026 sheet. (a) **Typical-month cap:** every screen, including the discovery screen (previously priced off the 12-month mean), values a path at no more than its median fitted month, so a reference limit of value ÷ 1.5 is met or beaten in at least half the fitted months. Rationale: HKSN_SLR_ALL→ANCHOR_ALL (OCT sheet) carried a mean-based limit that only 2 of 10 fitted months paid. Under the cap, all 120 discovery candidates failed for November; the NOV sheet contains no discovery rows. (b) **Payout-collapse trigger** (see §4, §6 exception). Rationale: NBOHR_RN and SHAMROCK_RN paths paid $10–27/MWh every month to June 2026, then under $0.50 in July–September. The collapse sat in the held-out months, where the old 3-month check could not see it. In-sample on the scored SEP sheet, 17 rows hit, 4 filled, −$468. Out-of-sample test pre-registered against OCT settlement (docs/preregistrations/2026-10-02-oct-fade-detector.md). Applied to NOV: 355 paths removed (352 by the collapse trigger), frozen as `NOV2026Monthly-faded`. |

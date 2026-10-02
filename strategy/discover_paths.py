@@ -145,6 +145,7 @@ def main() -> int:
         return None
 
     fit_set = set(W["fit_months"])
+    drop = collections.Counter()
     keep = []
     for p in cands:
         vals = []
@@ -162,12 +163,14 @@ def main() -> int:
             if ym in fit_set:
                 vals.append(pay)
         if len(vals) < MIN_HOURS:
+            drop["thin history"] += 1
             continue
         mm = {m: statistics.fmean(v) for m, v in bymonth.items() if len(v) >= 100}
         v = value_months([mm[m] for m in W["fit_months"] if m in mm],
                          [mm[m] for m in W["tail_months"] if m in mm],
                          [mm[m] for m in W["target_months"] if m in mm])
         if v is None or v.fading:
+            drop["fading" if v else "under 6 months"] += 1
             continue
         mean = statistics.fmean(vals)
         med = statistics.median(vals)
@@ -176,13 +179,15 @@ def main() -> int:
         s = stale(p["src"]) or stale(p["snk"])
         if s:
             trim += 0.30; why.append(f"{s} changed <90d")
-        if (med > 0 and mean > 3 * med) or any(r.startswith("spike") for r in v.reasons):
+        if med > 0 and mean > 3 * med:
             trim += 0.25; why.append("spike-driven")
         trim = min(trim, 0.75)
         ceiling = v.typical * (1 - trim)
         if p["cleared"] > 0 and ceiling < HEADROOM * p["cleared"]:
+            drop["typical month under 1.5x the clear"] += 1
             continue
         if ceiling <= 0.05:
+            drop["value under 5c"] += 1
             continue
         keep.append({**p, "mean": mean, "median": med, "typical": v.typical,
                      "p05": sv[int(0.05 * len(sv))], "p95": sv[int(0.95 * len(sv))],
@@ -191,7 +196,7 @@ def main() -> int:
                      "why": "; ".join(why)})
 
     keep.sort(key=lambda r: -(r["ceiling"] - r["cleared"]))
-    print(f"\nsurvived valuation + headroom filter: {len(keep)}")
+    print(f"\nsurvived valuation + headroom filter: {len(keep)}  dropped: {dict(drop)}")
     print(f"{'path':<36}{'TOU':<10}{'ceiling':>8}{'clears':>8}{'held by':>8}")
     for r in keep[:12]:
         print(f"{r['src'][:16]+'->'+r['snk'][:16]:<36}{r['tou']:<10}"
