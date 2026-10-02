@@ -20,6 +20,9 @@ const PUBLIC_PREFIX = [
   // The record, as published — deliberately public: it IS the pitch.
   '/record',
   '/api/health', '/api/claim', '/api/verify-holder', '/api/artifact', '/api/unsubscribe',
+  // Billing: checkout/portal check the Supabase bearer; the webhook checks
+  // Stripe's signature. None of them may sit behind the ops password.
+  '/api/billing',
 ]
 // Ops console routes — the only ones worth a basic-auth challenge. Anything
 // else unknown 404s: a password prompt on /pricing reads as "site is broken".

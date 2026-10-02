@@ -162,3 +162,75 @@ class TestRevisionTrigger:
                         where settlement_point = 'PGTEST_NODE'""")
         n = cur.fetchone()[0]
         assert n >= 1, "price change left no revision-history row"
+
+
+class TestBillingApply:
+    """Stripe webhook -> profiles.plan, only for the holder of the server secret."""
+
+    @staticmethod
+    def _user(cur, plan="trial"):
+        uid = str(uuid.uuid4())
+        cur.execute("""insert into auth.users (id, email, aud, role)
+                       values (%s, %s, 'authenticated', 'authenticated')""",
+                    (uid, f"billing-test-{uid[:8]}@example.test"))
+        cur.execute("update profiles set plan = %s where user_id = %s", (plan, uid))
+        cur.execute("select value from app_secrets where name = 'billing_rpc'")
+        row = cur.fetchone()
+        assert row, "app_secrets 'billing_rpc' is not provisioned"
+        return uid, row[0]
+
+    @staticmethod
+    def _apply(cur, secret, uid, status, event=None):
+        cur.execute("select billing_apply(%s,%s,'customer.subscription.updated',%s,'cus_t','sub_t',%s,now(),'sheet')",
+                    (secret, event or str(uuid.uuid4()), uid, status))
+        return cur.fetchone()[0]
+
+    def _plan(self, cur, uid):
+        cur.execute("select plan, subscription_status from profiles where user_id = %s", (uid,))
+        return cur.fetchone()
+
+    def test_without_the_secret_nothing_changes(self, cur):
+        uid, _ = self._user(cur)
+        cur.execute("savepoint s")
+        with pytest.raises(psycopg.errors.RaiseException):
+            self._apply(cur, "wrong", uid, "active")
+        cur.execute("rollback to savepoint s")
+        assert self._plan(cur, uid)[0] == "trial"
+
+    def test_member_cannot_self_activate(self, cur):
+        uid, _ = self._user(cur)
+        as_user(cur, uid=uid)
+        cur.execute("set local role authenticated")
+        cur.execute("savepoint s")
+        with pytest.raises(psycopg.errors.RaiseException):
+            self._apply(cur, None, uid, "active")
+        cur.execute("rollback to savepoint s")
+        # RLS has no update policy on profiles: the write matches zero rows
+        cur.execute("update profiles set plan = 'active' where user_id = %s", (uid,))
+        assert cur.rowcount == 0
+        cur.execute("reset role")
+        assert self._plan(cur, uid)[0] == "trial"
+
+    def test_status_mapping_and_gate(self, cur):
+        uid, secret = self._user(cur)
+        assert self._apply(cur, secret, uid, "trialing") == "active"
+        as_user(cur, uid=uid)
+        cur.execute("select has_active_plan()")
+        assert cur.fetchone()[0] is True
+        assert self._apply(cur, secret, uid, "past_due") == "active"
+        assert self._apply(cur, secret, uid, "incomplete") == "unchanged"
+        assert self._apply(cur, secret, uid, "canceled") == "cancelled"
+        assert self._plan(cur, uid) == ("cancelled", "canceled")
+        cur.execute("select has_active_plan()")
+        assert cur.fetchone()[0] is False
+
+    def test_replayed_event_is_a_no_op(self, cur):
+        uid, secret = self._user(cur)
+        self._apply(cur, secret, uid, "active", event="evt_replay_test")
+        assert self._apply(cur, secret, uid, "canceled", event="evt_replay_test") == "duplicate"
+        assert self._plan(cur, uid)[0] == "active"
+
+    def test_comp_is_never_billed_down(self, cur):
+        uid, secret = self._user(cur, plan="comp")
+        self._apply(cur, secret, uid, "canceled")
+        assert self._plan(cur, uid)[0] == "comp"

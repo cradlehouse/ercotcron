@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { rpc } from '@/lib/rpc'
 import { AUCTION_MONTH, NEXT_AUCTION, NEXT_MONTH, WINDOW_LABEL, daysToClose } from '@/lib/auction'
 import { sb } from '@/lib/supabase'
+import { BillingButton, planActive } from '../billing'
 
-type Profile = { plan: string; trial_ends: string | null }
+type Profile = { plan: string; trial_ends: string | null; role?: string | null; subscription_status?: string | null; current_period_end?: string | null }
 type Claim = { holder_code: string; status: string }
 
 // Bump when the Terms of Service materially change: every member is asked to
@@ -28,7 +29,8 @@ export default function MemberHome() {
     sb.auth.getSession().then(async ({ data }) => {
       if (!data.session) return
       const { data: p } = await sb.from('profiles')
-        .select('plan, trial_ends').eq('user_id', data.session.user.id).single()
+        .select('plan, trial_ends, role, subscription_status, current_period_end')
+        .eq('user_id', data.session.user.id).single()
       setProfile((p as unknown as Profile) ?? { plan: 'trial', trial_ends: null })
       const [{ data: cl }, { data: acc }] = await Promise.all([
         rpc<Claim[]>('my_claims'),
@@ -70,6 +72,8 @@ export default function MemberHome() {
     )
   }
 
+  const billingNote = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('billing') : null
   const trialDays = profile?.trial_ends
     ? Math.max(0, Math.ceil((new Date(profile.trial_ends).getTime() - Date.now()) / 86400000))
     : null
@@ -77,10 +81,23 @@ export default function MemberHome() {
   return (
     <div className="text-[#f2f6f6]">
       <main className="mx-auto max-w-4xl px-6 py-6">
-        <div className="rounded border border-line bg-panel/60 px-4 py-3 text-[13.5px] text-[#93a6ab]">
-          {profile?.plan === 'trial'
-            ? <>Free trial{trialDays !== null ? ` — ${trialDays} days left` : ''}. We&apos;ll ask for billing details before your trial ends; nothing is charged unless you choose to stay.</>
-            : <>Plan: {profile?.plan}</>}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-line bg-panel/60 px-4 py-3 text-[13.5px] text-[#93a6ab]">
+          <span>
+            {billingNote === 'success'
+              ? <>Thanks — your subscription is being confirmed. Refresh in a moment if the plan still reads trial.</>
+              : profile?.plan === 'trial' && planActive(profile)
+                ? <>Free trial{trialDays !== null ? ` — ${trialDays} day${trialDays === 1 ? '' : 's'} left` : ''}. Subscribe now and the first charge waits until your trial ends.</>
+                : profile?.plan === 'comp' || profile?.role === 'admin'
+                  ? <>Plan: {profile?.plan} — no billing needed.</>
+                  : profile?.plan === 'active'
+                    ? <>Subscribed{profile.subscription_status === 'trialing' && profile.current_period_end
+                        ? ` — first charge ${new Date(profile.current_period_end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                        : profile.subscription_status === 'past_due' ? ' — the last payment failed; update your card to keep access' : ''}.</>
+                    : <>Your {profile?.plan === 'cancelled' ? 'subscription has ended' : 'trial has ended'}. Subscribe to reopen the sheet, your book and the method record.</>}
+          </span>
+          {profile?.plan === 'active'
+            ? <BillingButton mode="manage" />
+            : profile?.plan !== 'comp' && profile?.role !== 'admin' && <BillingButton mode="subscribe" />}
         </div>
 
         <section className="mt-6 rounded border border-line p-4">
