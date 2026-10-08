@@ -292,6 +292,7 @@ def main() -> int:
             paid = cache[p].get(f"{YEAR}-{r['month']:02d}")
             if paid is None:
                 continue
+            r["seq1_clear"], r["realized"] = round(cp, 4), round(paid, 4)   # kept for cut analysis
             h, mw = r["hours"], r["mw"]
             g["mkt_cost"] += cp * h * mw
             g["mkt_paid"] += paid * h * mw
