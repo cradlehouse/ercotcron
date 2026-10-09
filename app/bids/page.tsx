@@ -63,6 +63,17 @@ export default function BidsPage() {
   const [owned, setOwned] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // The explainer opens on a member's first visit only; after that the rows
+  // come first and the explainer is one click away.
+  const [howtoOpen, setHowtoOpen] = useState(false)
+  useEffect(() => {
+    try {
+      if (!window.localStorage.getItem('sp-howto-seen')) {
+        setHowtoOpen(true)
+        window.localStorage.setItem('sp-howto-seen', '1')
+      }
+    } catch { setHowtoOpen(true) }
+  }, [])
 
   useEffect(() => {
     Promise.all([
@@ -88,7 +99,10 @@ export default function BidsPage() {
     const holder = BOOK_HOLDER[r.book]
     return holder === undefined || owned.has(holder)
   })
-  const ownedHolder = Object.values(BOOK_HOLDER).find(h => owned.has(h)) ?? ''
+  // The CSV's Account Holder is the reader's own approved code — any claim,
+  // not just a code with a private book here. With none, the ticket asks.
+  const holderOptions = [...owned].sort()
+  const ownedHolder = Object.values(BOOK_HOLDER).find(h => owned.has(h)) ?? holderOptions[0] ?? ''
 
   const offered = new Map<string, number>()
   for (const o of sheet.offered ?? []) {
@@ -97,7 +111,7 @@ export default function BidsPage() {
   }
   const active = new Set((sheet.points ?? []).filter(p => p.active).map(p => p.name))
   const daysLeft = daysToClose()
-  const auction: AuctionMeta = { ...AUCTION, daysLeft, holder: ownedHolder }
+  const auction: AuctionMeta = { ...AUCTION, daysLeft, holder: ownedHolder, holderOptions }
 
   const ticket: TicketRow[] = []
   const red: PathValuation[] = []
@@ -216,7 +230,8 @@ export default function BidsPage() {
           // The one disclosure block. Every "what this is and is not" caveat
           // that used to repeat across the sheet lives here, expandable —
           // plus the always-visible legal footer at the bottom of the page.
-          <details open className="text-[13px] text-[#93a6ab]">
+          <details open={howtoOpen} onToggle={e => setHowtoOpen((e.currentTarget as HTMLDetailsElement).open)}
+            className="text-[13px] text-[#93a6ab]">
             <summary className="cursor-pointer select-none font-medium text-[#dbe4e6]">
               How to read this — and what it is not
             </summary>

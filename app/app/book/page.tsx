@@ -23,6 +23,33 @@ const TIER_STYLE: Record<string, string> = {
   good: 'text-emerald-400', flagged: 'text-amber-400',
   thin: 'text-[#93a6ab]', unscored: 'text-[#61767e]',
 }
+// Fractional holdings are real exposure: never round a nonzero MW to 0.
+function fmtMw(v: number | string): string {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n === 0) return '0'
+  return Math.abs(n) < 10 ? n.toFixed(1).replace(/\.0$/, '') : Math.round(n).toLocaleString()
+}
+
+// Warnings arrive as raw diagnostics joined by ';' or '·', with one entry per
+// constraint code ("1025__B: re-rated <90d; 6437__F: re-rated <90d"). Group
+// the codes under one plain phrase; keep the raw text on hover.
+const WARN_WORD: Record<string, string> = {
+  're-rated <90d': 'constraint re-rated in the last 90 days',
+}
+function tidyWarnings(w: string): string[] {
+  const byMsg = new Map<string, string[]>()
+  const plain: string[] = []
+  for (const part of w.split(/;\s*|\s·\s/).map(x => x.trim()).filter(Boolean)) {
+    const m = part.match(/^([0-9A-Z_]+):\s*(.+)$/)
+    if (m) byMsg.set(m[2], [...(byMsg.get(m[2]) ?? []), m[1]])
+    else if (!plain.includes(part)) plain.push(part)
+  }
+  return [
+    ...[...byMsg.entries()].map(([msg, codes]) => `${WARN_WORD[msg] ?? msg} (${[...new Set(codes)].join(', ')})`),
+    ...plain.map(x => (x.length > 70 ? `${x.slice(0, 70)}…` : x)),
+  ]
+}
+
 const TIER_WORD: Record<string, string> = {
   good: 'holds up', flagged: 'flagged', thin: 'thin margin', unscored: 'not scored',
 }
@@ -76,6 +103,7 @@ export default function MyBook() {
 
   const totalMw = rows.reduce((s, r) => s + Number(r.mw), 0)
   const flagged = rows.filter(r => r.tier === 'flagged')
+  const totalPositions = rows.reduce((s, r) => s + Number(r.positions ?? 0), 0)
 
   return (
     <div className="mx-auto max-w-6xl p-4">
@@ -84,7 +112,7 @@ export default function MyBook() {
           My book — {rows[0].holder_code}
         </h1>
         <span className="text-xs text-[#93a6ab]">
-          {rows.length} paths · {Math.round(totalMw).toLocaleString()} MW live
+          {totalPositions.toLocaleString()} position{totalPositions === 1 ? '' : 's'} across {rows.length} path{rows.length === 1 ? '' : 's'} · {fmtMw(totalMw)} MW live
         </span>
         {flagged.length > 0 && (
           <span className="text-xs text-amber-400">
@@ -138,7 +166,7 @@ export default function MyBook() {
                            href={`/path?src=${encodeURIComponent(r.source)}&snk=${encodeURIComponent(r.sink)}`}>↗</a>
                       </td>
                       <td className="px-2 py-1.5 text-[#93a6ab]">{r.tou} · {r.hedge}</td>
-                      <td className="px-2 py-1.5 text-right font-mono">{Math.round(Number(r.mw))}</td>
+                      <td className="px-2 py-1.5 text-right font-mono">{fmtMw(r.mw)}</td>
                       <td className="px-2 py-1.5 text-right font-mono">{r.hours}</td>
                       <td className="px-2 py-1.5 text-right font-mono">${Number(r.paid_in).toLocaleString()}</td>
                       <td className="px-2 py-1.5 text-right font-mono">${Number(r.paid_out).toLocaleString()}</td>
@@ -194,7 +222,7 @@ export default function MyBook() {
               <tr key={i} className="border-b border-line/50 hover:bg-panel-2/40">
                 <td className="px-2 py-1.5 font-mono text-[11.5px]">{r.source} → {r.sink}</td>
                 <td className="px-2 py-1.5 text-[#93a6ab]">{r.time_of_use} · {r.hedge_type}</td>
-                <td className="px-2 py-1.5 text-right font-mono">{Math.round(Number(r.mw))}</td>
+                <td className="px-2 py-1.5 text-right font-mono">{fmtMw(r.mw)}</td>
                 <td className="px-2 py-1.5 text-right text-[#93a6ab]">{r.positions}</td>
                 <td className="px-2 py-1.5 text-[#93a6ab]">
                   {r.first_start?.slice(0, 7)} → {r.last_end?.slice(0, 7)}
@@ -207,7 +235,11 @@ export default function MyBook() {
                 </td>
                 <td className={`px-2 py-1.5 ${TIER_STYLE[r.tier] ?? ''}`}>
                   {TIER_WORD[r.tier] ?? r.tier}
-                  {r.warnings ? <span className="ml-1 text-[10px] text-[#61767e]">({r.warnings.slice(0, 60)})</span> : null}
+                  {r.warnings ? (
+                    <span className="ml-1 text-[10px] text-[#61767e]" title={r.warnings}>
+                      ({(() => { const w = tidyWarnings(r.warnings); return w.length > 2 ? `${w.slice(0, 2).join('; ')} +${w.length - 2} more` : w.join('; ') })()})
+                    </span>
+                  ) : null}
                 </td>
               </tr>
             ))}

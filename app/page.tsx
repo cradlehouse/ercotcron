@@ -46,6 +46,52 @@ export default function Landing() {
         </p>
       </section>
 
+      {/* One real row, so a prospect sees the product before signing up. Taken
+          from the OCT 2026 sheet as published (an unsealed exhibit) — never
+          from a sheet whose bid window is still open. */}
+      <section id="sample" className="border-t border-line">
+        <div className="mx-auto max-w-5xl px-6 py-10">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="text-base font-medium">What a row on the sheet looks like</div>
+            <a href="/record/OCT2026Monthly-2026-09-06.html" target="_blank" rel="noopener"
+              className="text-[12.5px] text-[#93a6ab] hover:text-[#dbe4e6]">
+              from the OCT 2026 sheet, as published ↗
+            </a>
+          </div>
+          <div className="mt-4 overflow-x-auto rounded-lg border border-line bg-panel">
+            <table className="w-full min-w-[640px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-line text-[10px] uppercase tracking-wider text-[#7d9096]">
+                  <th className="px-3 py-2 font-medium">Path</th>
+                  <th className="px-3 py-2 font-medium">Block · type</th>
+                  <th className="px-3 py-2 text-right font-medium">Typical month</th>
+                  <th className="px-3 py-2 text-right font-medium">Usually clears</th>
+                  <th className="px-3 py-2 text-right font-medium">Reference limit</th>
+                  <th className="px-3 py-2 text-right font-medium">Suggested MW</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="text-[13px]">
+                  <td className="px-3 py-3 font-medium text-[#dbe4e6]">HKSN_SLR_ALL <span className="text-[#eda63a]">→</span> ANCHOR_ALL</td>
+                  <td className="px-3 py-3 text-[#93a6ab]">PeakWD · OPT</td>
+                  <td className="tnum px-3 py-3 text-right text-[#dbe4e6]">$0.2456/MWh</td>
+                  <td className="tnum px-3 py-3 text-right text-[#93a6ab]">$0.0650</td>
+                  <td className="tnum px-3 py-3 text-right text-[15px] font-bold text-emerald-300">$0.16</td>
+                  <td className="tnum px-3 py-3 text-right text-[#dbe4e6]">10</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 max-w-[75ch] text-[13px] leading-relaxed text-[#93a6ab]">
+            The path has typically paid about 25¢/MWh and usually clears near 6.5¢. The reference
+            limit sits a third under its worth, so even a fill at the full limit keeps a margin —
+            and because every winner pays the same clearing price, the limit adds fills without
+            adding cost. On the sheet, every row carries this, plus likely cost, cost at your
+            limit, and a one-click ERCOT-format CSV.
+          </p>
+        </div>
+      </section>
+
       <section id="market" className="border-t border-line">
         <div className="mx-auto max-w-6xl px-6 py-12">
           <div className="text-base font-medium">The whole market, on the record</div>
@@ -75,12 +121,14 @@ export default function Landing() {
             </p>
           </div>
           <div>
-            <div className="text-base font-medium">Constraint alerts</div>
+            <div className="flex items-baseline gap-2 text-base font-medium">Constraint alerts
+              <span className="rounded border border-line px-1.5 py-0.5 text-[10px] font-normal uppercase tracking-wider text-[#7d9096]">coming</span>
+            </div>
             <p className="mt-2 text-sm leading-relaxed text-[#93a6ab]">
               A third of ERCOT&apos;s actively-binding constraints changed rating in
-              the last 90 days. When a constraint behind your position is
-              re-rated, retired, or scheduled for a relief project, you hear
-              about it before the next auction prices it in.
+              the last 90 days. Today the sheet flags every path sitting on one;
+              email alerts — when a constraint behind your position is re-rated,
+              retired, or gets a relief project — are next.
             </p>
           </div>
           <div>
@@ -107,8 +155,8 @@ export default function Landing() {
             <p>
               <span className="text-[#dbe4e6]">Self-scored in public.</span>{' '}
               Every sheet we publish gets scored against what the auction and the
-              settlement actually did — hits and misses, never edited, starting
-              with the September 2026 auction when it settles in October. Past
+              settlement actually did — hits and misses, never edited, from the
+              September 2026 auction on, all of it on <Link href="/record" className="text-[#dbe4e6] hover:underline">the public record</Link>. Past
               scores are never edited or deleted; a correction is published as a
               new run, next to the old one.
             </p>

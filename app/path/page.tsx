@@ -36,13 +36,19 @@ function Dossier() {
   const [d, setD] = useState<Dossier | null>(null)
   const [attr, setAttr] = useState<Attribution | null | 'loading'>('loading')
   const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!src || !snk) return
+    setError(null)
     sb.rpc('get_path_dossier', { p_src: src, p_snk: snk }).then(({ data, error }) => {
       if (error) setError(error.message)
       else setD(data as Dossier)
     })
+  }, [src, snk, attempt])
+
+  useEffect(() => {
+    if (!src || !snk) return
     // attribution is the heavy call (~10s) — loads independently
     sb.rpc('get_path_attribution', { p_src: src, p_snk: snk }).then(({ data, error }) => {
       setAttr(error ? null : (data as Attribution))
@@ -50,7 +56,30 @@ function Dossier() {
   }, [src, snk])
 
   if (!src || !snk) return <div className="p-6 text-sm text-[#93a6ab]">No path given — open a dossier from the map, the chart, or a bid sheet.</div>
-  if (error) return <div className="p-6 text-sm text-red-400">{error}</div>
+  if (error) {
+    // Never a raw database message: say what happened, offer the two ways on.
+    const slow = /timeout|canceling statement/i.test(error)
+    return (
+      <div className="mx-auto max-w-lg p-6 text-sm text-[#93a6ab]">
+        <div className="font-medium text-[#f2f6f6]">{src} → {snk}</div>
+        <p className="mt-2">
+          {slow
+            ? 'The record for this path took too long to pull. It is usually a busy moment — trying again tends to work.'
+            : 'The record for this path did not load.'}
+        </p>
+        <div className="mt-4 flex items-center gap-3">
+          <button onClick={() => setAttempt(n => n + 1)}
+            className="rounded bg-[#eda63a] px-3 py-1.5 text-xs font-medium text-[#15242c] hover:bg-[#f5b95c]">
+            Retry
+          </button>
+          <a href="/bids" className="rounded border border-line px-3 py-1.5 text-xs text-[#dbe4e6] hover:bg-panel">
+            Back to the bid sheet
+          </a>
+        </div>
+        <p className="mt-4 text-[11px] text-[#61767e]">Your bid-sheet draft is saved in this browser either way.</p>
+      </div>
+    )
+  }
   if (!d) return <div className="p-6 text-sm text-[#7d9096]">pulling the record for {src} → {snk}…</div>
 
   const monthly = d.awards.filter(a => a.auction.endsWith('Monthly'))
