@@ -274,4 +274,11 @@ export interface SettlementPoint {
 
 // --- browser auth client (member area: session persists, unlike the
 // read-only dashboard client above) ---
-export const sb: SupabaseClient = createClient(url ?? '', anonKey ?? '')
+// createClient throws on an empty URL, which failed every build without the
+// env vars (Vercel Preview has none). Unconfigured, it points at an
+// unresolvable placeholder: the module loads, the build succeeds, and every
+// call fails at runtime into the pages' error states instead.
+export const sb: SupabaseClient = createClient(
+  url || 'https://unconfigured.invalid',
+  anonKey || 'unconfigured',
+)
