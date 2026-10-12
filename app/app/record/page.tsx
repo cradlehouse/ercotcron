@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { usdFixed as usd } from '@/lib/fmt'
 import { rpc } from '@/lib/rpc'
+import { sb } from '@/lib/supabase'
 import { ProvenanceStrip } from '../../provenance-strip'
 
 type Bid = {
@@ -38,8 +39,16 @@ const BATCH_TITLE: Record<string, string> = {
 export default function ModelBook() {
   const [bids, setBids] = useState<Bid[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [admin, setAdmin] = useState(false)
 
   useEffect(() => {
+    // The full method score (/app/method) is admin-only until it publishes to
+    // members; linking members there sent them in a circle back to this page.
+    sb.auth.getSession().then(async ({ data }) => {
+      if (!data.session) return
+      const { data: p } = await sb.from('profiles').select('role').eq('user_id', data.session.user.id).single()
+      setAdmin((p as { role?: string } | null)?.role === 'admin')
+    })
     // Session is guaranteed by the member layout's gate.
     rpc<Bid[]>('get_model_book').then(({ data, error }) => {
       if (error) setError(error)
@@ -63,9 +72,15 @@ export default function ModelBook() {
     <div className="mx-auto max-w-5xl px-2 py-2 text-[#f2f6f6]">
       <h1 className="text-lg font-medium">The model&apos;s book</h1>
       <p className="mt-1 text-[12.5px] text-[#7d9096]">
-        Batches below are bids stored before results posted. The{' '}
-        <a href="/app/method" className="text-[#eda63a] hover:underline">full method score</a>{' '}
-        grades every row of every published sheet — including the don&apos;t-bid calls.
+        Batches below are bids stored before results posted.{' '}
+        {admin ? (
+          <>The{' '}
+            <a href="/app/method" className="text-[#eda63a] hover:underline">full method score</a>{' '}
+            grades every row of every published sheet — including the don&apos;t-bid calls.</>
+        ) : (
+          <>A full method score — every row of every published sheet, the don&apos;t-bid calls
+            included — opens to members once its first delivery month has fully settled.</>
+        )}
       </p>
       <p className="mt-1 max-w-[80ch] text-[12.5px] leading-relaxed text-[#93a6ab]">
         Every batch of paper bids the engine put on the record <i>before</i> results posted,

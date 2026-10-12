@@ -17,12 +17,14 @@ const EXHIBITS = [
     title: 'OCT 2026 monthly — bid sheet',
     published: 'published 2026-09-06',
     standing: 'Pre-registered: frozen before its auction ran.',
+    score: 'So far (as of Oct 9): 5 of the 15 paper bids taken from this sheet would have filled at ERCOT’s posted clearing prices. October is still delivering — the settled score posts here after the month closes.',
   },
   {
     href: '/record/SEP2026Monthly-reconstructed-2026-09-06.html',
     title: 'SEP 2026 monthly — bid sheet (reconstruction)',
     published: 'published 2026-09-06',
     standing: 'Reconstructed after the fact from pinned pre-auction inputs, labeled as such.',
+    score: 'Scored: 0 of 12 paper bids would have filled — 10 of the paths never traded in that auction, and the 2 that did cleared above our limits. A miss on liquidity, and the reason the sheet now ranks paths with real clearing history first.',
   },
 ]
 
@@ -33,7 +35,11 @@ export default function PublicRecord() {
         <a href="/" className="flex items-center gap-2 text-sm font-semibold tracking-tight">
           <LogoMark size={20} /> <span><span className="text-[#eda63a]">shadow</span>price</span>
         </a>
-        <a href="/methodology" className="text-xs text-[#7d9096] hover:text-[#dbe4e6]">Methodology</a>
+        <nav className="flex items-center gap-4 whitespace-nowrap text-xs text-[#7d9096]">
+          <a href="/methodology" className="hover:text-[#dbe4e6]">Methodology</a>
+          <a href="/signin" className="hover:text-[#dbe4e6]">Sign in</a>
+          <a href="/signup" className="rounded bg-[#e8eef0] px-2.5 py-1 font-medium text-[#15242c] hover:bg-[#f6fafb]">Start free trial</a>
+        </nav>
       </header>
       <main className="mx-auto max-w-3xl px-6 pb-16">
         <h1 className="mb-1 text-xl font-semibold">The record, as published</h1>
@@ -43,8 +49,8 @@ export default function PublicRecord() {
           hypothetical — no bids were submitted and no positions were held.
         </p>
         <p className="mb-8 max-w-[70ch] text-[13px] leading-relaxed text-[#7d9096]">
-          The two exhibits differ in standing: OCT&nbsp;2026 was frozen <i>before</i> its
-          auction ran (pre-registered); SEP&nbsp;2026 is a reconstruction from pinned
+          The exhibits differ in standing: NOV and OCT&nbsp;2026 were frozen <i>before</i> their
+          auctions ran (pre-registered); SEP&nbsp;2026 is a reconstruction from pinned
           pre-auction inputs made after the fact, labeled as such, and holds itself to the
           same grading.
         </p>
@@ -58,6 +64,7 @@ export default function PublicRecord() {
                   <span className="font-mono text-[11px] text-[#61767e]">{e.published}</span>
                 </div>
                 <p className="mt-1 [overflow-wrap:anywhere] text-[12.5px] text-[#93a6ab]">{e.standing}</p>
+                {e.score && <p className="mt-2 border-l-2 border-[#eda63a]/60 pl-3 text-[12.5px] text-[#dbe4e6]">{e.score}</p>}
                 {e.href && <span className="mt-2 inline-block text-[12px] text-[#eda63a]">open the exhibit ↗</span>}
               </>
             )

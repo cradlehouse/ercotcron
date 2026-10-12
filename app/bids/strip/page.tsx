@@ -103,7 +103,7 @@ export default function StripSheet() {
             ? <span className="rounded bg-panel-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#93a6ab]">closed — awaiting posted results</span>
             : null
         })()}
-        <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← September bid sheet</a>
+        <a href="/bids" className="ml-auto text-xs text-[#7d9096] hover:text-[#dbe4e6]">← Monthly bid sheet</a>
       </div>
       <p className="mb-3 max-w-[90ch] text-[12.5px] text-[#93a6ab]">
         This auction sells each month separately, so covering Jul–Dec (&ldquo;a strip&rdquo;)

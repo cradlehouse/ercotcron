@@ -2,7 +2,7 @@
 // Member home: trial status + the products. Decision-focused, not a terminal.
 import { useEffect, useState } from 'react'
 import { rpc } from '@/lib/rpc'
-import { AUCTION_MONTH, NEXT_AUCTION, NEXT_MONTH, WINDOW_LABEL, daysToClose } from '@/lib/auction'
+import { AUCTION, AUCTION_MONTH, CLOSES_LABEL, NEXT_AUCTION, NEXT_MONTH, RESULTS_DUE, WINDOW_LABEL, daysToClose, phase } from '@/lib/auction'
 import { sb } from '@/lib/supabase'
 import { BillingButton, planActive } from '../billing'
 
@@ -22,6 +22,15 @@ export default function MemberHome() {
   const [claimMsg, setClaimMsg] = useState<string | null>(null)
   const [accepted, setAccepted] = useState<boolean | null>(null)
   const [agreeTick, setAgreeTick] = useState(false)
+  const [showClaim, setShowClaim] = useState(false)
+  const [draftCount, setDraftCount] = useState<number | null>(null)
+  useEffect(() => {
+    // The bid sheet saves its draft in this browser (see bids/ticket.tsx).
+    try {
+      const raw = window.localStorage.getItem(`sp-draft:${AUCTION.name}`)
+      if (raw) setDraftCount(Object.values((JSON.parse(raw) as { checked: Record<string, boolean> }).checked ?? {}).filter(Boolean).length)
+    } catch { /* no storage */ }
+  }, [])
 
   useEffect(() => {
     // The layout's MemberGate guarantees a session; getSession here is only
@@ -72,6 +81,22 @@ export default function MemberHome() {
     )
   }
 
+  const approved = claims.filter(c => c.status === 'approved')
+  const year = AUCTION.name.split('.')[0]
+  const nextYear = NEXT_AUCTION.name.split('.')[0]
+  const nextOpens = new Date(`${NEXT_AUCTION.opens}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const resultsBy = new Date(`${RESULTS_DUE}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const p = phase()
+  const auctionHeadline = p === 'open'
+    ? `${AUCTION_MONTH} ${year} monthly — bids ${WINDOW_LABEL}`
+    : p === 'awaiting-results'
+      ? `${AUCTION_MONTH} ${year} monthly — bids closed, results by ${resultsBy}`
+      : `${NEXT_MONTH} ${nextYear} monthly — bids open ${nextOpens}`
+  const auctionDetail = p === 'open'
+    ? `The sheet is ready: limits, sizing, and the ERCOT-format CSV. ${daysToClose() === 0 ? 'Bids close today at 5pm Central.' : `Bids close ${CLOSES_LABEL} at 5pm Central.`}`
+    : p === 'awaiting-results'
+      ? `The ${AUCTION_MONTH} sheet stays up for reference while ERCOT posts results; the ${NEXT_MONTH} sheet posts before its window opens ${nextOpens}.`
+      : `The ${NEXT_MONTH} sheet posts before its window opens; the last sheet stays up for reference.`
   const billingNote = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('billing') : null
   const trialDays = profile?.trial_ends
@@ -100,10 +125,31 @@ export default function MemberHome() {
             : profile?.plan !== 'comp' && profile?.role !== 'admin' && <BillingButton mode="subscribe" />}
         </div>
 
+        {/* The next working action comes first: what auction, what state, the sheet. */}
+        <section className="mt-6 rounded border border-[#eda63a]/40 bg-panel/40 p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="text-[15px] font-medium">{auctionHeadline}</div>
+            {draftCount !== null && (
+              <span className="text-[12px] text-[#93a6ab]">
+                draft in this browser: {draftCount} bid{draftCount === 1 ? '' : 's'} selected
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-[13.5px] leading-relaxed text-[#93a6ab]">{auctionDetail}</p>
+          <a href="/bids" className="mt-3 inline-block rounded bg-[#eda63a] px-3 py-1.5 text-xs font-medium text-[#15242c] hover:bg-[#f5b95c]">
+            {draftCount ? 'Continue your draft' : 'Open the bid sheet'}
+          </a>
+        </section>
+
         <section className="mt-6 rounded border border-line p-4">
-          <div className="text-[15px] font-medium">Your CRR account</div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[15px] font-medium">Your CRR account</div>
+            {approved.length > 0 && (
+              <a href="/app/book" className="text-[12.5px] text-[#eda63a] hover:text-[#f5b95c]">Open my book →</a>
+            )}
+          </div>
           {claims.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
               {claims.map(c => (
                 <span key={c.holder_code}
                   className="rounded border border-line px-2 py-1 font-mono">
@@ -113,6 +159,11 @@ export default function MemberHome() {
                   </span>
                 </span>
               ))}
+              {approved.length > 0 && !showClaim && (
+                <button onClick={() => setShowClaim(true)} className="text-[#7d9096] hover:text-[#dbe4e6]">
+                  + claim another code
+                </button>
+              )}
             </div>
           ) : (
             <p className="mt-1 text-[13.5px] text-[#93a6ab]">
@@ -121,36 +172,38 @@ export default function MemberHome() {
               otherwise a confirmation goes to the registered address.
             </p>
           )}
+          {(approved.length === 0 || showClaim) && (
           <form className="mt-3 flex gap-2" onSubmit={async e => {
-            e.preventDefault(); setClaimMsg(null)
-            const { data: sess } = await sb.auth.getSession()
-            const tok = sess.session?.access_token
-            const r = await fetch('/api/claim', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
-              body: JSON.stringify({ code }),
-            }).then(x => x.json()).catch(() => ({ status: 'error' }))
-            if (r.status === 'approved') setClaimMsg('Approved — your book is unlocked.')
-            else if (r.status === 'pending' && r.delivery === 'emailed')
-              setClaimMsg(`Confirmation sent to the account's registered contact (${r.registered}).`)
-            else if (r.status === 'pending') setClaimMsg('Claim received — pending manual review (usually same day).')
-            else if (r.status === 'invalid')
-              setClaimMsg("That doesn't look like a CRR account code — a short all-caps code, like XSAAIC.")
-            else if (r.status === 'rate_limited')
-              setClaimMsg('Too many claim attempts today — try again tomorrow, or email team@shadowprice.io.')
-            else if (r.status === 'unknown')
-              setClaimMsg("That code isn't in ERCOT's CRR holder registry — check the spelling, or email team@shadowprice.io if the account is newly registered.")
-            else setClaimMsg('Something went wrong — try again.')
-            const { data: cl } = await rpc<Claim[]>('my_claims')
-            setClaims(cl ?? [])
-          }}>
-            <input value={code} onChange={e => setCode(e.target.value.toUpperCase())}
-              placeholder="ACCOUNT CODE"
-              className="w-40 rounded border border-line bg-panel px-2 py-1.5 font-mono text-xs outline-none focus:border-[#eda63a]" />
-            <button className="rounded bg-[#eda63a] px-3 py-1.5 text-xs font-medium text-[#15242c] hover:bg-[#f5b95c]">
-              Claim
-            </button>
-          </form>
+              e.preventDefault(); setClaimMsg(null)
+              const { data: sess } = await sb.auth.getSession()
+              const tok = sess.session?.access_token
+              const r = await fetch('/api/claim', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+                body: JSON.stringify({ code }),
+              }).then(x => x.json()).catch(() => ({ status: 'error' }))
+              if (r.status === 'approved') setClaimMsg('Approved — your book is unlocked.')
+              else if (r.status === 'pending' && r.delivery === 'emailed')
+                setClaimMsg(`Confirmation sent to the account's registered contact (${r.registered}).`)
+              else if (r.status === 'pending') setClaimMsg('Claim received — pending manual review (usually same day).')
+              else if (r.status === 'invalid')
+                setClaimMsg("That doesn't look like a CRR account code — a short all-caps code, like XSAAIC.")
+              else if (r.status === 'rate_limited')
+                setClaimMsg('Too many claim attempts today — try again tomorrow, or email team@shadowprice.io.')
+              else if (r.status === 'unknown')
+                setClaimMsg("That code isn't in ERCOT's CRR holder registry — check the spelling, or email team@shadowprice.io if the account is newly registered.")
+              else setClaimMsg('Something went wrong — try again.')
+              const { data: cl } = await rpc<Claim[]>('my_claims')
+              setClaims(cl ?? [])
+            }}>
+              <input value={code} onChange={e => setCode(e.target.value.toUpperCase())}
+                placeholder="ACCOUNT CODE"
+                className="w-40 rounded border border-line bg-panel px-2 py-1.5 font-mono text-xs outline-none focus:border-[#eda63a]" />
+              <button className="rounded bg-[#eda63a] px-3 py-1.5 text-xs font-medium text-[#15242c] hover:bg-[#f5b95c]">
+                Claim
+              </button>
+            </form>
+          )}
           {claimMsg && <p className="mt-2 text-xs text-[#93a6ab]">{claimMsg}</p>}
           <p className="mt-3 border-t border-line pt-2 text-[11px] leading-relaxed text-[#61767e]">
             We hold no CRR positions, sell no exit intelligence, and never show your book to
@@ -159,18 +212,15 @@ export default function MemberHome() {
           </p>
         </section>
 
-        <div className="mt-8 grid gap-6 sm:grid-cols-2">
+        <div className="mt-8 grid gap-6 sm:grid-cols-3">
           <section className="rounded border border-line p-4">
-            <div className="text-[15px] font-medium">Next auction</div>
+            <div className="text-[15px] font-medium">Track record</div>
             <p className="mt-1 text-[13.5px] leading-relaxed text-[#93a6ab]">
-              {daysToClose() >= 0
-                ? `${AUCTION_MONTH} 2026 monthly — bids ${WINDOW_LABEL}.`
-                : `${NEXT_MONTH} 2026 monthly — bids open ${new Date(`${NEXT_AUCTION.opens}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}.`} Your bid sheet posts here when
-              the October valuation run completes, with limits, sizing, and
-              the ERCOT-format CSV.
+              Every sheet scored against what the auction and settlement actually did —
+              misses and losses included.
             </p>
-            <a href="/bids" className="mt-3 inline-block rounded bg-[#eda63a] px-3 py-1.5 text-xs font-medium text-[#15242c] hover:bg-[#f5b95c]">
-              Open current bid sheet
+            <a href="/app/record" className="mt-3 inline-block rounded border border-line px-3 py-1.5 text-xs text-[#dbe4e6] hover:bg-panel">
+              Open track record
             </a>
           </section>
 
@@ -185,21 +235,14 @@ export default function MemberHome() {
             </a>
           </section>
 
-          <section className="rounded border border-line p-4">
-            <div className="text-[15px] font-medium">Constraint alerts</div>
+          <section className="rounded border border-dashed border-line p-4">
+            <div className="flex items-baseline gap-2">
+              <div className="text-[15px] font-medium">Constraint alerts</div>
+              <span className="rounded bg-panel px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[#7d9096]">coming</span>
+            </div>
             <p className="mt-1 text-[13.5px] leading-relaxed text-[#93a6ab]">
-              Re-rates, retirements, and relief projects behind the paths you
-              care about. Email alerts are being wired now — trial members get
-              them first.
-            </p>
-          </section>
-
-          <section className="rounded border border-line p-4">
-            <div className="text-[15px] font-medium">Track record</div>
-            <p className="mt-1 text-[13.5px] leading-relaxed text-[#93a6ab]">
-              Every sheet self-scored against what the auction and settlement
-              actually did. First public scorecard publishes after the
-              September settlement.
+              Email when a constraint behind a path you hold is re-rated, retired, or gets a
+              relief project. Not live yet — the sheet&apos;s flags carry the same signal today.
             </p>
           </section>
         </div>

@@ -12,7 +12,7 @@ import { sb } from '@/lib/supabase'
 import { AUCTION_MONTH, NEXT_MONTH, NEXT_AUCTION, RESULTS_DUE, CLOSES_LABEL, daysToClose, phase } from '@/lib/auction'
 import { LogoMark } from './logo'
 
-const SELF_HEADED = ['/', '/signin', '/signup', '/reset', '/terms', '/privacy', '/methodology']
+const SELF_HEADED = ['/', '/signin', '/signup', '/reset', '/terms', '/privacy', '/methodology', '/record']
 const MENU = [
   { href: '/app', label: 'Today' },
   { href: '/bids', label: 'Bid sheets' },

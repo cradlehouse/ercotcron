@@ -4,6 +4,13 @@ import Link from 'next/link'
 import { sb } from '@/lib/supabase'
 import { LogoMark } from '../logo'
 
+// Only same-site paths: an open redirect would let a link bounce a fresh
+// session to someone else's page.
+function nextPath(): string {
+  const n = new URLSearchParams(window.location.search).get('next') ?? ''
+  return n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/\\') ? n : '/app'
+}
+
 export default function SignIn() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -16,7 +23,7 @@ export default function SignIn() {
     const { error } = await sb.auth.signInWithPassword({ email, password })
     setBusy(false)
     if (error) { setMsg(error.message); return }
-    window.location.href = '/app'
+    window.location.href = nextPath()
   }
 
   // No-password paths: a one-click emailed sign-in link, and a proper reset.
@@ -25,6 +32,8 @@ export default function SignIn() {
     setBusy(true); setMsg(null)
     const { error } = await sb.auth.signInWithOtp({
       email,
+      // /app stays the link's landing: Supabase only honours redirect URLs on
+      // its allow-list, and an unlisted deep link would silently fall back.
       options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/app` },
     })
     setBusy(false)

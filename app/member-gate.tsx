@@ -19,7 +19,8 @@ export function MemberGate({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     sb.auth.getSession().then(async ({ data }) => {
       if (!data.session) {
-        window.location.href = '/signin'
+        // Carry the page they asked for, so sign-in lands them back on it.
+        window.location.href = `/signin?next=${encodeURIComponent(window.location.pathname + window.location.search)}`
         return
       }
       if (path === '/app') { setState('ok'); return }
