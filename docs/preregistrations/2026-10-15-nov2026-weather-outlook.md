@@ -101,3 +101,35 @@ to 0.364 and E3 from 0.196 to 0.202.
 The v2 and v3 NOV paper bids are parked until the grid research settles.
 For November this outlook therefore stands beside v1 alone. That changes no
 rule, event or forecast.
+
+## Addendum, 14 Oct 2026 (evening): re-timed to freeze before the NOV auction cutoff
+
+Tim asked for November to be the **first live forward test**, so the freeze
+moves earlier. It now happens on **Thu 15 Oct 2026**:
+
+- after CPC's November outlook posts (about 8:30 am ET);
+- before **4:00 pm CT**;
+- with the SHA-256 addendum committed before the NOV auction decision cutoff,
+  **5:00 pm CT**.
+
+Inputs are cut off at the freeze. They include CPC's 15 Oct monthly and
+seasonal discussions and the 8 Oct ENSO discussion. Scoring is unchanged:
+on or after 7 Dec. No rule, event, threshold or forecast changed.
+
+`--fetch-cpc` stores the CPC context automatically: URL, issue stamp and
+discussion text. With `--expect-issued 2026-10-15` it refuses to proceed
+until both CPC discussions carry that date. The CPC text is context only,
+as registered.
+
+The freeze was rehearsed tonight into a scratch directory with that evening's
+(September) CPC pages. The build took 2 seconds from cached ERA5, and a
+second freeze was refused. Nothing was written to `docs/outlooks/`.
+
+Freeze-day steps:
+
+```bash
+.venv/bin/python -m strategy.winter_outlook --outlook NOV2026 --fetch-cpc docs/outlooks/NOV2026-cpc-context.json --expect-issued 2026-10-15
+.venv/bin/python -m strategy.winter_outlook --outlook NOV2026 --freeze --cpc docs/outlooks/NOV2026-cpc-context.json
+```
+
+Then commit both files, with the printed SHA-256 added here, before 5:00 pm CT.

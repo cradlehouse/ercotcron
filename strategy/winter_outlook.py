@@ -300,6 +300,49 @@ def build(spec: Spec, cpc: dict | None = None) -> dict:
     }
 
 
+CPC_PAGES = {
+    "enso_discussion": "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml",
+    "monthly_discussion": "https://www.cpc.ncep.noaa.gov/products/predictions/long_range/fxus07.html",
+    "seasonal_discussion": "https://www.cpc.ncep.noaa.gov/products/predictions/long_range/fxus05.html",
+}
+ISSUED = r"(\d{3,4} [AP]M E[SD]T \w{3} \w{3} \d{1,2} \d{4})"
+
+
+def fetch_cpc(expect: str | None) -> dict:
+    """The CPC discussions as published right now: url, issue stamp, text.
+
+    Context only (no number here feeds a forecast). With expect=YYYY-MM-DD,
+    refuses unless the monthly and seasonal discussions carry that issue
+    date, so a freeze can't silently use last month's outlook.
+    """
+    import html
+    import re
+    out = {"retrieved_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds")}
+    for key, url in CPC_PAGES.items():
+        raw = httpx.get(url, timeout=60).text
+        raw = re.sub(r"<script.*?</script>|<style.*?</style>", "", raw, flags=re.S)
+        text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", raw))).strip()
+        m = re.search(ISSUED, text)
+        issued = None
+        if m:
+            parts = m.group(1).split()
+            issued = dt.datetime.strptime(" ".join(parts[-3:]), "%b %d %Y").date().isoformat()
+        else:   # the ENSO page says e.g. "8 October 2026"
+            m = re.search(r"(\d{1,2} (?:January|February|March|April|May|June|July|August|"
+                          r"September|October|November|December) \d{4})", text)
+            if m:
+                issued = dt.datetime.strptime(m.group(1), "%d %B %Y").date().isoformat()
+        out[key] = {"url": url, "issued_stamp": m.group(1) if m else None,
+                    "issued": issued, "text": text[:20000]}
+    if expect:
+        stale = [k for k in ("monthly_discussion", "seasonal_discussion")
+                 if out[k]["issued"] != expect]
+        if stale:
+            raise SystemExit(f"CPC not yet updated for {expect}: {stale} "
+                             f"({[out[k]['issued'] for k in stale]})")
+    return out
+
+
 def brier(p: float, hit: bool) -> float:
     return round((p - float(hit)) ** 2, 4)
 
@@ -336,9 +379,16 @@ def main() -> None:
     ap.add_argument("--outlook", choices=sorted(SPECS), default="JAN2027")
     ap.add_argument("--freeze", action="store_true")
     ap.add_argument("--score", action="store_true")
-    ap.add_argument("--cpc", help="JSON of hand-transcribed CPC releases (source, url, issued, text)")
+    ap.add_argument("--cpc", help="JSON of CPC context (written by --fetch-cpc)")
+    ap.add_argument("--fetch-cpc", metavar="PATH", help="save the live CPC discussions to PATH")
+    ap.add_argument("--expect-issued", help="with --fetch-cpc: require this issue date")
     a = ap.parse_args()
     spec = SPECS[a.outlook]
+    if a.fetch_cpc:
+        body = fetch_cpc(a.expect_issued)
+        pathlib.Path(a.fetch_cpc).write_text(json.dumps(body, indent=2) + "\n")
+        print({k: v["issued_stamp"] for k, v in body.items() if isinstance(v, dict)})
+        return
     if a.score:
         print(json.dumps(score(spec, json.loads(spec.out.read_text())), indent=2))
         return
