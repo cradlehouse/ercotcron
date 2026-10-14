@@ -1,0 +1,102 @@
+# Pre-registration: the January 2027 weather outlook
+
+**Registered:** 14 Oct 2026, before any base rate below was computed. The
+git commit carrying this file and `strategy/winter_outlook.py` is the
+timestamp. **Freeze:** Friday 4 Dec 2026, inputs cut off 3 Dec 23:59 CT,
+before the JAN 2027 bid window (Dec 8–10). **Scored:** on or after 10 Feb
+2027, once ERA5 covers all of January.
+
+This is a physical outlook. It sits next to the January bid ticket and never
+changes it. It holds no bid limit, mark or dollar adjustment. The valuation
+and published-sheet logic is untouched.
+
+## Why these questions
+
+January 2026's payout was event-driven. Winter Storm Fern (Jan 25–28)
+produced about half of that month's market-wide payout on positively priced
+obligation CRRs. Jan 21–28 produced about 63%. Counterflow obligations lost
+about $22M market-wide (read-only analysis, UI-review session, 14 Oct). So
+the useful question is whether there will be cold-air outbreaks and wind
+lulls, and when. The monthly average temperature matters less.
+
+Our price history starts July 2024 and contains no El Niño winter. This
+outlook therefore makes **no priced claim**. Our `load_forecast` and
+`net_load` tables start April 2026 and hold no winter at all, so load
+isn't modelled.
+
+## Data (pinned)
+
+- **Temperature:** ERA5 daily mean/min, from Open-Meteo's archive with
+  `models=era5`, for Januaries 1991–2026. Each city's own ERA5 grid cell.
+  The proxy is a fixed demand weighting, DFW 0.35, Houston 0.35, Austin
+  0.15, San Antonio 0.15. It isn't validated and isn't ERCOT weather zones.
+- **Wind:** ERA5 hourly 100 m wind at the 13 collector sites in
+  `ercot/weather.py`. The generic `wind_power_fraction` curve is applied
+  per site-hour first, then sites are averaged with equal weights.
+- **ENSO:** CPC ONI v5, DJF value for each January.
+- **Proxy check:** our `wind_power` SystemWide actuals, Dec–Feb 2024-25 and
+  2025-26.
+- **CPC context:** the latest ENSO discussion (12 Nov) and seasonal outlook
+  (19 Nov) at freeze, transcribed with URL and issue date. They're context
+  only. There is no calibrated conversion, so they don't move a probability.
+  Later releases (10 Dec ENSO, 17 Dec January outlook) are excluded.
+
+## Events (January 2027, CT calendar days)
+
+| Id | Event | Definition |
+|---|---|---|
+| E1 | Freeze day | proxy daily mean ≤ 32°F; also counted |
+| E2 | Severe cold | any day with proxy daily min ≤ 20°F |
+| E3 | Outbreak run | ≥ 3 consecutive E1 days |
+| W1 | Wind lull | ≥ 3 consecutive days with proxy wind capacity factor < 0.15 |
+| T1 | Late timing | given any E1, the first falls on Jan 16–31 (secondary) |
+
+Solar isn't an event. January solar is small, and the stress hours are
+around sunrise and after dark.
+
+## Forecasts
+
+- **F0, climatology:** Januaries 1991–2026 (n = 36), Jeffreys point estimate.
+- **F1, ENSO-conditional:** Januaries with DJF ONI ≥ 1.0. That's roughly 8
+  winters, too few to trust alone.
+- **F2, primary:** F1 shrunk toward F0 with 10 pseudo-years,
+  `(k₁ + 10·p₀) / (n₁ + 10)`.
+- A 2006–2026 subset is reported as a warming-trend sensitivity. It isn't
+  scored.
+- E1 counts are bucketed {0, 1–2, 3–5, 6+} with the same three forecasts.
+
+## Scoring
+
+- **Binary events:** Brier score per event for F0, F1 and F2.
+- **E1 buckets:** ranked probability score.
+- **W1** is scored only if the proxy correlates with our actuals at
+  r ≥ 0.6 (daily, both winters). Otherwise it's reported as unvalidated.
+- **Outcome data:** ERA5 via the same pinned source, retrieved on or after
+  10 Feb 2027. The retrieval time is recorded, and ERA5T-to-final revisions
+  are noted if found.
+
+**Primary prediction:** F2's Brier score summed over E1–E3 is lower than
+F0's. One January is one observation, so this goes on a running record.
+A single winter can't establish skill in either direction, and it won't be
+presented as if it does.
+
+## What the outlook says in market terms
+
+Directional only, with no dollar figure.
+
+- An E3 run is the Fern-type scenario. Payout concentrates in a few days, and
+  counterflow obligations are the exposed side.
+- A W1 lull without E1 is a residual-demand scenario. Its path effects
+  aren't validated here.
+
+Either way, the outlook explains January. It doesn't size a position.
+
+## Freeze procedure
+
+```bash
+.venv/bin/python -m strategy.winter_outlook --freeze --cpc <transcribed CPC context>.json
+```
+
+This writes `docs/outlooks/JAN2027-weather-outlook.json`, which is refused
+if it already exists. The SHA-256 is added below in the freeze-day commit.
+Every outcome gets published, the same way as before.
