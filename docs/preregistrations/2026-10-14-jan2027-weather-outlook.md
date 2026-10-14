@@ -100,3 +100,20 @@ Either way, the outlook explains January. It doesn't size a position.
 This writes `docs/outlooks/JAN2027-weather-outlook.json`, which is refused
 if it already exists. The SHA-256 is added below in the freeze-day commit.
 Every outcome gets published, the same way as before.
+
+## Addendum, same day: dry run (no rule changed)
+
+The builder was run once after the rules commit (`388ef33`) to check it
+works. No January 2027 data exists yet, so it computed historical base rates
+only. Three notes:
+
+- The ONI ≥ 1.0 set holds **5** Januaries (1992, 1998, 2010, 2016, 2024),
+  not "roughly 8". F1 alone is therefore very thin. That's why F2, the
+  shrunk forecast, is primary. The rule is unchanged.
+- `latest_oni` reported the last DJF row instead of the most recent season.
+  This was a reporting fix only and touches no forecast.
+- W1, as defined, happens in most historical Januaries. It's kept as
+  registered. Any stricter lull definition would be added before the freeze
+  as a dated, secondary event, never in place of W1.
+- The wind proxy correlates with our SystemWide actuals at r = 0.85 over
+  180 winter days, so W1 is scoreable under the r ≥ 0.6 rule.

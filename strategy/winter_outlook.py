@@ -137,14 +137,14 @@ def outcomes(year: int) -> dict:
     }
 
 
-def oni_djf() -> dict[int, float]:
-    """DJF ONI by January year, from CPC's v5 table."""
-    out = {}
+def oni_table() -> list[tuple[str, int, float]]:
+    """(season, year, anomaly) rows from CPC's v5 table, in file order."""
+    rows = []
     for line in httpx.get(ONI_URL, timeout=60).text.splitlines()[1:]:
         parts = line.split()
-        if len(parts) == 4 and parts[0] == "DJF":
-            out[int(parts[1])] = float(parts[3])
-    return out
+        if len(parts) == 4:
+            rows.append((parts[0], int(parts[1]), float(parts[3])))
+    return rows
 
 
 def jeffreys(k: int, n: int) -> tuple[float, float, float]:
@@ -206,14 +206,16 @@ def wind_proxy_check() -> dict:
 
 
 def build(cpc: dict | None = None) -> dict:
-    oni = oni_djf()
+    table = oni_table()
+    oni = {y: a for season, y, a in table if season == "DJF"}   # DJF ONI by January year
     history = [outcomes(y) for y in YEARS]
     return {
         "outlook": "JAN2027 weather outlook",
         "preregistration": "docs/preregistrations/2026-10-14-jan2027-weather-outlook.md",
         "built_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
         "source": "ERA5 via archive-api.open-meteo.com (models=era5); CPC ONI v5",
-        "latest_oni": {k: v for k, v in sorted(oni.items())[-1:]},
+        # the most recent season in the file, not the last DJF
+        "latest_oni": dict(zip(("season", "year", "anomaly"), table[-1])),
         "forecast": forecast(history, oni),
         "wind_proxy_check": wind_proxy_check(),
         "history": history,
