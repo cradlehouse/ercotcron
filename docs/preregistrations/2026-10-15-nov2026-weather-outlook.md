@@ -95,3 +95,9 @@ to 0.364 and E3 from 0.196 to 0.202.
 - **E1–E3 never occurred** in any training November. Their forecasts sit near
   zero, which was expected and is not a reason to change them. W1 occurs in
   93% of Novembers. K1 and W2 carry the information.
+
+## Note, 15 Oct 2026
+
+The v2 and v3 NOV paper bids are parked until the grid research settles.
+For November this outlook therefore stands beside v1 alone. That changes no
+rule, event or forecast.
