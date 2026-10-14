@@ -64,31 +64,35 @@ def precompute(c) -> None:
     c.execute("alter table node_day_spread enable row level security")
     c.execute("revoke all on node_day_spread from anon, authenticated")
     c.commit()
+    # Resume from the day after the last stored date. Skipping any month that
+    # already had rows left a partial month (Sep 2026 stopped on the 7th) and
+    # everything after it unfilled; the insert is on-conflict-do-nothing, so
+    # re-running a partial month is safe.
+    last = c.execute("select max(delivery_date) from node_day_spread").fetchone()[0]
     mo = dt.date(WINDOW_START.year, WINDOW_START.month, 1)
+    if last is not None:
+        mo = dt.date(last.year, last.month, 1)
     today = dt.date.today()
     while mo <= today:
         nxt = (mo.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
-        n = c.execute("select count(*) from node_day_spread where delivery_date >= %s and delivery_date < %s",
-                      (mo, nxt)).fetchone()[0]
-        if n == 0:
-            t0 = time.time()
-            c.execute("""
-              insert into node_day_spread
-              with hub as (
-                select delivery_date, avg(price) hp from dam_spp
-                where settlement_point = 'HB_HUBAVG' and hour_ending between 7 and 22
-                  and delivery_date >= %s and delivery_date < %s
-                group by 1)
-              select s.delivery_date, s.settlement_point,
-                     round((avg(s.price) - h.hp)::numeric, 3)
-              from dam_spp s join hub h on h.delivery_date = s.delivery_date
-              where s.hour_ending between 7 and 22
-                and s.delivery_date >= %s and s.delivery_date < %s
-              group by s.delivery_date, s.settlement_point, h.hp
-              on conflict do nothing""", (mo, nxt, mo, nxt))
-            c.commit()
-            print(f"precompute {mo:%Y-%m}: {time.time()-t0:.0f}s", flush=True)
-            time.sleep(3)  # let the instance breathe
+        t0 = time.time()
+        c.execute("""
+          insert into node_day_spread
+          with hub as (
+            select delivery_date, avg(price) hp from dam_spp
+            where settlement_point = 'HB_HUBAVG' and hour_ending between 7 and 22
+              and delivery_date >= %s and delivery_date < %s
+            group by 1)
+          select s.delivery_date, s.settlement_point,
+                 round((avg(s.price) - h.hp)::numeric, 3)
+          from dam_spp s join hub h on h.delivery_date = s.delivery_date
+          where s.hour_ending between 7 and 22
+            and s.delivery_date >= %s and s.delivery_date < %s
+          group by s.delivery_date, s.settlement_point, h.hp
+          on conflict do nothing""", (mo, nxt, mo, nxt))
+        c.commit()
+        print(f"precompute {mo:%Y-%m}: {time.time()-t0:.0f}s", flush=True)
+        time.sleep(3)  # let the instance breathe
         mo = nxt
 
 
