@@ -217,18 +217,24 @@ def jeffreys(k: int, n: int) -> tuple[float, float, float]:
     return round(p, 3), round(max(0.0, p - 1.2816 * se), 3), round(min(1.0, p + 1.2816 * se), 3)
 
 
+def shrink(p1: float, p0: float, n1: int) -> float:
+    """F2: the smoothed ENSO rate pulled toward the smoothed climatology with
+    SHRINK_M pseudo-years — always between them (addenda of 15 Oct)."""
+    return round((n1 * p1 + SHRINK_M * p0) / (n1 + SHRINK_M), 3)
+
+
 def forecast(history: list[dict], oni: dict[int, float], events: list[str]) -> dict:
     cond = [h for h in history if oni.get(h["year"], -9) >= ONI_CONDITION]
     recent = [h for h in history if h["year"] >= 2006]
     out = {"n_all": len(history), "n_enso": len(cond), "enso_years": [h["year"] for h in cond],
            "n_recent": len(recent), "events": {}, "E1_buckets": {}}
     for ev in events:
-        k0, k1 = sum(h[ev] for h in history), sum(h[ev] for h in cond)
-        p0 = (k0 + 0.5) / (len(history) + 1)
+        f0 = jeffreys(sum(h[ev] for h in history), len(history))
+        f1 = jeffreys(sum(h[ev] for h in cond), len(cond))
         out["events"][ev] = {
-            "F0_climatology": jeffreys(k0, len(history)),
-            "F1_enso": jeffreys(k1, len(cond)),
-            "F2_primary": round((k1 + SHRINK_M * p0) / (len(cond) + SHRINK_M), 3),
+            "F0_climatology": f0,
+            "F1_enso": f1,
+            "F2_primary": shrink(f1[0], f0[0], len(cond)),
             "recent_2006_on": jeffreys(sum(h[ev] for h in recent), len(recent)),
         }
     for lo, hi in E1_BUCKETS:
@@ -237,7 +243,7 @@ def forecast(history: list[dict], oni: dict[int, float], events: list[str]) -> d
         p0, p1 = share(history), share(cond)
         out["E1_buckets"][f"{lo}-{hi}"] = {
             "F0_climatology": round(p0, 3), "F1_enso": round(p1, 3),
-            "F2_primary": round((p1 * len(cond) + SHRINK_M * p0) / (len(cond) + SHRINK_M), 3)}
+            "F2_primary": shrink(p1, p0, len(cond))}
     for col in ("F0_climatology", "F1_enso", "F2_primary"):   # renormalise smoothed buckets
         tot = sum(b[col] for b in out["E1_buckets"].values())
         for b in out["E1_buckets"].values():

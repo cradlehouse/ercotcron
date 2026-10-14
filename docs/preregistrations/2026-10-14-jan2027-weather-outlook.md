@@ -134,3 +134,22 @@ W2 is **secondary**.
   the frozen file.
 - **Scoring:** at scoring time the threshold is read from the frozen file and
   never refit. W2 is scored only under the same r ≥ 0.6 proxy rule as W1.
+
+## Addendum, 15 Oct 2026: F2 formula corrected before freeze
+
+The registered F2 formula, `(k₁ + 10·p₀)/(n₁ + 10)`, mixed a raw ENSO count
+with a smoothed climatology. When the ENSO count is zero, the result falls
+below **both** F0 and F1. The November dry run showed this for freeze days:
+F2 0.008, against F0 0.014 and F1 0.062. That contradicts the registered
+intent, "F1 shrunk toward F0".
+
+F2 is now `(n₁·F1 + 10·F0)/(n₁ + 10)`, using the smoothed F1 and F0, so it
+always lies between them. It applies to both outlooks and to the E1 buckets,
+and is implemented in `shrink()`. The change was made before either freeze.
+No target-month data exists or was used. For January it moves E1 from 0.359
+to 0.364 and E3 from 0.196 to 0.202.
+
+W2's selected threshold for January is ≥ 5 days below CF 0.125, with a base
+rate of 0.139 over 1991–2026. A 3-day run below 0.05 tied, and the tie rule
+picked the longer run. Since 2006 only about 2% of Januaries had a W2 lull,
+so climatology may overstate it. The trend check records this.

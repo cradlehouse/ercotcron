@@ -68,3 +68,30 @@ January outlook and carries no claim of skill.
 This writes `docs/outlooks/NOV2026-weather-outlook.json`, which is refused
 if it already exists. The SHA-256 is added below in the freeze commit.
 Every outcome gets published.
+
+## Addendum, 15 Oct 2026: F2 formula corrected before freeze
+
+The registered F2 formula, `(k₁ + 10·p₀)/(n₁ + 10)`, mixed a raw ENSO count
+with a smoothed climatology. When the ENSO count is zero, the result falls
+below **both** F0 and F1. The November dry run showed this for freeze days:
+F2 0.008, against F0 0.014 and F1 0.062. That contradicts the registered
+intent, "F1 shrunk toward F0".
+
+F2 is now `(n₁·F1 + 10·F0)/(n₁ + 10)`, using the smoothed F1 and F0, so it
+always lies between them. It applies to both outlooks and to the E1 buckets,
+and is implemented in `shrink()`. The change was made before either freeze.
+No target-month data exists or was used. For January it moves E1 from 0.359
+to 0.364 and E3 from 0.196 to 0.202.
+
+## Addendum, 15 Oct 2026: November dry run (no other rule changed)
+
+- **Selected thresholds:**
+  - W2 is ≥ 5 days below CF 0.125, base rate 0.20 over 1991–2025.
+  - K1 is ≥ 3 days with proxy mean ≤ 44°F, base rate 0.20.
+- **ENSO years:** the OND ONI ≥ 1.0 set holds 7 Novembers: 1991, 1997,
+  2002, 2009, 2015, 2018 and 2023.
+- **Wind proxy:** it correlates with our SystemWide actuals at r = 0.90 over
+  122 Oct–Nov days, so W1 and W2 are scoreable.
+- **E1–E3 never occurred** in any training November. Their forecasts sit near
+  zero, which was expected and is not a reason to change them. W1 occurs in
+  93% of Novembers. K1 and W2 carry the information.
