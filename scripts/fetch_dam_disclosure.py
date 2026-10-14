@@ -109,7 +109,9 @@ def validate(day, rec):
     if len(rec["res"]) < 500:
         return f"only {len(rec['res'])} resources"
     gen = [sum((r["aw"].get(s) or 0) for r in rec["res"].values()) for s in slots]
-    if not (10000 <= max(gen) <= 120000):
+    # floor catches broken files, not quiet days: 2025-01-04 is a complete file
+    # (1,424 resources, normal award/status counts) peaking at 9.5 GW
+    if not (5000 <= max(gen) <= 120000):
         return f"implausible peak generation award {max(gen):,.0f} MW"
     return None
 
