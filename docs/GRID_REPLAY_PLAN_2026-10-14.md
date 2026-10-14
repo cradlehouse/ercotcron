@@ -126,3 +126,180 @@ Many variants means some will look good by chance. So:
 5. Name at most 4 variants, freeze, then run the locked test once.
 6. Live forward. Only a variant that passes the locked test goes near a bid
    ticket.
+
+
+## Addendum — 14 Oct 2026: weather integration and test clarification
+
+This addendum preserves the original registration above. It clarifies the
+information sets, weather experiments and validation requirements before replay
+results are evaluated. Where the original wording conflicts with this addendum,
+this addendum governs. It records design decisions, not completed ingestion,
+verified data coverage or demonstrated forecast skill.
+
+### Separate reconstruction, day-ahead and month-ahead tests
+
+- **A1 physical reconstruction:** actual unit output and realized outages test
+  whether the network representation reproduces operating conditions. Realized
+  SCED dispatch is not evidence of an ex-ante DAM congestion forecast. Score
+  operating-state reconstruction separately from DAM prediction, and document
+  the differences between the monthly CRR model and operating topology.
+- **B1 day-ahead prediction:** use forecasts demonstrably available before the
+  relevant DAM decision. This is a separate horizon from the monthly auction.
+  Day-ahead forecasts published after the monthly auction cannot be used to
+  demonstrate month-ahead CRR forecasting skill.
+- **Month-ahead prediction:** use only weather guidance, outage announcements,
+  upgrade schedules, network information and trained model artifacts available
+  by the applicable auction decision cutoff. Forecast the delivery month using
+  scenarios rather than assuming its eventual daily forecasts were known.
+- **B2 forecast misses:** actual-minus-forecast values are diagnostic outcomes.
+  Their historical distributions may inform future error scenarios when fitted
+  on training data; realized future misses cannot be decision-time predictors.
+
+Every run must identify its horizon, exact information cutoff, source manifest,
+model version and comparison baseline. Initialization time is not necessarily
+publication time. Reanalysis is suitable for historical attribution but must
+not silently substitute for a contemporary forecast or observation available
+at the decision cutoff.
+
+### Weather model requirements
+
+**B3 regime probabilities.** CPC temperature and precipitation categories do
+not directly give probabilities of joint regimes such as high West wind with
+low load. Estimate regime frequencies from calibrated weather scenarios or a
+training-only statistical mapping. Preserve regional and temporal dependence
+among temperature, humidity, wind and solar radiation. Test ENSO's incremental
+contribution beyond seasonal guidance that already incorporates it.
+
+**B4 regional demand.** Include humidity, hour/day/holiday effects, regional
+load growth and nonlinear heating/cooling response. Verify actual-load history
+and its geographic correspondence before fitting. Weather zones and settlement
+load zones are not interchangeable. Prior 7/30/60-day conditions and the latest
+completed month are candidate features; a partial month must be labeled as
+such and all windows must end at the information cutoff.
+
+**Available versus delivered generation.** Weather predicts available wind and
+solar production. Curtailment, plant availability and dispatch determine how
+much is delivered. Do not interpret curtailed generation as a direct measurement
+of wind or solar resource. Normalize for contemporaneous fleet capacity and
+retain a documented resource-to-bus mapping.
+
+**F1 joint scenarios.** Preserve dependencies between weather, generation and
+outages where supported by data. Do not sum independent expected outage effects
+as though simultaneous failures and nonlinear congestion responses disappear.
+Balance injections and withdrawals through a documented dispatch/balancing
+rule. Calculate net load and path outcomes within each scenario, then summarize
+the resulting distributions; separate marginal quantiles cannot simply be
+subtracted or added to obtain system or portfolio quantiles.
+
+### Added experiment: weather by topology
+
+For a small, predefined set of well-mapped constraints, cross the same set of
+weather/injection scenarios with two network configurations:
+
+1. Reference topology.
+2. Topology containing the planned outage or upgrade.
+
+Hold weather and injections constant to isolate the modeled topology effect;
+hold topology constant and vary weather to isolate the weather effect. Where
+redispatch is modeled, use the same dispatch rule and label that experiment
+separately from a fixed-injection sensitivity comparison.
+
+Measure changes in flow direction, loading, binding occurrence and affected
+paths. This tests whether a quiet corridor reflects weather, structural change,
+or their interaction, and identifies upgrades/outages whose impact depends on
+regional wind, solar or demand. Historical comparisons are model-based
+attribution, not proof that every omitted operating factor was controlled.
+
+The first weather pilot is B3 plus C1 interactions on these selected constraints.
+Validate congestion direction and occurrence before attempting dollar value.
+Select the constraints and events using a recorded rule before scoring, rather
+than choosing only memorable successful examples.
+
+### Data coverage gate
+
+Treat the original 'already in hand' list as claims to verify, not proof that
+each dataset is complete or suitable for every test. Before fixing eligible
+windows, produce a manifest containing:
+
+- Source/product, variables, geography and units.
+- First/last valid dates and missing intervals.
+- Forecast initialization, publication/availability evidence and revision status.
+- Actual versus forecast versus reanalysis classification.
+- Network model purpose, effective dates, ratings, contingency coverage and
+  resource/bus matching completeness.
+
+Load forecasts listed as starting in April 2026 cannot support B1 throughout
+the October 2024–September 2025 tuning period without another archive. Forecast
+vintages collected from October 14, 2026 onward do not establish historical
+vintage coverage. Check ERA5/CPC artifacts and their release metadata directly.
+Actual-load coverage is a separate dependency from load forecasts.
+
+Choose comparable test windows for each eligible variant and its baseline.
+Record any coverage-driven date change before examining its test outcomes;
+never silently shrink the evaluation to successful or convenient months.
+
+### Expanded scoring and economic interpretation
+
+Retain the maximum of four promoted variants, with all selection performed on
+tuning data. Name and freeze each variant, its features, event selection,
+metrics, baseline, missing-data rules and acceptance criteria before scoring.
+
+- **Constraint occurrence:** report precision and recall, false alarms, missed
+  events and binding-hour errors. For probabilistic outputs, report probability
+  calibration and a proper probability score. Hit rate alone can reward
+  predicting too many constraints.
+- **Constraint identity:** match monitored element and contingency where
+  applicable; document unresolved mappings instead of treating all similarly
+  named lines as the same constraint. Loading near a rating is a stress proxy,
+  not proof of economic binding under the relevant security constraints.
+- **Shift events:** evaluate direction and magnitude around the predefined
+  events, including failures and ordinary comparison periods.
+- **Path outcomes:** report rank correlation, dollar error and uncertainty
+  calibration by instrument and TOU, using appropriate congestion quantities.
+  Apply option payoff rules within each scenario before averaging. Distinguish
+  physical flow sensitivity from the additional dispatch/economic assumptions
+  required to forecast shadow prices and dollar values.
+- **Robustness:** report results in both historical test halves, by delivery
+  month, and excluding the single largest contributing event. Cluster
+  uncertainty by month/event rather than treating correlated paths as
+  independent evidence. Show concentration in shared weather/grid exposures.
+- **Auction relevance:** incremental payout forecasting and executable auction
+  performance are separate claims. Any trading evaluation must include
+  availability, fills and costs under assumptions fixed before evaluation.
+
+Add a forecast-error sensitivity check: perturb regional load, wind and solar
+using errors estimated only from eligible training data. Identify predictions
+whose direction or apparent value disappears under modest input changes.
+
+### Historical exposure and forward validation
+
+October 2025–September 2026 remains the proposed frozen historical evaluation
+window, subject to coverage. Parts of that period, including specific grid
+changes and September outcomes, have already been examined in prior research.
+It must therefore be described as historical validation with prior exposure,
+not a pristine untouched holdout. The SHA-256 freeze protects the new replay
+specification from subsequent tuning; it does not undo earlier exposure.
+
+The two-half baseline requirement remains a historical screen, not sufficient
+by itself for promotion to live bidding. Independent forward evidence is also
+required. Freeze live predictions before the relevant auction decision cutoff,
+not merely before the delivery month starts. November 2026 qualifies only if
+its applicable cutoff has not passed when the prediction is frozen; otherwise
+start with the next eligible auction. Do not backdate a prediction.
+
+Published predictions and their input manifests remain immutable. Corrections
+create linked new versions. Any rule changes after evaluation require a dated
+addendum and new independent validation rather than rerunning the same year
+and describing it as untouched.
+
+### Revised immediate sequence
+
+1. Preserve forecast vintages and verify the source/network coverage manifest.
+2. Establish A1 reconstruction and A2 baseline behavior on a small tuning-only
+   pilot, with explicit operating-versus-auction model limitations.
+3. Add the B3/C1 weather-by-topology experiment and forecast-error sensitivity.
+4. Freeze at most four eligible variants and their scoring rules; run the
+   historical evaluation once and report prior exposure and coverage limits.
+5. Begin independently frozen auction-cutoff predictions and score them after
+   delivery. Expand valuation/UI and consider ticket integration only after
+   the appropriate physical, forecasting and forward-evidence gates pass.
