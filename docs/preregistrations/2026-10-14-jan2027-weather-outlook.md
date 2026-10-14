@@ -117,3 +117,20 @@ only. Three notes:
   as a dated, secondary event, never in place of W1.
 - The wind proxy correlates with our SystemWide actuals at r = 0.85 over
   180 winter days, so W1 is scoreable under the r ≥ 0.6 rule.
+
+## Addendum, 15 Oct 2026: a stricter secondary wind lull (W2)
+
+Added at Tim's request before the freeze. W1 stays as registered and scored.
+W2 is **secondary**.
+
+- **Rule:** W2 is a run of at least *d* consecutive days with proxy wind
+  capacity factor below *c*. *d* is one of {3, 4, 5} and *c* is one of
+  {0.05, 0.075, 0.10, 0.125}.
+- **How the pair is chosen:** the pair whose base rate over the training
+  Januaries (1991–2026) is closest to 20% wins. Ties go to the longer run,
+  then the lower threshold.
+- **Reproducibility:** selection is mechanical, in `choose()` in
+  `strategy/winter_outlook.py`. The full grid of base rates is written into
+  the frozen file.
+- **Scoring:** at scoring time the threshold is read from the frozen file and
+  never refit. W2 is scored only under the same r ≥ 0.6 proxy rule as W1.
