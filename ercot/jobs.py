@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
-from . import config, crr, db, fundamentals, ingest, products, weather
+from . import config, crr, db, fundamentals, ingest, outage_plan, products, weather
 from .client import ErcotClient
 from .ingest import Result
 
@@ -166,6 +166,15 @@ JOBS: dict[str, Job] = {
         run=lambda c: products.build_products(),
         description="Rebuild node_graph + grid_geo artifacts",
         trigger={"hour": "4", "minute": "15"},
+    ),
+    "outage_plan": Job(
+        name="outage_plan",
+        # ERCOT posts the planned-outage capacity plan daily around 18:00 CT and
+        # keeps only ~3.5 months of editions; saving each one daily is the only
+        # way to know the plan as it stood on a past auction date.
+        run=lambda c: outage_plan.ingest_planned_outage_cap(c),
+        description="Planned outage capacity plan (NP3-161), one edition a day",
+        trigger={"hour": "18", "minute": "37"},
     ),
     "paper_score": Job(
         name="paper_score",
