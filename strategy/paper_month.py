@@ -116,6 +116,10 @@ RULES = {
     "m150cap3": (1.5, MAX_BIDS, 3.0),
 }
 WEATHER = ("base", "lull", "windy", "cold")
+# after JUL (plan addendum): the $3 cap and counterflow are the default; a smaller slate
+FOCUS_SIGNALS = ("phys_base", "phys_windy", "phys_recent", "anch25_base", "hist100", "market")
+FOCUS_RULES = ("m125cap3", "m150cap3")
+FOCUS_CONTROLS = ("random__control", "cf_phys__keep75", "cf_random__keep75")
 CF_BAND, CF_KEEP = (-3.0, -0.25), 0.75
 ZONE = {
     "LZ_HOUSTON": "Houston",
@@ -449,6 +453,14 @@ def main() -> int:
     ap.add_argument("--tou", default="PeakWD")
     ap.add_argument("--freeze", action="store_true")
     ap.add_argument(
+        "--focused",
+        action="store_true",
+        help="the post-JUL slate: FOCUS_SIGNALS x FOCUS_RULES + controls",
+    )
+    ap.add_argument(
+        "--model", help="YYYY-MM of the CRR model to use when the delivery month's is not in hand"
+    )
+    ap.add_argument(
         "--dump",
         action="store_true",
         help="dry run only: also write every candidate's signals (diagnostics)",
@@ -456,7 +468,8 @@ def main() -> int:
     args = ap.parse_args()
     asof = date.fromisoformat(args.asof)
     y, m = map(int, args.delivery.split("-"))
-    tag = f"{y}.{MON[m - 1]}.Monthly.Auction"
+    my, mm = map(int, (args.model or args.delivery).split("-"))
+    tag = f"{my}.{MON[mm - 1]}.Monthly.Auction"
     M = REF / "crr_models"
     raw = next(M.glob(f"Common_{tag}_*_{args.tou}_Common_NetworkModel.RAW"))
     built = open(raw, encoding="latin-1").read(400).split("\n")[2].strip()[:8]
@@ -886,6 +899,13 @@ def main() -> int:
         )
         for (src, snk), ec in rng.sample(pool, min(MAX_BIDS, len(pool)))
     ]
+    if args.focused:
+        books = {
+            k: v
+            for k, v in books.items()
+            if k in FOCUS_CONTROLS
+            or (k.split("__")[0] in FOCUS_SIGNALS and k.split("__")[1] in FOCUS_RULES)
+        }
     for k, rws in books.items():
         print(
             f"{k:28s} {len(rws):4d} bids; authorised ${sum(r['limit'] * MW * len(ah) for r in rws):>10,.0f}"
@@ -942,6 +962,8 @@ def main() -> int:
         asof=str(asof),
         tou=args.tou,
         model=raw.name,
+        model_month=args.model or args.delivery,
+        focused=args.focused,
         model_built=built,
         analog=[str(analog[0]), str(analog[-1])],
         recent=[str(recent[0]), str(recent[-1])],

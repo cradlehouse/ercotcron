@@ -470,3 +470,23 @@ JUL rules (Tim approved 15 Oct): the MAY rules unchanged as the core, plus
    edge (phys_base - expected clearing), node cap 2, up to 60; cf_random: 60
    seeded random from the same pool. Scored on profit (cost is negative).
 JUL as of 7 Jun 2026 (results posted 18 Jun).
+
+## Addendum: remaining months on the focused slate (15 Oct 2026, 17:15 CT, before any is built)
+
+JUL 2026 (sealed, manifest 928d28ce...): the $3 cap beat the uncapped rule on
+every signal (pure physics m150 -35% -> +194%; market m125 -20% -> +30%;
+hist100 m150 +10% -> +53%); counterflow made money (cf_phys +$44k, 71% won;
+cf_random +$30k); random control +19%.
+
+Tim (15 Oct): make the cap and counterflow the default and run all remaining
+months. Focused slate (--focused): signals phys_base, phys_windy, phys_recent,
+anch25_base, hist100, market x rules m125cap3, m150cap3, plus random__control,
+cf_phys__keep75, cf_random__keep75 (15 books). As-of = 11 days before each
+auction's results posting, as for FEB-JUL:
+  FEB as of 2026-01-11, APR 2026-03-08, JUN 2026-05-10, AUG 2026-07-12,
+  SEP 2026-08-09.
+FEB is no longer held back (Tim's call); it is scored like the rest.
+NOV 2026: paper only - built after the 5pm CT 15 Oct auction close, frozen
+before results post; as of 2026-10-15 on the OCT 2026 CRR model (the NOV model
+has not been received), flagged model_month=2026-10 in its manifest. Scored
+when NOV DAM prices are complete (Dec).
