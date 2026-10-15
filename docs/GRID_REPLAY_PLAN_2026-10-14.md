@@ -384,3 +384,28 @@ about T−60 days. Other inputs are limited to what was published by T:
 **Adjustments.** Changes between months are recorded here, dated, before the
 next month is constructed. A month already scored is never re-run as if
 untouched.
+
+## Addendum: paper-month slate (15 Oct 2026, before any month is frozen)
+
+Each paper month freezes a slate of books together, not one or two, so every
+month we spend tests as many ideas as possible. Built by
+`strategy/paper_month.py`; the docstring is the authoritative definition.
+
+- Signals: phys_base, phys_lull (-4 GW wind), phys_windy (+6 GW wind),
+  phys_cold (-2 GW wind, load +15%), phys_robust (min of the four),
+  phys_wxavg (mean of the four), phys_nofilter, phys_recent (latest 30
+  disclosed days instead of last year), hist100, hist30, consensus
+  (min of phys_base and hist100).
+- Bid rules: m125, m150, m200 (value >= 1.25 / 1.5 / 2.0 x expected clearing,
+  limit = value / ratio, top 60) and wide110 (1.1x, up to 150).
+- random__control: 60 seeded random candidates bid at 1.5x expected clearing.
+- 11 signals x 4 rules + 1 control = 45 books (all distinct on FEB 2026).
+- Scoring per book: cleared bids at the actual auction price, then
+  payout minus cost per MW, hit rate, and rank against random__control.
+  With 45 books the best one is partly luck; a signal or rule earns trust only
+  by beating the control in more than one month.
+- Weather scenarios move wind by MW at the farms (DAM clears little wind), so
+  they change flows; each element's $ scales with (scenario / base mean
+  loading)^2, clipped 0.25x..4x. A first version (scaling DAM wind awards,
+  frequency >= 90%) produced near copies of phys_base and was replaced in the
+  dry run, before any freeze.
