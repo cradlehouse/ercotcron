@@ -139,6 +139,36 @@ class ErcotClient:
 
         raise ErcotError(f"{endpoint} failed after {config.MAX_RETRIES} attempts — {last_error}")
 
+    def download(self, url: str) -> bytes:
+        """Raw bytes of an archive document link (e.g. a report zip), with the
+        same auth, rate limiting and retry rules as get()."""
+        last_error = ""
+        for attempt in range(config.MAX_RETRIES):
+            _limiter.acquire()
+            headers = {"Authorization": f"Bearer {self.token()}",
+                       "Ocp-Apim-Subscription-Key": config.ercot_subscription_key()}
+            try:
+                resp = self._http.get(url, headers=headers)
+            except httpx.HTTPError as exc:
+                last_error = f"transport error: {exc}"
+                self._sleep_backoff(attempt)
+                continue
+            if resp.status_code == 200:
+                return resp.content
+            if resp.status_code in (401, 403) and attempt == 0:
+                self._invalidate_token()
+                continue
+            if resp.status_code == 429 or resp.status_code >= 500:
+                last_error = f"{resp.status_code}"
+                retry_after = resp.headers.get("Retry-After")
+                if retry_after and retry_after.isdigit():
+                    time.sleep(float(retry_after))
+                else:
+                    self._sleep_backoff(attempt)
+                continue
+            raise ErcotError(f"download failed ({resp.status_code}): {url}")
+        raise ErcotError(f"download failed after {config.MAX_RETRIES} attempts — {last_error}")
+
     @staticmethod
     def _sleep_backoff(attempt: int) -> None:
         delay = config.BACKOFF_BASE_SECONDS * (2**attempt)
