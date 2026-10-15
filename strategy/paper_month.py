@@ -9,11 +9,19 @@ estimates, so one month tests many ideas at once (signal x bid rule):
 
 Signals (expected $/MWh for each path):
   phys_base    analog month (same month last year, 60-Day DAM Disclosure, all
-               dated <= asof-60) minus units on planned outages known by asof;
-               DC flows on the delivery month's CRR model; top-K elements by
-               95th-percentile loading after the hot-never filter; each worth
-               its average peak DAM shadow over the 100 days to asof (else half
-               the median); path value = sum of value x shift-factor difference.
+               dated <= asof-60); units on planned outages known by asof are
+               replaced by gas pro rata system-wide; DC flows on the delivery
+               month's CRR model. Each element's loading is the worst of the
+               base case (vs base rating) and every contingency in the month's
+               list (vs emergency rating), screened by distribution factors for
+               the elements with p95 base loading >= 0.4 or binding history.
+               Top-K elements by 95th-percentile loading after the hot-never
+               filter; each worth its average peak DAM shadow over the 100 days
+               to asof (else half the median); path value = sum of value x
+               shift factor (after the element's usual worst contingency) x
+               direction.
+  phys_n0      the same without contingencies (base case only).
+  phys_local   outaged units replaced by gas in their own load zone first.
   phys_lull / phys_windy / phys_cold
                the same with a weather stress on the analog: -4 GW wind,
                +6 GW wind, or -2 GW wind with load +15%; wind moved at the
@@ -178,7 +186,8 @@ def injections(c, g, mp, days, tou, drop_resources=None, asof=None):
         raise SystemExit(f"injections for {max(days)} were not public by {asof}")
     hours = [(d, he) for d in days for he in range(1, 25) if tou_of(d, he) == tou]
     hs, nb = set(hours), len(g.ids)
-    P = {h: (np.zeros(nb), np.zeros(nb), np.zeros(nb)) for h in hours}
+    # parts per hour: other, wind capability, gas, units on planned outage
+    P = {h: (np.zeros(nb), np.zeros(nb), np.zeros(nb), np.zeros(nb)) for h in hours}
     drop = drop_resources or {}
 
     def add(vec, sp, mw):
@@ -192,12 +201,11 @@ def injections(c, g, mp, days, tou, drop_resources=None, asof=None):
             from dam_resource_awards where delivery_date between %s and %s""",
         (min(days), max(days)),
     ):
-        if res in drop.get(d, ()):
-            continue
+        out_ = res in drop.get(d, ())
         for k, v in enumerate(arr):
             if (d, k + 1) in hs and v:
-                add(P[(d, k + 1)][2 if rt in GAS else 0], sp, v)
-        if rt == "WIND" and hsl:
+                add(P[(d, k + 1)][3 if out_ else 2 if rt in GAS else 0], sp, v)
+        if rt == "WIND" and hsl and not out_:
             for k, v in enumerate(hsl):
                 if (d, k + 1) in hs and v:
                     add(P[(d, k + 1)][1], sp, v)
@@ -253,10 +261,23 @@ def injections(c, g, mp, days, tou, drop_resources=None, asof=None):
     return hours, out
 
 
-def compose(parts, scen):
-    """Net injection vector for one hour under a weather scenario."""
-    other, wcap, gas, shape = parts
+def compose(parts, scen, zones=None):
+    """Net injection vector for one hour under a weather scenario. Units on a
+    planned outage are replaced by gas: pro rata system-wide, or (zones = list
+    of bus masks) by gas in the same load zone first."""
+    other, wcap, gas, dropped, shape = parts
     dw, xl = SCEN[scen]
+    D = dropped.sum()
+    if D > 0 and gas.sum() > 0:
+        gas = gas.copy()
+        left = D
+        if zones is not None:
+            for z in zones:
+                gz, dz = gas[z].sum(), dropped[z].sum()
+                if gz > 0 and dz > 0:
+                    gas[z] *= 1 + dz / gz
+                    left -= dz
+        gas *= 1 + left / gas.sum()
     Wc, G = wcap.sum(), gas.sum()
     inj = other + gas
     if Wc > 0 and dw:
@@ -265,6 +286,113 @@ def compose(parts, scen):
         need = G - dw + xl * (other.sum() + G)
         inj = inj + (max(need, 0.2 * G) / G - 1) * gas
     return inj - inj.sum() * shape
+
+
+def device_branches(g, name, pairs):
+    """ERCOT device name -> model branch indices. Lines read 'busA NAMEA busB
+    NAMEB ckt'; transformers carry voltages in between ('busA NAMEA 345 busB
+    NAMEB [kV] ckt id'), so the far bus is the first later number that forms a
+    real branch with busA, and the circuit is the trailing token that matches."""
+    p = name.split()
+    try:
+        i = int(p[0])
+    except (ValueError, IndexError):
+        return []
+    for k in range(2, len(p)):
+        if not p[k].isdigit():
+            continue
+        cand = pairs.get((min(i, int(p[k])), max(i, int(p[k]))))
+        if not cand:
+            continue
+        if len(cand) == 1:
+            return [cand[0][1]]
+        for t in reversed(p[k + 2 :]):
+            hit = [n for ckt, n in cand if str(ckt).strip() == t]
+            if hit:
+                return hit
+        return [cand[0][1]]
+    return []
+
+
+class N1:
+    """Post-contingency (N-1) screening on one CRR model by distribution
+    factors: for contingency c removing branches K, the flow on screened
+    element m becomes f_m + D_mK (I - D_KK)^-1 f_K, D = flow per 1 MW moved
+    across each removed branch. Exact for DC flow, multi-element included;
+    contingencies that island part of the grid are skipped."""
+
+    def __init__(self, g, screen, conts):
+        f, gkeep, _cix, _ = g.solver(frozenset())
+        nb = len(g.ids)
+        self.g, self.f, self.gkeep = g, f, gkeep
+        self.I = np.array([g.idx[b["i"]] for b in g.br])
+        self.J = np.array([g.idx[b["j"]] for b in g.br])
+        self.X = np.array([b["x"] for b in g.br])
+        self.screen = np.array(screen)
+        srow = {n: r for r, n in enumerate(screen)}
+        Ws, cols, starts, self.names, self.members = [], [], [], [], []
+        mr, mc = [], []
+        self.skipped = 0
+        self.partial = 0
+        for name, Kset in sorted(conts.items()):
+            K = sorted(Kset)
+            if not K:
+                continue
+            ths = []
+            for n in K:
+                rhs = np.zeros(nb)
+                rhs[self.I[n]] += 1.0
+                rhs[self.J[n]] -= 1.0
+                th = np.zeros(nb)
+                th[gkeep] = f(rhs[gkeep])
+                ths.append(th)
+            T = np.stack(ths, axis=1)
+            Kx = np.array(K)
+            DK = (T[self.I[Kx]] - T[self.J[Kx]]) / self.X[Kx][:, None]
+            # removing all of K would cut off part of the grid (usually tap
+            # stations of a tripped line): take elements out one at a time and
+            # leave in service any that would complete the cut - it then carries
+            # only the cut-off piece's own small injection
+            keep = []
+            for k in range(len(K)):
+                t = [*keep, k]
+                if np.linalg.svd(np.eye(len(t)) - DK[np.ix_(t, t)], compute_uv=False).min() > 1e-6:
+                    keep = t
+            if not keep:
+                self.skipped += 1
+                continue
+            if len(keep) < len(K):
+                self.partial += 1
+                K, T = [K[k] for k in keep], T[:, keep]
+                DK = DK[np.ix_(keep, keep)]
+            A = np.eye(len(K)) - DK
+            DM = (T[self.I[self.screen]] - T[self.J[self.screen]]) / self.X[self.screen][:, None]
+            ci = len(self.names)
+            starts.append(sum(len(k) for k in self.members))
+            Ws.append((DM @ np.linalg.inv(A)).astype(np.float32))
+            cols.extend(K)
+            self.names.append(name)
+            self.members.append(K)
+            for n in K:
+                if n in srow:
+                    mr.append(srow[n])
+                    mc.append(ci)
+        self.W = np.hstack(Ws)
+        self.cols = np.array(cols)
+        self.starts = np.array(starts)
+        self.mask = (np.array(mr, dtype=int), np.array(mc, dtype=int))
+
+    def flows(self, P_mw):
+        th = np.zeros(len(self.g.ids))
+        th[self.gkeep] = self.f(P_mw[self.gkeep] / 100.0)
+        return 100.0 * (th[self.I] - th[self.J]) / self.X
+
+    def post(self, fl):
+        """screened elements x contingencies post-contingency flows."""
+        d = self.W * fl[self.cols].astype(np.float32)[None, :]
+        out = fl[self.screen].astype(np.float32)[:, None] + np.add.reduceat(d, self.starts, axis=1)
+        out[self.mask] = 0.0
+        return out
 
 
 def ptdf_row(g, n):
@@ -296,21 +424,39 @@ def main() -> int:
         raise SystemExit(f"model built {built}, after asof {asof}")
     g = Grid(raw)
     mp = Mapper(g, raw)
-    mon = {}
+    pairs = defaultdict(list)
+    for n, b in enumerate(g.br):
+        pairs[(min(b["i"], b["j"]), max(b["i"], b["j"]))].append((b["ckt"], n))
+    mon_br = {}
     for r in csv.DictReader(
         open(next(M.glob(f"Common_MonitoredLinesAndTransformers_{tag}_*.CSV")))
     ):
         if r["TimeOfUse"] == args.tou:
-            p = r["DeviceName"].split()
             try:
-                mon[(min(int(p[0]), int(p[2])), max(int(p[0]), int(p[2])), p[4])] = float(
-                    r["BaseCaseRating"]
+                rt = (
+                    float(r["BaseCaseRating"]),
+                    float(r["EmergencyRating"] or r["BaseCaseRating"]),
                 )
-            except (ValueError, IndexError):
-                pass
-    mon_br = {n: rate for key, rate in mon.items() for n in g.key.get(key, []) if rate}
+            except ValueError:
+                continue
+            for n in device_branches(g, r["DeviceName"], pairs):
+                if rt[0]:
+                    mon_br[n] = rt
     idxs = sorted(mon_br)
-    rates = np.array([mon_br[n] for n in idxs])
+    rates = np.array([mon_br[n][0] for n in idxs])
+    erates = np.array([mon_br[n][1] or mon_br[n][0] for n in idxs])
+    # this month's contingency list only (later months' files postdate asof)
+    conts = defaultdict(set)
+    for r in csv.DictReader(open(next(M.glob(f"Common_Contingencies_{tag}_*.CSV")))):
+        conts[r["Contingency"]].update(device_branches(g, r["DeviceName"], pairs))
+    zone_masks = []
+    for zn in sorted(set(ZONE.values())):
+        mk = np.zeros(len(g.ids), dtype=bool)
+        for lz, bs in mp.lz.items():
+            if ZONE.get(lz) == zn:
+                for b in bs:
+                    mk[g.idx[b]] = True
+        zone_masks.append(mk)
     hist0 = asof - timedelta(days=100)
     analog = month_days(y - 1, m)
     # the latest 30 days of disclosed DAM injections (filter + "recent" signal)
@@ -321,7 +467,7 @@ def main() -> int:
         drop = defaultdict(set)
         dmonth = month_days(y, m)
         for res, s, e, red, mx in c.execute(
-            """select coalesce(resource_name, unit_code), outage_start::date,
+            """select coalesce(unit_code, resource_name), outage_start::date,
                 coalesce(planned_end::date, outage_start::date), reduction_mw, max_mw from resource_outages
                 where report_date <= %s and outage_start::date <= %s and coalesce(planned_end::date, outage_start::date) >= %s""",
             (asof, dmonth[-1], dmonth[0]),
@@ -375,13 +521,40 @@ def main() -> int:
                 price[sp][(d, he)] = float(pr)
     hours_hist = len({k for v in price.values() for k in v})
 
-    def loading(hours, P, scen):
+    pos_idx = {n: k for k, n in enumerate(idxs)}
+    n1 = None  # built after the screening pass
+
+    def loading(hours, P, scen, zones=None, contingencies=True):
+        """hours x monitored loading (worst of base case vs base rating and
+        every contingency vs emergency rating), flow sign, and per screened
+        element the contingency that was worst most often (-1 = base case)."""
         L = np.zeros((len(hours), len(idxs)))
         S = np.zeros((len(hours), len(idxs)))
+        use = contingencies and n1 is not None
+        if use:
+            sc = np.array([pos_idx[n] for n in n1.screen])
+            er = erates[sc].astype(np.float32)[:, None]
+            worst = np.full((len(hours), len(sc)), -1, dtype=np.int32)
+        ix = np.array(idxs)
         for t, h in enumerate(hours):
-            fl = g.flows(compose(P[h], scen), frozenset(), idxs)
-            L[t], S[t] = np.abs(fl) / rates, np.sign(fl)
-        return L, S
+            fl = (n1 or base_n1).flows(compose(P[h], scen, zones))
+            fm = fl[ix]
+            L[t], S[t] = np.abs(fm) / rates, np.sign(fm)
+            if use:
+                pc = n1.post(fl)
+                ld = np.abs(pc) / er
+                k = ld.argmax(axis=1)
+                lk = ld[np.arange(len(sc)), k]
+                better = lk > L[t, sc]
+                L[t, sc] = np.where(better, lk, L[t, sc])
+                S[t, sc] = np.where(better, np.sign(pc[np.arange(len(sc)), k]), S[t, sc])
+                worst[t] = np.where(better, k, -1)
+        mode = {}
+        if use:
+            for r, n in enumerate(n1.screen):
+                v = worst[:, r]
+                mode[n] = int(np.bincount(v + 1).argmax()) - 1
+        return L, S, mode
 
     # binding history -> model branches (stations/kV); used for the filter and for $ values
     bound_val = defaultdict(float)
@@ -397,39 +570,85 @@ def main() -> int:
                 bound_val[n] += float(spv or 0) / max(hours_hist, 1)
     pos = {n for n in bound_val if n in mon_br}
     med = statistics.median([v for v in bound_val.values() if v > 0]) if bound_val else 0.0
-    RL, RS = loading(rh, RP, "base")
+    # base-case pass on the analog picks the elements to screen for contingencies:
+    # p95 >= 0.4 or any binding history, at most 2500
+    base_n1 = N1.__new__(N1)
+    f0, gk0, _c0, _ = g.solver(frozenset())
+    base_n1.g, base_n1.f, base_n1.gkeep = g, f0, gk0
+    base_n1.I = np.array([g.idx[b["i"]] for b in g.br])
+    base_n1.J = np.array([g.idx[b["j"]] for b in g.br])
+    base_n1.X = np.array([b["x"] for b in g.br])
+    L0, S0, _ = loading(ah, AP, "base", contingencies=False)
+    p0 = np.percentile(L0, 95, axis=0)
+    screen = [idxs[k] for k in np.argsort(-p0) if p0[k] >= 0.4 or idxs[k] in pos][:2500]
+    n1 = N1(g, screen, conts)
+    print(
+        f"contingency screen: {len(screen)} elements x {len(n1.names)} contingencies "
+        f"({n1.partial} would cut off a tap: modelled without the cutting link; "
+        f"{n1.skipped} cut off a single bus: skipped)",
+        flush=True,
+    )
+    RL, RS, Rmode = loading(rh, RP, "base")
     r95 = np.percentile(RL, 95, axis=0)
     hot_never = {idxs[k] for k in range(len(idxs)) if r95[k] >= HOT and idxs[k] not in pos}
 
-    def predict(L, S, filt, scale=None):
+    def predict(L, S, mode, filt, scale=None):
         p95 = np.percentile(L, 95, axis=0)
         sgn = np.sign(np.median(S, axis=0) + 1e-9)
         order = [k for k in np.argsort(-p95) if not (filt and idxs[k] in hot_never)][:TOPK]
         sc = scale if scale is not None else np.ones(len(idxs))
-        return [(idxs[k], sgn[k], bound_val.get(idxs[k], 0.5 * med) * sc[k]) for k in order]
+        return [
+            (idxs[k], sgn[k], bound_val.get(idxs[k], 0.5 * med) * sc[k], mode.get(idxs[k], -1))
+            for k in order
+        ]
 
     # a weather scenario rescales each element's $ by the square of its mean
     # loading there versus in the base analog, clipped to 0.25x..4x
     preds, mean_l = {}, {}
     for scen in SCEN:
-        L, S = loading(ah, AP, scen)
+        L, S, mode = loading(ah, AP, scen)
         mean_l[scen] = L.mean(axis=0) + 1e-6
         scale = None if scen == "base" else np.clip((mean_l[scen] / mean_l["base"]) ** 2, 0.25, 4.0)
-        preds[f"phys_{scen}"] = predict(L, S, True, scale)
+        preds[f"phys_{scen}"] = predict(L, S, mode, True, scale)
         if scen == "base":
-            preds["phys_nofilter"] = predict(L, S, False)
-    preds["phys_recent"] = predict(RL, RS, True)
+            preds["phys_nofilter"] = predict(L, S, mode, False)
+        print(f"  scenario {scen} done", flush=True)
+    L, S, mode = loading(ah, AP, "base", zones=zone_masks)
+    preds["phys_local"] = predict(L, S, mode, True)
+    preds["phys_n0"] = predict(L0, S0, {}, True)
+    preds["phys_recent"] = predict(RL, RS, Rmode, True)
     pb = preds["phys_base"]
     print(
         f"monitored {len(idxs)}; bound in 100d to asof {len(pos)}; hot-never filtered {len(hot_never)}; "
         f"base binders {len(pb)} ({sum(1 for p in pb if p[0] in pos)} with binding history)",
         flush=True,
     )
-    rows = {n: ptdf_row(g, n) for pr in preds.values() for n, _, _ in pr}
+    base_rows = {}
 
-    def sp_ptdf(sp, n):
+    def brow(n):
+        if n not in base_rows:
+            base_rows[n] = ptdf_row(g, n)
+        return base_rows[n]
+
+    # shift factors in the state that binds: after the element's usual worst
+    # contingency, PTDF'_m = PTDF_m + W_c[m] . PTDF_K
+    srow = {n: r for r, n in enumerate(n1.screen)}
+    rows = {}
+    for pr in preds.values():
+        for n, _, _, ci in pr:
+            if (n, ci) in rows:
+                continue
+            r = brow(n)
+            if ci >= 0:
+                st = n1.starts[ci]
+                K = n1.members[ci]
+                w = n1.W[srow[n], st : st + len(K)]
+                r = r + sum(float(wk) * brow(k) for wk, k in zip(w, K, strict=True))
+            rows[(n, ci)] = r
+
+    def sp_ptdf(sp, key):
         w = mp.spread(sp)
-        return None if not w else sum(rows[n][g.idx[b]] * f for b, f in w.items())
+        return None if not w else sum(rows[key][g.idx[b]] * f for b, f in w.items())
 
     def hist(src, snk, since):
         a, b = price.get(src, {}), price.get(snk, {})
@@ -446,11 +665,11 @@ def main() -> int:
             continue  # no counterflow
         pv = {}
         for name, pr in preds.items():
-            a = [sp_ptdf(src, n) for n, _, _ in pr]
-            b = [sp_ptdf(snk, n) for n, _, _ in pr]
+            a = [sp_ptdf(src, (n, ci)) for n, _, _, ci in pr]
+            b = [sp_ptdf(snk, (n, ci)) for n, _, _, ci in pr]
             if all(x is not None for x in a + b):
                 pv[name] = sum(
-                    val * sg * (x - y) for (_, sg, val), x, y in zip(pr, a, b, strict=True)
+                    val * sg * (x - y) for (_, sg, val, _ci), x, y in zip(pr, a, b, strict=True)
                 )
         for name, v in pv.items():
             sig[name][(src, snk)] = (v, exp_clear)

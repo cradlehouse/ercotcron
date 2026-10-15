@@ -409,3 +409,19 @@ month we spend tests as many ideas as possible. Built by
   loading)^2, clipped 0.25x..4x. A first version (scaling DAM wind awards,
   frequency >= 90%) produced near copies of phys_base and was replaced in the
   dry run, before any freeze.
+
+## Addendum: line trips, outage replacement and month order (15 Oct 2026, before any freeze)
+
+- Contingencies: every element's loading is now the worst of its base case and
+  every contingency in the delivery month's own contingency file (exact DC
+  distribution factors, multi-element included; islanding contingencies
+  skipped). Most DAM binding is post-contingency, so the base-case-only model
+  is kept as its own signal (phys_n0) to measure what this adds.
+- Units on planned outage are replaced by gas, pro rata system-wide (default)
+  or in their own load zone first (phys_local), instead of vanishing.
+- 13 signals x 4 rules + control = 53 books.
+- Month order changed before any result was seen: MAR 2026 first (as of
+  8 Feb 2026, results posted 19 Feb), then MAY, then JUL; FEB 2026 is held
+  back as the last rehearsal before real money, ideally with Steve's
+  transmission outage list. APR, JUN, AUG, SEP in reserve.
+- Analog-month zonal load forecasts (NP3-560) backfilled for Mar-Sep 2025.
