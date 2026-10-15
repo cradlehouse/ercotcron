@@ -4,6 +4,13 @@ at the auction cutoff (replay-plan addendum, 15 Oct 2026).
 
     python strategy/paper_month.py --delivery 2026-02 --asof 2026-01-11 [--tou PeakWD] [--freeze]
 
+From MAY 2026 (plan addendum, after MAR): no DC ties / Laredo VFT, candidates
+priced >= $0.25 only, books ranked by $ edge with at most 2 paths per source and
+per sink, and the main signals are auction-anchored - value = latest clearing x
+R (what paths paid / their clearing over recent completed months), tilted by
+physics (1 + k x z). The signal list below predates that change; the code and
+the addendum are authoritative.
+
 Every run builds a slate of books from the same candidates and clearing
 estimates, so one month tests many ideas at once (signal x bid rule):
 

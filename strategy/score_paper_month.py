@@ -63,13 +63,14 @@ def main() -> int:
         if not clear:
             raise SystemExit(f"no {auction} {args.tou} clearing prices")
         price = defaultdict(dict)
-        for sp, dd, he, pr in c.execute(
-            """select settlement_point, delivery_date, hour_ending, price from dam_spp
-                where settlement_point = any(%s) and delivery_date between %s and %s""",
-            (nodes, days[0], days[-1]),
-        ):
-            if tou_of(dd, he) == args.tou:
-                price[sp][(dd, he)] = float(pr)
+        for i in range(0, len(nodes), 100):  # batches: one big query can drop the connection
+            for sp, dd, he, pr in c.execute(
+                """select settlement_point, delivery_date, hour_ending, price from dam_spp
+                    where settlement_point = any(%s) and delivery_date between %s and %s""",
+                (nodes[i : i + 100], days[0], days[-1]),
+            ):
+                if tou_of(dd, he) == args.tou:
+                    price[sp][(dd, he)] = float(pr)
     hours = sorted({k for v in price.values() for k in v})
     nh = len(hours)
 
@@ -102,18 +103,20 @@ def main() -> int:
             payout=round(gain),
             profit=round(gain - cost),
             win_rate=round(wins / cl, 3) if cl else None,
+            roi=round((gain - cost) / cost, 3) if cost > 0 else None,
         )
     ctrl = rep.get("random__control", {}).get("profit")
     order = sorted(rep, key=lambda k: -rep[k]["profit"])
     print(f"{auction} {args.tou}: {nh} hours scored; control profit ${ctrl:,}")
     print(
-        f"{'book':28s} {'bids':>4s} {'clr':>4s} {'cost':>10s} {'payout':>10s} {'profit':>10s} {'win':>5s}"
+        f"{'book':28s} {'bids':>4s} {'clr':>4s} {'cost':>10s} {'payout':>10s} {'profit':>10s} {'return':>7s} {'win':>5s}"
     )
     for k in order:
         r = rep[k]
         wr = f"{r['win_rate']:.0%}" if r["win_rate"] is not None else "-"
+        ro = f"{r['roi']:.0%}" if r["roi"] is not None else "-"
         print(
-            f"{k:28s} {r['bids']:4d} {r['cleared']:4d} {r['cost']:10,} {r['payout']:10,} {r['profit']:10,} {wr:>5s}"
+            f"{k:28s} {r['bids']:4d} {r['cleared']:4d} {r['cost']:10,} {r['payout']:10,} {r['profit']:10,} {ro:>7s} {wr:>5s}"
         )
     (d / "score.json").write_text(json.dumps(dict(auction=auction, hours=nh, books=rep), indent=1))
     return 0
