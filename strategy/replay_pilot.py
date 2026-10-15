@@ -176,6 +176,8 @@ def main() -> int:
     ap.add_argument("--month", required=True)
     ap.add_argument("--tou", default="PeakWD")
     ap.add_argument("--top", type=int, default=60)
+    ap.add_argument("--precision", action="store_true",
+                    help="also score every monitored element: do the ones that bound stand out from the ones that never did?")
     args = ap.parse_args()
     y, m = map(int, args.month.split("-"))
     tag = f"{y}.{MON[m - 1]}.Monthly.Auction"
@@ -510,6 +512,36 @@ def main() -> int:
         results.append(dict(constraint=name, contingency=cont, dollars=round(sum(bind[k].values())), bind_hours=len(pos),
                             auc=auc(pos, neg), load_bind=float(np.median(pos)) if pos else None,
                             load_other=float(np.median(neg)) if neg else None))
+    if args.precision:
+        # Spatial precision (plan addendum: hit rate alone rewards predicting
+        # tight everywhere). Positives: model branches of EVERY constraint that
+        # bound in these hours (resolved as above). Negatives: every other
+        # monitored element. Score each element by its 95th-percentile
+        # base-case loading over the month's hours.
+        pos_br = set()
+        for k in bind:
+            fs, ts, kv = meta[k]
+            pos_br |= set(resolve_element(fs, ts, kv)) if fs else set()
+        mon_br = {}
+        for key, rate in mon.items():
+            for n in g.key.get(key, []):
+                if rate:
+                    mon_br[n] = rate
+        idxs = sorted(mon_br)
+        load = np.zeros((len(hours), len(idxs)))
+        for t, h in enumerate(hours):
+            load[t] = np.abs(g.flows(P[h], frozenset(), idxs)) / np.array([mon_br[n] for n in idxs])
+        p95 = np.percentile(load, 95, axis=0)
+        lab = [n in pos_br for n in idxs]
+        pv = [v for v, lb in zip(p95, lab, strict=True) if lb]
+        nv = [v for v, lb in zip(p95, lab, strict=True) if not lb]
+        order = np.argsort(-p95)
+        prec = {kk: sum(lab[i] for i in order[:kk]) / kk for kk in (25, 50, 100)}
+        base = len(pv) / len(lab)
+        print(f"\nPRECISION: monitored elements {len(idxs)}, of which bound this month {len(pv)} (base rate {100*base:.1f}%)")
+        print(f"  AUC of p95 base-case loading, bound vs never-bound: {auc(list(pv), list(nv)):.2f}")
+        print("  share that bound among the most-loaded elements: " +
+              ", ".join(f"top {kk}: {100*v:.0f}% ({v/base:.1f}x base)" for kk, v in prec.items()))
     good = [r for r in results if r["auc"] is not None]
     print(f"\nconstraints evaluated {len(results)} of top {len(top)}; unresolved: {dict(unresolved)}")
     if good:
