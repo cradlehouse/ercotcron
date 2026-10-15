@@ -167,11 +167,16 @@ def main() -> int:
     zf = zipfile.ZipFile(REF / "settlement_points_map.zip")
     spf = next(n for n in zf.namelist() if re.search(r"Settlement_Points_.*\.csv$", n))
     rn, hub, lz, sub_bus = defaultdict(set), defaultdict(set), defaultdict(set), defaultdict(set)
+    # Join on the PSS/E bus NAME first: the mapping file postdates older models
+    # and ~3% of its bus numbers point at a different bus there than its names do.
+    byname = {v["name"].upper(): b for b, v in g.buses.items() if b in g.idx}
     for r in csv.DictReader(io.TextIOWrapper(zf.open(spf), encoding="latin-1")):
-        try:
-            b = int(r["PSSE_BUS_NUMBER"])
-        except (TypeError, ValueError):
-            continue
+        b = byname.get((r["PSSE_BUS_NAME"] or "").strip().upper())
+        if b is None:
+            try:
+                b = int(r["PSSE_BUS_NUMBER"])
+            except (TypeError, ValueError):
+                continue
         if b not in g.idx:
             continue
         if r["RESOURCE_NODE"]:
@@ -186,10 +191,13 @@ def main() -> int:
     # keyed by electrical bus
     eb_bus = {}
     for r in csv.DictReader(io.TextIOWrapper(zf.open(spf), encoding="latin-1")):
-        try:
-            eb_bus[r["ELECTRICAL_BUS"]] = int(r["PSSE_BUS_NUMBER"])
-        except (TypeError, ValueError):
-            pass
+        b = byname.get((r["PSSE_BUS_NAME"] or "").strip().upper())
+        if b is None:
+            try:
+                b = int(r["PSSE_BUS_NUMBER"])
+            except (TypeError, ValueError):
+                continue
+        eb_bus[r["ELECTRICAL_BUS"]] = b
     nf = next((n for n in zf.namelist() if "NOIE_Mapping" in n), None)
     if nf:
         for r in csv.DictReader(io.TextIOWrapper(zf.open(nf), encoding="latin-1")):
@@ -253,6 +261,16 @@ def main() -> int:
                         (days[0], days[-1])).fetchall()
         dc = c.execute("""select delivery_date, hour_ending, constraint_name, contingency, from_station, to_station, from_kv, shadow_price
                             from dam_constraints where delivery_date between %s and %s""", (days[0], days[-1])).fetchall()
+        # zonal load forecast as known when DAM cleared: the 09:30 edition of the day before
+        fz = defaultdict(dict)  # day -> zone -> [24]
+        for dd, zone, vals in c.execute("""
+              select v.delivery_date, v.series, v.vals from ercot_forecast_vintages v
+               where v.product = 'NP3-560-CD' and v.delivery_date between %s and %s
+                 and v.series in ('Houston','North','South','West')
+                 and v.posted_at = (select max(w.posted_at) from ercot_forecast_vintages w
+                                     where w.product = 'NP3-560-CD' and w.delivery_date = v.delivery_date
+                                       and w.posted_at < v.delivery_date - interval '14 hours')""", (days[0], days[-1])):
+            fz[dd][zone] = vals
     print(f"injection rows: {len(res)} resource-days, {len(vir)} virtual, {len(ptp)} PTP; DAM constraint-hours {len(dc)}", flush=True)
     nb = len(g.ids)
     P = {h: np.zeros(nb) for h in hours}
@@ -269,12 +287,37 @@ def main() -> int:
         for k, v in enumerate(arr):
             if (dd, k + 1) in hs and v:
                 add(P[(dd, k + 1)], so, v); add(P[(dd, k + 1)], si, -v)
-    imb = []
+    # Residual withdrawals (load not itemised in the disclosure) go to the four
+    # forecast zones in proportion to ERCOT's decision-time zonal forecast, then
+    # to buses within a zone by the model's bus loads. Days without a forecast
+    # edition fall back to the model's static load pattern.
+    ZONE = {"LZ_HOUSTON": "Houston", "LZ_NORTH": "North", "LZ_RAYBN": "North", "LZ_SOUTH": "South",
+            "LZ_AEN": "South", "LZ_CPS": "South", "LZ_LCRA": "South", "LZ_WEST": "West"}
+    bus_zone = {}
+    for zname, bs in lz.items():
+        for b in bs:
+            if ZONE.get(zname):
+                bus_zone.setdefault(b, ZONE[zname])
+    zw = defaultdict(dict)
+    for b, w in load_w.items():
+        zw[bus_zone.get(b, "_none")][b] = w
+    zt = {z: sum(v.values()) for z, v in zw.items()}
+    imb, zonal_days = [], 0
     for h in hours:
         tot = P[h].sum()
         imb.append(tot)
-        for b, w in load_w.items():
-            P[h][g.idx[b]] -= tot * w / lw_tot
+        f = fz.get(h[0], {})
+        if len(f) == 4 and all(f[z] and len(f[z]) >= h[1] and f[z][h[1] - 1] for z in f):
+            fv = {z: f[z][h[1] - 1] for z in f}
+            ft = sum(fv.values())
+            for z, share in ((z, fv[z] / ft) for z in fv):
+                for b, w in zw.get(z, {}).items():
+                    P[h][g.idx[b]] -= tot * share * w / zt[z]
+            zonal_days += 1
+        else:
+            for b, w in load_w.items():
+                P[h][g.idx[b]] -= tot * w / lw_tot
+    print(f"zonal load allocation used for {zonal_days} of {len(hours)} hours", flush=True)
     print("largest unmapped settlement points (MW/h):", [(k, round(v / len(hours))) for k, v in sorted(unmapped.items(), key=lambda x: -x[1])[:15]])
     print(f"hourly residual imbalance spread over loads: median {np.median(imb):,.0f} MW; "
           f"unmapped settlement points {len(unmapped)} ({sum(unmapped.values()) / len(hours):,.0f} MW/h avg)", flush=True)
