@@ -84,7 +84,7 @@ def raw_gen_buses(path):
 
 class Grid:
     def __init__(self, raw):
-        self.buses, br = parse_raw(pathlib.Path(raw))
+        self.buses, br = parse_raw(pathlib.Path(raw), zero_x=1e-4)
         adj = defaultdict(set)
         for b in br:
             adj[b["i"]].add(b["j"]); adj[b["j"]].add(b["i"])
@@ -218,6 +218,10 @@ def main() -> int:
         # the prefix is the plant's substation; use its generator buses
         st = sp.split("_")[0]
         bs = {b for b in sub_bus.get(st, set()) if b in gen_buses} or sub_bus.get(st, set())
+        if not bs and len(st) >= 3:
+            # mapping-file bus numbers can postdate the model: fall back to the
+            # model's own generator buses whose name starts with the station code
+            bs = {b for b in gen_buses if g.buses[b]["name"].upper().startswith(st.upper())}
         if bs:
             return {b: 1 / len(bs) for b in bs}
         return None

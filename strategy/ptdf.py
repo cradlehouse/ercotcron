@@ -37,8 +37,13 @@ from scipy.sparse.linalg import factorized
 from strategy.common import REF, load_ref
 
 
-def parse_raw(path: pathlib.Path):
-    """Bus list and branch list from a PSS/E v30 RAW case."""
+def parse_raw(path: pathlib.Path, zero_x: float | None = None):
+    """Bus list and branch list from a PSS/E v30 RAW case.
+
+    zero_x: if set, zero-impedance branches (breakers, bus ties) are kept with
+    this reactance instead of dropped; dropping them islands every plant that
+    sits behind a breaker (the OCT 2025 model splits into 344 pieces).
+    """
     lines = path.read_text(encoding="latin-1").splitlines()
     marks = {}
     for i, line in enumerate(lines):
@@ -69,6 +74,8 @@ def parse_raw(path: pathlib.Path):
         f = fields(line)
         try:
             i, j, x = abs(int(f[0])), abs(int(f[1])), float(f[3])
+            if zero_x and abs(x) <= 1e-9:
+                x = zero_x
             if i in buses and j in buses and abs(x) > 1e-9 and i != j:
                 branches.append({"i": i, "j": j, "x": x, "ckt": f[2],
                                  "rate": float(f[6]) if f[6] else 0.0, "kind": "line"})
@@ -89,6 +96,8 @@ def parse_raw(path: pathlib.Path):
             i, j = abs(int(f[0])), abs(int(f[1]))
             three = f[2] and int(f[2]) != 0
             x = float(fields(block[n + 1])[1])
+            if zero_x and abs(x) <= 1e-9:
+                x = zero_x
             if i in buses and j in buses and abs(x) > 1e-9 and i != j:
                 rate = 0.0
                 try:
