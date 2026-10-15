@@ -124,16 +124,19 @@ def main() -> int:
     d0, d1 = date.fromisoformat(args.d0), date.fromisoformat(args.d1)
     client = ErcotClient()
 
-    def get(url, tries=5):
+    def get(url, tries=8):
         for a in range(tries):
             try:
                 h = {"Authorization": f"Bearer {client.token()}",
                      "Ocp-Apim-Subscription-Key": os.environ["ERCOT_SUBSCRIPTION_KEY"]}
                 with urllib.request.urlopen(urllib.request.Request(url, headers=h), timeout=600) as r:
                     return r.read()
-            except Exception:
+            except Exception as e:
                 if a == tries - 1:
                     raise
+                if getattr(e, "code", None) == 429:  # rate limited: back off hard
+                    time.sleep(60 * (a + 1))
+                    continue
                 time.sleep(10 * (a + 1))
 
     p0, p1 = d0 + timedelta(days=55), d1 + timedelta(days=66)
