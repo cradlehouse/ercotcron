@@ -490,3 +490,11 @@ NOV 2026: paper only - built after the 5pm CT 15 Oct auction close, frozen
 before results post; as of 2026-10-15 on the OCT 2026 CRR model (the NOV model
 has not been received), flagged model_month=2026-10 in its manifest. Scored
 when NOV DAM prices are complete (Dec).
+
+Correction (15 Oct, 17:30 CT): the builder chose "the two latest prior
+auctions" by comparing auction names as text, which does not sort by date.
+MAR and MAY used the right auctions; the sealed JUL used FEB+APR 2026 instead
+of MAY+JUN (older prices, nothing from after asof - a valid but handicapped
+test; it stays sealed and is not rebuilt). Fixed to compare dates and require
+results posted by asof before any remaining month was built. FEB stays held
+back: it is built and sealed tonight but NOT scored (Tim, 15 Oct).

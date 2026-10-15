@@ -542,13 +542,26 @@ def main() -> int:
                               group by 1,2,3,4""",
             (hist0, asof - timedelta(days=1)),
         ).fetchall()
+        # the two latest monthly auctions before the delivery month whose results
+        # were posted by asof (compared as dates - auction names do not sort)
         prev = c.execute(
-            """select auction_name from crr_auctions where report_type='monthly' and auction_name < %s
-                            order by 1""",
-            (f"{MON[m - 1]}{y}Monthly",),
+            "select auction_name, file_name from crr_auctions where report_type='monthly'"
         ).fetchall()
-        months_sorted = sorted({a for (a,) in prev}, key=lambda a: (int(a[3:7]), MON.index(a[:3])))
-        prior = [a for a in months_sorted if (int(a[3:7]), MON.index(a[:3]) + 1) < (y, m)][-2:]
+        posted = {
+            a: f.split(".")[3][:8]
+            for a, f in prev
+            if a.endswith("Monthly") and len(f.split(".")) > 3
+        }
+        months_sorted = sorted(
+            (a for a in posted if a[:3] in MON and a[3:7].isdigit()),
+            key=lambda a: (int(a[3:7]), MON.index(a[:3])),
+        )
+        prior = [
+            a
+            for a in months_sorted
+            if (int(a[3:7]), MON.index(a[:3]) + 1) < (y, m) and posted[a] <= asof.strftime("%Y%m%d")
+        ][-2:]
+        print(f"prior auctions: {prior}", flush=True)
         last_auc = prior[-1]
         clear = {
             sp: float(v)
