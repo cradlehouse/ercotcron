@@ -425,3 +425,25 @@ month we spend tests as many ideas as possible. Built by
   back as the last rehearsal before real money, ideally with Steve's
   transmission outage list. APR, JUN, AUG, SEP in reserve.
 - Analog-month zonal load forecasts (NP3-560) backfilled for Mar-Sep 2025.
+
+## Addendum: MAR 2026 result and the rules for MAY (15 Oct 2026, before MAY is built)
+
+MAR 2026 (sealed, manifest sha256 06bacaf2...): random control +$88k; one
+physics book above it (phys_n0__wide110 +$140k); every other physics book lost
+(about -$150k to -$265k). Three paths from LARDVFTN_G4 (the Laredo VFT tie)
+made $157k of phys_base__m150's $204k loss. Physics paths mostly paid in the
+predicted direction (69% positive), but physics $ value had ~0 correlation
+with payout, while the auction clearing price had 0.71-0.82.
+
+Rules from MAY on (Tim approved 15 Oct; designed on MAR, so MAR cannot test them):
+1. No DC ties (DC_*) or Laredo VFT (LARDVFT*) on either end.
+2. At most 2 paths per source and per sink in a book.
+3. Rank by $ edge (value - expected clearing), not value / clearing.
+4. Candidates priced >= $0.25/MWh in the latest prior auction only.
+5. Auction-anchored valuation: value = latest clearing x R, where R = what
+   candidate paths paid / their clearing price over the delivery months
+   completed inside the 100-day window to asof; physics tilts it by
+   (1 + k x z), z = the path's physics value standardised across candidates,
+   clipped +-2. k = 0.25 / 0.5 / 1.0 on phys_base; 0.5 on phys_n0, phys_windy,
+   phys_robust, phys_recent. Pure physics value kept as one comparison signal
+   (phys_base); market (R x clearing, no physics) and hist100 as baselines.

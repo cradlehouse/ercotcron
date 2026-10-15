@@ -75,6 +75,19 @@ from strategy.replay_pilot import Grid, raw_gen_buses, raw_loads
 load_dotenv(ROOT / ".env")
 MON = "JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split()
 TOPK, MAX_BIDS, MW, HOT = 100, 60, 5, 0.8
+# after MAR 2026 (see the plan's addendum): no DC ties / Laredo VFT, no paths
+# priced under 25c, at most 2 per source and per sink, rank by $ edge
+MIN_CLEAR, NODE_CAP = 0.25, 2
+TILTS = (0.25, 0.5, 1.0)
+ANCHOR_PHYS = ("phys_base", "phys_n0", "phys_lull", "phys_windy", "phys_cold", "phys_recent")
+ANCHORED = ("phys_base", "phys_n0", "phys_windy", "phys_robust", "phys_recent")
+
+
+def excluded(sp):
+    """DC ties and the Laredo VFT: flows set by operators, not by the network."""
+    return sp.startswith("DC_") or sp.startswith("LARDVFT")
+
+
 # bid rules: name -> (required value / clearing, max bids); limit = value / ratio
 RULES = {
     "m125": (1.25, MAX_BIDS),
@@ -655,35 +668,88 @@ def main() -> int:
         v = [b[k] - a[k] for k in a if k in b and k[0] >= since]
         return statistics.mean(v) if v else None
 
+    # market anchor: what candidate paths paid against their clearing price in
+    # the delivery months completed inside the history window (pooled $/$)
+    done_months = []
+    d0 = hist0.replace(day=1)
+    while d0 < asof:
+        last = month_days(d0.year, d0.month)[-1]
+        if d0 >= hist0 and last < asof:
+            done_months.append(d0)
+        d0 = last + timedelta(days=1)
+    num = den = 0.0
+    with psycopg.connect(os.environ["DATABASE_URL"]) as c:
+        for d0 in done_months:
+            cl = {
+                sp: float(v)
+                for sp, v in c.execute(
+                    "select settlement_point, shadow_price from crr_point_prices where auction_name=%s and time_of_use=%s",
+                    (f"{MON[d0.month - 1]}{d0.year}Monthly", args.tou),
+                )
+            }
+            for src, snk in cands:
+                if excluded(src) or excluded(snk) or src not in cl or snk not in cl:
+                    continue
+                ec = cl[src] - cl[snk]
+                if ec < MIN_CLEAR:
+                    continue
+                a_, b_ = price.get(src, {}), price.get(snk, {})
+                v = [
+                    b_[k] - a_[k]
+                    for k in a_
+                    if k in b_ and (k[0].year, k[0].month) == (d0.year, d0.month)
+                ]
+                if v:
+                    num += statistics.mean(v)
+                    den += ec
+    R = num / den if den else 1.0
+    print(
+        f"market anchor: paths paid {R:.2f}x their clearing price in {[str(d)[:7] for d in done_months]}",
+        flush=True,
+    )
+
     # signal -> {(src, snk): (expected $/MWh, expected clearing)}
     sig = defaultdict(dict)
+    phys = defaultdict(dict)
     for src, snk in cands:
-        if src not in clear or snk not in clear:
+        if src not in clear or snk not in clear or excluded(src) or excluded(snk):
             continue
         exp_clear = clear[src] - clear[snk]
-        if exp_clear <= 0:
-            continue  # no counterflow
-        pv = {}
-        for name, pr in preds.items():
+        if exp_clear < MIN_CLEAR:
+            continue  # no counterflow, no penny paths
+        for name in ANCHOR_PHYS:
+            pr = preds[name]
             a = [sp_ptdf(src, (n, ci)) for n, _, _, ci in pr]
             b = [sp_ptdf(snk, (n, ci)) for n, _, _, ci in pr]
             if all(x is not None for x in a + b):
-                pv[name] = sum(
-                    val * sg * (x - y) for (_, sg, val, _ci), x, y in zip(pr, a, b, strict=True)
+                phys[name][(src, snk)] = (
+                    sum(
+                        val * sg * (x - y) for (_, sg, val, _ci), x, y in zip(pr, a, b, strict=True)
+                    ),
+                    exp_clear,
                 )
-        for name, v in pv.items():
-            sig[name][(src, snk)] = (v, exp_clear)
-        wx = [pv[f"phys_{s}"] for s in SCEN if f"phys_{s}" in pv]
-        if len(wx) == len(SCEN):
-            sig["phys_robust"][(src, snk)] = (min(wx), exp_clear)
-            sig["phys_wxavg"][(src, snk)] = (statistics.mean(wx), exp_clear)
-        h100, h30 = hist(src, snk, hist0), hist(src, snk, asof - timedelta(days=30))
+        sig["market"][(src, snk)] = (R * exp_clear, exp_clear)
+        h100 = hist(src, snk, hist0)
         if h100 is not None:
             sig["hist100"][(src, snk)] = (h100, exp_clear)
-            if "phys_base" in pv:
-                sig["consensus"][(src, snk)] = (min(h100, pv["phys_base"]), exp_clear)
-        if h30 is not None:
-            sig["hist30"][(src, snk)] = (h30, exp_clear)
+    wx = [phys[f"phys_{s_}"] for s_ in SCEN]
+    phys["phys_robust"] = {
+        k: (min(d[k][0] for d in wx), v[1]) for k, v in wx[0].items() if all(k in d for d in wx)
+    }
+    sig["phys_base"] = dict(phys["phys_base"])  # physics $ as the whole value: comparison only
+    # auction-anchored: the market's value tilted by physics. z = the path's
+    # physics value standardised across candidates, clipped to +-2.
+    for name in ANCHORED:
+        vals = phys[name]
+        if len(vals) < 2:
+            continue
+        mu = statistics.mean(v for v, _ in vals.values())
+        sd = statistics.pstdev(v for v, _ in vals.values()) or 1.0
+        for k in TILTS if name == "phys_base" else (0.5,):
+            tag_ = f"anch{int(k * 100)}_{name[5:]}"
+            for key, (v, ec) in vals.items():
+                z = max(-2.0, min(2.0, (v - mu) / sd))
+                sig[tag_][key] = (R * ec * (1 + k * z), ec)
 
     def book(vals, margin, cap):
         out = [
@@ -695,19 +761,29 @@ def main() -> int:
                 limit=round(v / margin, 2),
                 exp_value=round(v, 4),
                 exp_clear=round(ec, 4),
-                ratio=round(v / max(ec, 0.05), 2),
+                ratio=round(v / ec, 2),
             )
             for (src, snk), (v, ec) in vals.items()
-            if v >= margin * max(ec, 0.05)
+            if v >= margin * ec
         ]
-        return sorted(out, key=lambda r: (-r["ratio"], r["source"], r["sink"]))[:cap]
+        # rank by $ edge (value - clearing); at most NODE_CAP paths per source / sink
+        out.sort(key=lambda r: (-(r["exp_value"] - r["exp_clear"]), r["source"], r["sink"]))
+        kept, ns, nk = [], defaultdict(int), defaultdict(int)
+        for r in out:
+            if ns[r["source"]] < NODE_CAP and nk[r["sink"]] < NODE_CAP:
+                kept.append(r)
+                ns[r["source"]] += 1
+                nk[r["sink"]] += 1
+            if len(kept) == cap:
+                break
+        return kept
 
     books = {}
     for sname in sorted(sig):
         for rname, (margin, cap) in RULES.items():
             books[f"{sname}__{rname}"] = book(sig[sname], margin, cap)
-    # random control: same candidates, bid 1.5x expected clearing, seeded by month
-    pool = sorted({k: ec for vals in sig.values() for k, (_, ec) in vals.items()}.items())
+    # random control: same filtered candidates, bid 1.5x expected clearing, seeded by month
+    pool = sorted({k: ec for k, (_, ec) in sig["market"].items()}.items())
     rng = random.Random(int(hashlib.sha256(args.delivery.encode()).hexdigest(), 16))
     books["random__control"] = [
         dict(
@@ -715,7 +791,7 @@ def main() -> int:
             sink=snk,
             tou=args.tou,
             mw=MW,
-            limit=round(1.5 * max(ec, 0.05), 2),
+            limit=round(1.5 * ec, 2),
             exp_value=None,
             exp_clear=round(ec, 4),
             ratio=None,
