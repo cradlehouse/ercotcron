@@ -303,3 +303,41 @@ and describing it as untouched.
 5. Begin independently frozen auction-cutoff predictions and score them after
    delivery. Expand valuation/UI and consider ticket integration only after
    the appropriate physical, forecasting and forward-evidence gates pass.
+
+## Addendum — 14 Oct 2026 (evening): coverage-driven window change, before any replay is run
+
+Recorded before any reconstruction or forecast result exists.
+
+**Coverage found:**
+
+- Monthly CRR network models are held only for OCT 2025, NOV 2025, DEC 2025,
+  JAN 2026, FEB 2026 and APR 2026. Each comes with its contingency,
+  monitored-element and non-thermal files, supplied from the MIS secure area.
+- No model exists for any month of the registered tuning window
+  (Oct 2024 – Sep 2025).
+- Replaying that window on a later grid would use the wrong topology. The
+  original registration rules that out.
+
+**Revised windows:**
+
+- **Tuning:** Oct 2025 – Jan 2026. Four models.
+- **Historical evaluation:** Feb 2026 – Sep 2026, run once under the existing
+  freeze rules. It needs the MAR 2026 and MAY–SEP 2026 models, which have been
+  requested. Months without a model are excluded, not substituted.
+- **Live forward:** unchanged. Freeze before each auction cutoff, once the
+  matching monthly model is held.
+
+These months overlap work already examined: the Sep–Oct 2026 grid changes,
+and the event study, which used Feb 2025 – Jul 2026 projects. The historical
+evaluation is therefore prior-exposed. Live forward results carry the
+independent evidence.
+
+If OCT 2024 – SEP 2025 models are obtained before tuning results are
+examined, the original split may be restored by a further dated addendum.
+
+**Inputs now in place:**
+
+- **Injections:** 60-Day DAM Disclosure, hourly, Oct 2024 – Aug 2026.
+  Covers resource awards, virtual offers and bids, and PTP awards.
+- **Decision-time forecasts:** ERCOT's archived load, wind and solar
+  editions as posted at 09:30–09:55 Central, Oct 2024 onward (loading).
