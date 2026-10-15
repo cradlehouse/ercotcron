@@ -498,3 +498,18 @@ of MAY+JUN (older prices, nothing from after asof - a valid but handicapped
 test; it stays sealed and is not rebuilt). Fixed to compare dates and require
 results posted by asof before any remaining month was built. FEB stays held
 back: it is built and sealed tonight but NOT scored (Tim, 15 Oct).
+
+## Addendum: results of the remaining months (15 Oct 2026, evening)
+
+Sealed and scored on the focused slate: APR, JUN, AUG, SEP. FEB sealed,
+unscored (holdout). NOV sealed as paper (OCT model). Over APR/JUN/JUL/AUG/SEP:
+random control +$363k (4/5 months profitable); market <=$3 +$292k (3/3 active
+months); pure physics <=$3 +$12k to +$18k; anchored physics -$41k to -$139k;
+hist100 <=$3 -$27k to +$16k with +-$480k swings; counterflow physics -$257k,
+random +$11k. Conclusion: broad diversified buying captured a 2026 risk
+premium; physics did not beat random selection. Note: the focused slate's
+phys_windy / phys_recent names matched no signal, so those books were not
+built (11 books, not 15).
+NOV $150k pot (paper, sealed separately as paper_2026-11_PeakWD_pot150):
+union of the NOV market <=$3 and random baskets, equal MW per path, max
+authorised <= $150k. Path list kept in the archive only (public repo).
