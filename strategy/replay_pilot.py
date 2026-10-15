@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import difflib
 import io
 import json
 import os
@@ -104,32 +105,53 @@ class Grid:
         self.cache = {}
 
     def solver(self, out=frozenset()):
+        """Factorised B for the slack's component with `out` branches removed.
+        A contingency that islands part of the grid keeps the main component;
+        injections on the islanded buses are dropped (reported as islanded)."""
         if out in self.cache:
             return self.cache[out]
-        nb = len(self.ids)
+        adj = defaultdict(list)
+        for n, b in enumerate(self.br):
+            if n not in out:
+                adj[b["i"]].append(b["j"]); adj[b["j"]].append(b["i"])
+        comp, st = set(), [self.slack]
+        while st:
+            x = st.pop()
+            if x not in comp:
+                comp.add(x); st.extend(adj[x])
+        cid = sorted(comp)
+        cix = {b: k for k, b in enumerate(cid)}
+        nb = len(cid)
         B = lil_matrix((nb, nb))
         for n, b in enumerate(self.br):
-            if n in out:
+            if n in out or b["i"] not in cix or b["j"] not in cix:
                 continue
-            i, j, y = self.idx[b["i"]], self.idx[b["j"]], 1.0 / b["x"]
+            i, j, y = cix[b["i"]], cix[b["j"]], 1.0 / b["x"]
             B[i, i] += y; B[j, j] += y; B[i, j] -= y; B[j, i] -= y
-        s = self.idx[self.slack]
-        keep = np.array([k for k in range(nb) if k != s])
+        s0 = cix[self.slack]
+        keep = [k for k in range(nb) if k != s0]
         try:
             f = factorized(csc_matrix(B[keep, :][:, keep]))
         except RuntimeError:
-            f = None  # contingency islands the network
-        self.cache[out] = (f, keep)
+            f = None
+        gkeep = np.array([self.idx[cid[k]] for k in keep])
+        self.cache[out] = (f, gkeep, cix, len(self.ids) - nb)
         return self.cache[out]
 
     def flows(self, P_mw, out, branches):
-        f, keep = self.solver(out)
+        f, gkeep, cix, _islanded = self.solver(out)
         if f is None:
             return None
         th = np.zeros(len(self.ids))
-        th[keep] = f(P_mw[keep] / 100.0)
-        return np.array([[100.0 * (th[self.idx[self.br[n]["i"]]] - th[self.idx[self.br[n]["j"]]]) / self.br[n]["x"]
-                          for n in branches]])[0]
+        th[gkeep] = f(P_mw[gkeep] / 100.0)
+        res = []
+        for n in branches:
+            b = self.br[n]
+            if b["i"] in cix and b["j"] in cix:
+                res.append(100.0 * (th[self.idx[b["i"]]] - th[self.idx[b["j"]]]) / b["x"])
+            else:
+                res.append(0.0)
+        return np.array(res)
 
 
 def auc(pos, neg):
@@ -340,13 +362,36 @@ def main() -> int:
                 mon[(min(int(p[0]), int(p[2])), max(int(p[0]), int(p[2])), p[4])] = float(r["EmergencyRating"])
             except (ValueError, IndexError):
                 pass
-    cdef = defaultdict(list)
-    for r in csv.DictReader(open(next(M.glob(f"Common_Contingencies_{tag}_*.CSV")))):
-        p = r["DeviceName"].split()
-        try:
-            cdef[r["Contingency"]].append((min(int(p[0]), int(p[2])), max(int(p[0]), int(p[2])), p[4]))
-        except (ValueError, IndexError):
-            pass
+    def read_cont(path):
+        out = defaultdict(list)
+        for r in csv.DictReader(open(path)):
+            p = r["DeviceName"].split()
+            try:
+                out[r["Contingency"]].append((min(int(p[0]), int(p[2])), max(int(p[0]), int(p[2])), p[4]))
+            except (ValueError, IndexError):
+                pass
+        return out
+    own = next(M.glob(f"Common_Contingencies_{tag}_*.CSV"))
+    cdef = read_cont(own)
+    for other in sorted(M.glob("Common_Contingencies_*.CSV")):
+        if other != own:
+            for k, v in read_cont(other).items():
+                cdef.setdefault(k, v)  # contingency missing this month: borrow its definition
+    # interfaces (generic transmission limits): this month's non-thermal file, then others
+    iface = {}
+    for path in [next(M.glob(f"Common_Non_ThermalConstraints_{tag}_*.CSV"), None), *sorted(M.glob("Common_Non_ThermalConstraints_*.CSV"))]:
+        if not path:
+            continue
+        rows = defaultdict(list)
+        for r in csv.DictReader(open(path), skipinitialspace=True):
+            p = r["DeviceName"].split()
+            try:
+                rows[r["Name"]].append((int(p[0]), int(p[2]), p[4], 1 if r["FlowDirection"].strip() == "From-To" else -1,
+                                        float(r["Factor"]), float(r["Limit"])))
+            except (ValueError, IndexError, KeyError):
+                pass
+        for k, v in rows.items():
+            iface.setdefault(k, v)
 
     def buses_of(station, kv):
         if not station:
@@ -358,20 +403,85 @@ def main() -> int:
             return bs2 or bs
         return bs
 
-    results, unresolved = [], defaultdict(int)
+    adjk = defaultdict(list)  # bus -> [(neighbour, branch index)]
+    for n, b in enumerate(g.br):
+        adjk[b["i"]].append((b["j"], n)); adjk[b["j"]].append((b["i"], n))
+
+    def same_kv(b, kv):
+        return not kv or kv <= 1 or abs(g.buses[b]["kv"] - kv) < 2
+
+    def resolve_element(fs, ts, kv):
+        A = buses_of(fs, kv)
+        if not ts or ts == fs:
+            # in-station transformer: one side at kV, the other at any voltage
+            allb = buses_of(fs, None)
+            el = [n for n, b in enumerate(g.br) if b["kind"] == "xfmr"
+                  and ((b["i"] in A and b["j"] in allb) or (b["j"] in A and b["i"] in allb))]
+            return el
+        Bset = buses_of(ts, kv)
+        el = [n for n, b in enumerate(g.br) if (b["i"] in A and b["j"] in Bset) or (b["j"] in A and b["i"] in Bset)]
+        if el:
+            return el
+        if A and not Bset:
+            # far end is a tap missing from the mapping: nearest same-kV neighbour
+            # (<= 2 hops) whose name best matches the station code
+            near = {}
+            for a in A:
+                for nb1, _ in adjk[a]:
+                    if same_kv(nb1, kv):
+                        near.setdefault(nb1, 1)
+                        for nb2, _ in adjk[nb1]:
+                            if same_kv(nb2, kv) and nb2 not in A:
+                                near.setdefault(nb2, 2)
+            sc = [(difflib.SequenceMatcher(None, ts.upper(), g.buses[b]["name"].upper()[:len(ts) + 2]).ratio(), b) for b in near]
+            sc = [x for x in sc if x[0] >= 0.5]
+            if sc:
+                Bset = {max(sc)[1]}
+        if not A and Bset:
+            return resolve_element(ts, fs, kv)
+        if A and Bset:
+            # series line through unmapped tap buses: shortest same-kV path (<= 3
+            # hops); the constraint's flow is the segment leaving the from-station
+            frontier, prev = list(A), {a: None for a in A}
+            for _ in range(3):
+                nxt = []
+                for x in frontier:
+                    for y, n in adjk[x]:
+                        if y not in prev and same_kv(y, kv):
+                            prev[y] = (x, n)
+                            if y in Bset:
+                                path, cur = [], y
+                                while prev[cur]:
+                                    path.append(prev[cur][1]); cur = prev[cur][0]
+                                return [path[-1]]
+                            nxt.append(y)
+                frontier = nxt
+        return []
+
+    results, unresolved, why = [], defaultdict(int), []
     for k in top:
         name, cont = k
         fs, ts, kv = meta[k]
-        A, Bset = buses_of(fs, kv), buses_of(ts or fs, kv)
-        el = [n for n, b in enumerate(g.br) if (b["i"] in A and b["j"] in Bset) or (b["j"] in A and b["i"] in Bset)]
-        if fs == ts:
-            el = [n for n in el if g.br[n]["kind"] == "xfmr"] or el
+        signs = None
+        if name in iface and (not fs or (fs == ts and not buses_of(fs, kv))):
+            # interface: signed, factored sum of its lines' flows against its limit
+            el, signs, limit = [], [], iface[name][0][5]
+            for fi, ti, ck, sg, fac, _lim in iface[name]:
+                for n in g.key.get((min(fi, ti), max(fi, ti), ck), []):
+                    el.append(n); signs.append(sg * fac * (1 if g.br[n]["i"] == fi else -1))
+        else:
+            el = resolve_element(fs, ts, kv)
         if not el:
-            unresolved["element"] += 1; continue
+            unresolved["element"] += 1
+            why.append(dict(constraint=name, contingency=cont, reason="element", fs=fs, ts=ts, kv=kv,
+                            buses_from=len(buses_of(fs, kv)), buses_to=len(buses_of(ts, kv)), dollars=round(sum(bind[k].values()))))
+            continue
         out = set()
         if cont and cont.upper() not in ("BASE CASE", "BASECASE"):
             if cont not in cdef:
-                unresolved["contingency"] += 1; continue
+                unresolved["contingency"] += 1
+                why.append(dict(constraint=name, contingency=cont, reason="contingency", dollars=round(sum(bind[k].values()))))
+                continue
             for key in cdef[cont]:
                 out |= set(g.key.get(key, []))
         out -= set(el)
@@ -380,6 +490,9 @@ def main() -> int:
             fl = g.flows(P[h], frozenset(out), el)
             if fl is None:
                 break
+            if signs is not None:
+                loads[h] = abs(sum(sg * f for sg, f in zip(signs, fl, strict=True))) / limit
+                continue
             best = 0.0
             for n, f in zip(el, fl, strict=True):
                 b = g.br[n]
@@ -389,7 +502,9 @@ def main() -> int:
                     best = max(best, abs(f) / rate)
             loads[h] = best
         if not loads:
-            unresolved["islanding"] += 1; continue
+            unresolved["islanding"] += 1
+            why.append(dict(constraint=name, contingency=cont, reason="islanding", n_out=len(out), dollars=round(sum(bind[k].values()))))
+            continue
         pos = [loads[h] for h in hours if h in bind[k]]
         neg = [loads[h] for h in hours if h not in bind[k]]
         results.append(dict(constraint=name, contingency=cont, dollars=round(sum(bind[k].values())), bind_hours=len(pos),
@@ -407,7 +522,7 @@ def main() -> int:
         print(f"  {r['constraint'][:18]:18} {str(r['contingency'])[:10]:10} ${r['dollars']:>8,} bind {r['bind_hours']:3}h  "
               f"AUC {a}  loading binding {r['load_bind'] or 0:5.2f} vs other {r['load_other'] or 0:5.2f}")
     out = REF / f"replay_pilot_{args.month}_{args.tou}.json"
-    json.dump(dict(model=raw.name, hours=len(hours), results=results, unresolved=dict(unresolved)), open(out, "w"), indent=1, default=str)
+    json.dump(dict(model=raw.name, hours=len(hours), results=results, unresolved=dict(unresolved), unresolved_detail=why), open(out, "w"), indent=1, default=str)
     print("wrote", out)
     return 0
 
