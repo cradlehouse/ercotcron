@@ -86,8 +86,18 @@ TOPK, MAX_BIDS, MW, HOT = 100, 60, 5, 0.8
 # priced under 25c, at most 2 per source and per sink, rank by $ edge
 MIN_CLEAR, NODE_CAP = 0.25, 2
 TILTS = (0.25, 0.5, 1.0)
-ANCHOR_PHYS = ("phys_base", "phys_n0", "phys_lull", "phys_windy", "phys_cold", "phys_recent")
-ANCHORED = ("phys_base", "phys_n0", "phys_windy", "phys_robust", "phys_recent")
+ANCHOR_PHYS = (
+    "phys_base",
+    "phys_n0",
+    "phys_lull",
+    "phys_windy",
+    "phys_cold",
+    "phys_recent",
+    "phys_nofilter",
+    "phys_local",
+    "phys_grow",
+)
+ANCHORED = ("phys_base", "phys_n0", "phys_windy", "phys_robust", "phys_recent", "phys_grow")
 
 
 def excluded(sp):
@@ -97,11 +107,16 @@ def excluded(sp):
 
 # bid rules: name -> (required value / clearing, max bids); limit = value / ratio
 RULES = {
-    "m125": (1.25, MAX_BIDS),
-    "m150": (1.5, MAX_BIDS),
-    "m200": (2.0, MAX_BIDS),
-    "wide110": (1.10, 150),
+    "m125": (1.25, MAX_BIDS, None),
+    "m150": (1.5, MAX_BIDS, None),
+    "m200": (2.0, MAX_BIDS, None),
+    "wide110": (1.10, 150, None),
+    # from JUL: the same, only paths expected to clear at <= $3
+    "m125cap3": (1.25, MAX_BIDS, 3.0),
+    "m150cap3": (1.5, MAX_BIDS, 3.0),
 }
+WEATHER = ("base", "lull", "windy", "cold")
+CF_BAND, CF_KEEP = (-3.0, -0.25), 0.75
 ZONE = {
     "LZ_HOUSTON": "Houston",
     "LZ_NORTH": "North",
@@ -433,6 +448,11 @@ def main() -> int:
     ap.add_argument("--asof", required=True)
     ap.add_argument("--tou", default="PeakWD")
     ap.add_argument("--freeze", action="store_true")
+    ap.add_argument(
+        "--dump",
+        action="store_true",
+        help="dry run only: also write every candidate's signals (diagnostics)",
+    )
     args = ap.parse_args()
     asof = date.fromisoformat(args.asof)
     y, m = map(int, args.delivery.split("-"))
@@ -525,6 +545,26 @@ def main() -> int:
                 (last_auc, args.tou),
             )
         }
+
+        # load growth: day-ahead SystemTotal forecasts for the 30 days to asof vs a year earlier
+        def mean_load(d0, d1):
+            xs = [
+                x
+                for (vals,) in c.execute(
+                    """select vals from ercot_forecast_vintages where product='NP3-561-CD' and series='SystemTotal'
+                        and delivery_date between %s and %s and posted_at::date = delivery_date - 1""",
+                    (d0, d1),
+                )
+                for x in (vals or [])
+                if x is not None
+            ]
+            return statistics.mean(xs) if xs else None
+
+        l_now = mean_load(asof - timedelta(days=30), asof - timedelta(days=1))
+        l_then = mean_load(asof - timedelta(days=395), asof - timedelta(days=366))
+        growth = l_now / l_then if l_now and l_then else 1.0
+        SCEN["grow"] = (0.0, growth - 1.0)
+        print(f"load growth: {growth:.3f} (30 days to asof vs a year earlier)", flush=True)
         cands = c.execute(
             """select distinct source, sink from crr_awards where auction_name = any(%s)
                                and hedge_type='OBL' and bid_type='BUY' and time_of_use=%s""",
@@ -718,10 +758,22 @@ def main() -> int:
     # signal -> {(src, snk): (expected $/MWh, expected clearing)}
     sig = defaultdict(dict)
     phys = defaultdict(dict)
+    cf = {}
     for src, snk in cands:
         if src not in clear or snk not in clear or excluded(src) or excluded(snk):
             continue
         exp_clear = clear[src] - clear[snk]
+        if CF_BAND[0] <= exp_clear <= CF_BAND[1]:
+            pr = preds["phys_base"]
+            a = [sp_ptdf(src, (n, ci)) for n, _, _, ci in pr]
+            b = [sp_ptdf(snk, (n, ci)) for n, _, _, ci in pr]
+            if all(x is not None for x in a + b):
+                cf[(src, snk)] = (
+                    sum(
+                        val * sg * (x - y) for (_, sg, val, _ci), x, y in zip(pr, a, b, strict=True)
+                    ),
+                    exp_clear,
+                )
         if exp_clear < MIN_CLEAR:
             continue  # no counterflow, no penny paths
         for name in ANCHOR_PHYS:
@@ -739,7 +791,7 @@ def main() -> int:
         h100 = hist(src, snk, hist0)
         if h100 is not None:
             sig["hist100"][(src, snk)] = (h100, exp_clear)
-    wx = [phys[f"phys_{s_}"] for s_ in SCEN]
+    wx = [phys[f"phys_{s_}"] for s_ in WEATHER]
     phys["phys_robust"] = {
         k: (min(d[k][0] for d in wx), v[1]) for k, v in wx[0].items() if all(k in d for d in wx)
     }
@@ -758,7 +810,7 @@ def main() -> int:
                 z = max(-2.0, min(2.0, (v - mu) / sd))
                 sig[tag_][key] = (R * ec * (1 + k * z), ec)
 
-    def book(vals, margin, cap):
+    def book(vals, margin, cap, maxp=None):
         out = [
             dict(
                 source=src,
@@ -771,7 +823,7 @@ def main() -> int:
                 ratio=round(v / ec, 2),
             )
             for (src, snk), (v, ec) in vals.items()
-            if v >= margin * ec
+            if v >= margin * ec and (maxp is None or ec <= maxp)
         ]
         # rank by $ edge (value - clearing); at most NODE_CAP paths per source / sink
         out.sort(key=lambda r: (-(r["exp_value"] - r["exp_clear"]), r["source"], r["sink"]))
@@ -787,8 +839,37 @@ def main() -> int:
 
     books = {}
     for sname in sorted(sig):
-        for rname, (margin, cap) in RULES.items():
-            books[f"{sname}__{rname}"] = book(sig[sname], margin, cap)
+        for rname, (margin, cap, maxp) in RULES.items():
+            books[f"{sname}__{rname}"] = book(sig[sname], margin, cap, maxp)
+    # counterflow (paid to hold): only clear if paid >= CF_KEEP of the last price
+
+    def cf_row(src, snk, v, ec):
+        return dict(
+            source=src,
+            sink=snk,
+            tou=args.tou,
+            mw=MW,
+            limit=round(CF_KEEP * ec, 2),
+            exp_value=None if v is None else round(v, 4),
+            exp_clear=round(ec, 4),
+            ratio=None,
+        )
+
+    ranked = sorted(
+        ((v - ec, k, v, ec) for k, (v, ec) in cf.items() if v > ec), key=lambda t: (-t[0], t[1])
+    )
+    kept, ns, nk = [], defaultdict(int), defaultdict(int)
+    for _e, (src, snk), v, ec in ranked:
+        if ns[src] < NODE_CAP and nk[snk] < NODE_CAP and len(kept) < MAX_BIDS:
+            kept.append(cf_row(src, snk, v, ec))
+            ns[src] += 1
+            nk[snk] += 1
+    books["cf_phys__keep75"] = kept
+    rng_cf = random.Random(int(hashlib.sha256((args.delivery + "cf").encode()).hexdigest(), 16))
+    books["cf_random__keep75"] = [
+        cf_row(src, snk, None, ec)
+        for (src, snk), (_v, ec) in rng_cf.sample(sorted(cf.items()), min(MAX_BIDS, len(cf)))
+    ]
     # random control: same filtered candidates, bid 1.5x expected clearing, seeded by month
     pool = sorted({k: ec for k, (_, ec) in sig["market"].items()}.items())
     rng = random.Random(int(hashlib.sha256(args.delivery.encode()).hexdigest(), 16))
@@ -808,6 +889,34 @@ def main() -> int:
     for k, rws in books.items():
         print(
             f"{k:28s} {len(rws):4d} bids; authorised ${sum(r['limit'] * MW * len(ah) for r in rws):>10,.0f}"
+        )
+    if args.dump and not args.freeze:
+        cand_out = defaultdict(dict)
+        for name, vals in [*phys.items(), ("hist100", sig["hist100"]), ("market", sig["market"])]:
+            for (src, snk), (v, ec) in vals.items():
+                cand_out[f"{src}|{snk}"][name] = v
+                cand_out[f"{src}|{snk}"]["exp_clear"] = ec
+        pred_out = {
+            name: [
+                dict(
+                    n=int(n),
+                    sign=float(sg),
+                    val=float(val),
+                    cont=n1.names[ci] if ci >= 0 else None,
+                    i=g.buses[g.br[n]["i"]]["name"],
+                    j=g.buses[g.br[n]["j"]]["name"],
+                    ib=g.br[n]["i"],
+                    jb=g.br[n]["j"],
+                    hist=n in pos,
+                )
+                for n, sg, val, ci in pr
+            ]
+            for name, pr in preds.items()
+        }
+        dump_dir = ARCHIVE / "out" / "preview" / f"paper_{args.delivery}_{args.tou}"
+        dump_dir.mkdir(parents=True, exist_ok=True)
+        (dump_dir / "signals.json").write_text(
+            json.dumps(dict(R=R, cands=cand_out, preds=pred_out))
         )
     # a dry run writes an overwritable preview; --freeze seals and never rebuilds
     out = (

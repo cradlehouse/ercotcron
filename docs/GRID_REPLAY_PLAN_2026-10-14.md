@@ -447,3 +447,26 @@ Rules from MAY on (Tim approved 15 Oct; designed on MAR, so MAR cannot test them
    clipped +-2. k = 0.25 / 0.5 / 1.0 on phys_base; 0.5 on phys_n0, phys_windy,
    phys_robust, phys_recent. Pure physics value kept as one comparison signal
    (phys_base); market (R x clearing, no physics) and hist100 as baselines.
+
+## Addendum: JUL 2026 slate (15 Oct 2026, before JUL is built)
+
+MAY 2026 (sealed): every book lost (paths paid ~0.73x their clearing); best
+returns phys-tilted anchored windy/robust (-14%) and pure physics (-15 to
+-18%) vs market -27% and random -38%; hist100 -63% to -106%. Across MAR and
+MAY (all candidates): paths priced $3+ paid 0.90x / 0.82x their price, the
+$0.25-3 band 1.6-1.9x / 0.9-1.0x, and counterflow paths beat their price
+69% / 62% of the time. MAY 2026 load matched its analog (May 2025) within
+1%; MAR 2026 ran 4.2 GW (8%) above MAR 2025.
+
+JUL rules (Tim approved 15 Oct): the MAY rules unchanged as the core, plus
+1. Price cap: every signal is also bid with rules m125cap3 / m150cap3 - the
+   same as m125 / m150 but only paths whose expected clearing is <= $3.
+2. Load growth: g = mean day-ahead SystemTotal load forecast (NP3-561) for the
+   30 days to asof / the same days one year earlier. Scenario "grow" = the
+   base analog with load x g (gas fills it); signal anch50_grow.
+3. Counterflow books: candidates whose latest prior clearing is between -$3
+   and -$0.25; buy (be paid) with limit = 0.75 x expected clearing, i.e. only
+   clear if paid at least 75% of the last price. cf_phys: ranked by physics
+   edge (phys_base - expected clearing), node cap 2, up to 60; cf_random: 60
+   seeded random from the same pool. Scored on profit (cost is negative).
+JUL as of 7 Jun 2026 (results posted 18 Jun).
