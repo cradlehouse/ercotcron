@@ -341,3 +341,46 @@ examined, the original split may be restored by a further dated addendum.
   Covers resource awards, virtual offers and bids, and PTP awards.
 - **Decision-time forecasts:** ERCOT's archived load, wind and solar
   editions as posted at 09:30–09:55 Central, Oct 2024 onward (loading).
+
+## Addendum — 15 Oct 2026: walk-forward paper trading, one month at a time
+
+Recorded before any paper-trade result exists, at Tim's direction.
+
+**Method.** Trading tests walk forward one auction at a time:
+
+1. Build and tune on earlier months.
+2. Construct one month's paper bid using only information available at that
+   auction's cutoff.
+3. Freeze the bid by SHA-256.
+4. Score it after the delivery month settles.
+5. Review and adjust, then construct the next month.
+
+No month is scored in bulk. Untested months stay untouched for later.
+
+**Information-set rule.** The 60-Day DAM Disclosure is public 60 days after
+each operating day, so a bid at cutoff T may use DAM injections only through
+about T−60 days. Other inputs are limited to what was published by T:
+
+- decision-time load, wind and solar forecast editions;
+- the outage data then published;
+- the network model for the delivery month;
+- auction results already posted.
+
+**Sequence:**
+
+- **Build and tune:** Oct–Dec 2025. Already examined in the A1 reconstruction.
+- **First paper month:** FEB 2026 delivery, auction held Jan 12–14 2026,
+  information as of Jan 11 2026. JAN 2026 is excluded as a trading test
+  because its reconstruction scores were examined on 14 Oct.
+- **Next:** APR 2026 (no MAR 2026 model held). Then each further month as
+  models arrive, each only after the previous one has been reviewed.
+
+**Each paper month is scored on:**
+
+1. Realized DAM payout of the paper paths minus their auction clearing cost.
+2. The same against the history-only baseline at an equal budget.
+3. Predicted-binding vs actually-binding constraints (precision and recall).
+
+**Adjustments.** Changes between months are recorded here, dated, before the
+next month is constructed. A month already scored is never re-run as if
+untouched.
