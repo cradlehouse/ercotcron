@@ -656,3 +656,24 @@ not correlate with excess payout (mean ~0.00) - the auction already prices
 what recent binding history knows. The ceiling also failed in DEC 2025 (0th
 percentile) with directions taken from recent flows, against 100th with
 hindsight directions: binding direction is a second weak point.
+
+## Addendum: sell-side test (16 Oct 2026, before any run)
+
+Hypothesis: hedgers pay above expected value for popular, expensive paths, so
+selling them earns a premium (with tail risk). Off-peak, weekend, options and
+long-term auctions are parked (Tim, 16 Oct).
+Mechanics: selling path A->B = buying B->A at a negative price. Universe: the
+two prior auctions' PeakWD OBL BUY paths, no DC ties / LARDVFT*, last clearing
+P_last >= threshold. Offer: clear only if the actual clearing P_act >=
+0.8 x P_last. Profit per path = 5 MW x hours x (P_act - DAM spread B-A... i.e.
+the A->B payout), summed over cleared paths. At most 60 paths, 2 per source and
+per sink.
+Books: S3 = P_last >= $3, the 60 most expensive; S5 = P_last >= $5, the 60 most
+expensive; S3h = P_last >= $3 ranked by P_last minus the path's average DAM
+spread over the 100 days to asof (most overpriced against recent history).
+Each book is ranked against 1,000 random baskets from its own pool under the
+same count, node limit and offer rule. Months: the six development months
+(NOV 2025, DEC 2025, JAN 2026, MAR, MAY, JUL 2026); FEB 2026 stays closed.
+Report per month profit, percentile, worst single path; totals and months
+positive. Collateral for counterflow is not modelled and must be checked
+before any real use.
