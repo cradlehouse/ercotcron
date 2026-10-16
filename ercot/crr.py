@@ -157,6 +157,34 @@ def archive_zip(doc: Document, blob: bytes) -> bool:
         return False
 
 
+# One price per node, time of use AND calendar month: a long-term auction prices
+# six months in one file, and a key without the month kept only the last month
+# written for each node (fixed 2026-10-16).
+POINT_PRICE_COLUMNS = ["auction_name", "settlement_point", "time_of_use", "calendar_period",
+                       "shadow_price"]
+POINT_PRICE_KEY = ["auction_name", "settlement_point", "time_of_use", "calendar_period"]
+
+
+def point_price_rows(auction_name: str, prices: list[dict]) -> list[tuple]:
+    """SourceAndSinkShadowPrices rows -> table rows, one per node, TOU and month."""
+    return [
+        (auction_name, r.get("SourceSink") or "", r.get("TimeOfUse") or "",
+         r.get("CalendarPeriod") or "", _num(r.get("ShadowPricePerMWH", "")))
+        for r in prices
+        if r.get("SourceSink")
+    ]
+
+
+def upsert_point_prices(auction_name: str, prices: list[dict]) -> tuple[int, int]:
+    return db.upsert_rows(
+        "crr_point_prices",
+        POINT_PRICE_COLUMNS,
+        point_price_rows(auction_name, prices),
+        conflict=POINT_PRICE_KEY,
+        update=["shadow_price"],
+    )
+
+
 def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int]:
     """Load one auction's awards, bids and nodal prices. Idempotent."""
     blob = fetch_bytes(doc.doc_id)
@@ -197,20 +225,7 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
                 "sink", "start_date", "end_date", "mw", "clearing_price", "bid24hour"],
     )
 
-    price_rows = [
-        (doc.auction_name, r.get("SourceSink") or "", r.get("TimeOfUse") or "",
-         r.get("CalendarPeriod"), _num(r.get("ShadowPricePerMWH", "")))
-        for r in prices
-        if r.get("SourceSink")
-    ]
-    p_ins, p_upd = db.upsert_rows(
-        "crr_point_prices",
-        ["auction_name", "settlement_point", "time_of_use", "calendar_period",
-         "shadow_price"],
-        price_rows,
-        conflict=["auction_name", "settlement_point", "time_of_use"],
-        update=["calendar_period", "shadow_price"],
-    )
+    p_ins, p_upd = upsert_point_prices(doc.auction_name, prices)
 
     # Losing bids are the behavioural record: what the market was willing to
     # pay for each path, not merely what cleared. The rows are anonymous curve
@@ -265,14 +280,14 @@ def ingest_auction(doc: Document, report_type: str = "monthly") -> dict[str, int
                 b_ins += ins
 
     log.info("crr %s: %d awards (%d new), %d prices, %d bids, archived=%s",
-             doc.auction_name, len(award_rows), inserted, len(price_rows),
+             doc.auction_name, len(award_rows), inserted, len(prices),
              b_seen, archived)
     return {
         "auction": doc.auction_name,
         "archived": archived,
         "bids_seen": b_seen, "bids_new": b_ins,
         "awards_seen": len(award_rows), "awards_new": inserted, "awards_updated": updated,
-        "point_prices_seen": len(price_rows), "point_prices_new": p_ins,
+        "point_prices_seen": len(prices), "point_prices_new": p_ins,
         "point_prices_updated": p_upd,
     }
 
