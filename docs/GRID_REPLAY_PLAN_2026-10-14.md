@@ -677,3 +677,15 @@ same count, node limit and offer rule. Months: the six development months
 Report per month profit, percentile, worst single path; totals and months
 positive. Collateral for counterflow is not modelled and must be checked
 before any real use.
+
+## Addendum: sell-side result (16 Oct 2026)
+
+(Clarifying the pre-registration: profit per sold path = 5 MW x hours x
+(P_act - the A->B payout).) Six development months, S3 = S5 (the 60 most
+expensive were all above $5): +$63k NOV, -$47k DEC, -$556k JAN (one path
+-$311k), +$353k MAR, +$595k MAY, -$26k JUL; total +$382k, 3/6 positive;
+percentiles vs 1,000 random sell baskets 99.5, 4.8, 5.6, 100, 100, 4.2.
+S3h (overpriced vs recent history) -$223k. The $3+ pool paid 1.02-1.25x its
+price in NOV-JAN and 0.82-0.90x in MAR, MAY, JUL. A seasonal pattern (sell
+expensive paths outside winter) was noticed after seeing these results and is
+not yet tested; collateral not modelled.
