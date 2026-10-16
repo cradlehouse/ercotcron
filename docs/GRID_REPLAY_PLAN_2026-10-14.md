@@ -533,3 +533,13 @@ Slate changes for these months (focused slate):
   filter.
 - phys_windy and phys_recent now produce books (the earlier name mismatch is
   fixed).
+
+## Addendum: winter results (15 Oct 2026, night)
+
+NOV 2025 / DEC 2025 / JAN 2026 sealed and scored (OCT 2026 sealed, scored in
+November). Market and market_veto made no bids (recent paths paid 0.79-0.99x
+their clearing, below the 1.25x bar). Random control +$89k / +$12k / -$65k.
+Pure physics (<=$3) lost in every book every month (-$9k to -$215k), winning
+18-35% of paths vs 43-57% for random; load ran 5-11% above the analog year.
+Physics veto (vetorand) beat random in 1 of 3. Physics counterflow -$454k in
+JAN. Random control over all 10 scored months: +$409k, 7 of 10 profitable.
