@@ -612,3 +612,33 @@ forecasting which constraints bind and their price, not injections or
 weather. Next: a constraint-level forecast scored directly against DAM
 outcomes, valued through the V5 machinery; no new path-selection rules on the
 current engine; FEB stays closed; a prospective DEC 2026 test.
+
+## Addendum: constraint forecast, development then FEB (16 Oct 2026, before any run)
+
+Tim chose (16 Oct): build a constraint-level forecast on the development months,
+freeze it, then open FEB 2026 as its first clean test; DEC 2026 is the first
+prospective test.
+
+Method: forecast next month's DAM binding constraints - key (constraint name,
+contingency), mapped to model branches by station as in V5 - and their
+shadow-price $ per peak-weekday hour; value paths through the V5 machinery
+(post-contingency shift factors of the delivery month's model). Direction of
+each constraint's binding flow from the recent disclosed window's flows (known
+at asof), else the analog's. Constraints without station names (interface
+limits, ~6% of rows) are not yet mapped and are dropped in every variant.
+Candidate forecasts (all forward-valid):
+  F0 persistence: $ per hour over the 100 days to asof;
+  F1 recency-weighted: the last 30 / 31-60 / 61-100 days weighted 0.5/0.3/0.2;
+  F2 seasonal blend: half F0, half the same month a year earlier;
+  F3 physics-adjusted: F0 x clip(analog 95th-pct N-1 loading of the element, 0.5, 1.5).
+Ceiling: V5 (actual constraints, hindsight).
+Scores per development month (NOV 2025-JAN 2026, MAR, MAY, JUL 2026):
+constraint level - rank correlation of forecast vs actual $ over the union of
+constraints, share of actual $ in the top 50 forecast constraints; path level -
+rank correlation of value with payout and of edge with excess, and the m150cap3
+book's percentile among 300 random baskets.
+Selection rule (fixed now): the forecast with the highest mean book percentile
+across the six months; ties within 5 points go to the simpler (F0 < F1 < F2 < F3).
+If no forecast has a mean percentile above 50, FEB is not opened and the result
+is reported as a failure. Once chosen, the method and its parameters are
+frozen (commit + SHA of the script) before FEB is built.
