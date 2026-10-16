@@ -35,6 +35,7 @@ from strategy.paper_month import MON, NODE_CAP, excluded, month_days
 
 load_dotenv(ROOT / ".env")
 DEV = ("2025-11", "2025-12", "2026-01", "2026-03", "2026-05", "2026-07")
+CONFIRM = ("2026-04", "2026-06", "2026-08", "2026-09")
 TOU, MW, KEEP, K = "PeakWD", 5, 0.8, 60
 
 
@@ -75,11 +76,15 @@ def pick(pool, key, rng=None):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=1000)
+    ap.add_argument(
+        "--confirm", action="store_true", help="the seasonal confirmation months (S5 only)"
+    )
     args = ap.parse_args()
+    months = CONFIRM if args.confirm else DEV
     out = {}
     with psycopg.connect(os.environ["DATABASE_URL"]) as c:
         c.execute("set statement_timeout='300s'")
-        for ym in DEV:
+        for ym in months:
             man = json.loads(
                 (ARCHIVE / "out" / "sealed" / f"paper_{ym}_{TOU}" / "manifest.json").read_text()
             )
@@ -146,6 +151,8 @@ def main() -> int:
                 ),
             }
             for name, (pool, key) in books.items():
+                if args.confirm and name != "S5":
+                    continue
                 sel = pick(pool, key)
                 prof, worst, cl = score(sel)
                 rng = random.Random(f"{ym}|sell|{name}")
@@ -175,8 +182,10 @@ def main() -> int:
             out[ym] = res
     outd = ARCHIVE / "out" / "experiment"
     outd.mkdir(parents=True, exist_ok=True)
-    (outd / "sell_side.json").write_text(json.dumps(out, indent=1))
-    for name in ("S3", "S5", "S3h"):
+    (outd / ("sell_side_confirm.json" if args.confirm else "sell_side.json")).write_text(
+        json.dumps(out, indent=1)
+    )
+    for name in ("S5",) if args.confirm else ("S3", "S5", "S3h"):
         ps = [out[m][name]["profit"] for m in out]
         print(
             f"{name}: total {sum(ps):,}; months positive {sum(p > 0 for p in ps)}/{len(ps)}; "

@@ -700,3 +700,15 @@ clearing >= $5, offer clears only at >= 0.8 x last price, 2 per source/sink,
 the sell-side development run). Pass = total profit > 0 AND the book beats the
 random median (1,000 baskets) in at least 3 of the 4 months. FEB stays closed;
 no winter months are tested.
+
+## Addendum: seasonal sell-side confirmation - FAILED (16 Oct 2026)
+
+S5 on APR / JUN / AUG / SEP 2026: -$199k, -$44k, -$482k, +$311k; total -$414k,
+1 of 4 positive; percentiles vs random 87.4, 86.2, 0.0, 99.3. Fails the
+pre-registered pass (total > 0 required). The $3+/$5+ pool paid 1.33-1.43x its
+price in APR, JUN and AUG and 0.78x in SEP, so the "sell outside winter" pattern
+from the development months does not hold; a season-switching rule (buy in
+winter, sell in summer) is not supported. Across all ten months buyers of
+expensive paths won NOV, DEC, JAN, APR, JUN, AUG and sellers won MAR, MAY, JUL,
+SEP - month-to-month alternation since MAR, noted as a curiosity to check for a
+data artifact, not a pattern to trade.
