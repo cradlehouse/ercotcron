@@ -642,3 +642,17 @@ across the six months; ties within 5 points go to the simpler (F0 < F1 < F2 < F3
 If no forecast has a mean percentile above 50, FEB is not opened and the result
 is reported as a failure. Once chosen, the method and its parameters are
 frozen (commit + SHA of the script) before FEB is built.
+
+## Addendum: constraint forecast result - failure, FEB stays closed (16 Oct 2026)
+
+Mean book percentile vs 300 random baskets over the six development months:
+F0 14.4, F1 17.5, F2 28.7, F3 6.3 (V5 ceiling 83.3). No forecast exceeds 50,
+so under the pre-registered rule FEB 2026 is not opened and the constraint
+forecast is reported as a failure.
+Diagnostics: the top 50 forecast constraints hold 30-35% of the delivery
+month's congestion $ on average (ceiling 80%); forecast path values correlate
+with payout (mean rank corr ~0.16) but their edge over the auction price does
+not correlate with excess payout (mean ~0.00) - the auction already prices
+what recent binding history knows. The ceiling also failed in DEC 2025 (0th
+percentile) with directions taken from recent flows, against 100th with
+hindsight directions: binding direction is a second weak point.
