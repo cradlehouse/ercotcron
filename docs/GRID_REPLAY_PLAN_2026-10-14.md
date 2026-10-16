@@ -596,3 +596,19 @@ Injection experiment (the next research effort; no new path-selection rules):
 - Reading: if V4 (and V5) cannot materially improve these, injection quality
   is not the bottleneck and weather forecasting will not rescue the engine;
   attention moves to constraint definitions, dispatch and loading-to-price.
+
+## Addendum: review-response results (16 Oct 2026)
+
+Random baskets (1,000 per book, same universe, cap, positions, node limit,
+MW and limit rule): the main physics book (m150cap3) ranked below the random
+median in 7 of 7 comparable months (NOV 2025-JAN 2026, APR, JUN, AUG, SEP
+2026; JUL excluded): percentiles 0.1, 0.2, 0.0, 27.5, 19.6, 0.0, 6.3. Random
+$0.25-3 baskets had a positive median in 6 of 7.
+Injection experiment (6 development months): V1-V4 nearly identical on every
+measure (actual injections add 5-10 correctly named binding elements, no path
+value); V5 (actual constraints and prices through the model's shift factors)
+put the book at the 100th percentile in all six. Conclusion: the bottleneck is
+forecasting which constraints bind and their price, not injections or
+weather. Next: a constraint-level forecast scored directly against DAM
+outcomes, valued through the V5 machinery; no new path-selection rules on the
+current engine; FEB stays closed; a prospective DEC 2026 test.
