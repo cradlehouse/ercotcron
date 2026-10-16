@@ -543,3 +543,56 @@ Pure physics (<=$3) lost in every book every month (-$9k to -$215k), winning
 18-35% of paths vs 43-57% for random; load ran 5-11% above the analog year.
 Physics veto (vetorand) beat random in 1 of 3. Physics counterflow -$454k in
 JAN. Random control over all 10 scored months: +$409k, 7 of 10 profitable.
+
+## Addendum: review response and the injection experiment (16 Oct 2026, before any run)
+
+An outside review (16 Oct) made five points, adopted in full:
+1. Every sealed month is a retrospective walk-forward simulation: inputs were
+   restricted to what was public by the decision date, but the outcomes were
+   already history when the books were built, and rules changed between
+   months after results were seen. "Forward" is reserved for books frozen
+   before the auction's bid window closes. The first genuinely prospective
+   test is the DEC 2026 auction (bid window expected mid-November 2026).
+2. Decision dates are checked against bid windows and input publication
+   timestamps by strategy/input_audit.py (ERCOT notices for JUL-NOV 2026;
+   earlier months inferred as results posting - 7 days).
+3. The single seeded random basket is replaced as the comparison by the
+   distribution of 1,000 random baskets drawn under each book's own
+   constraints (strategy/random_baskets.py); books are compared by percentile.
+4. Paper counts and the clean-month set are corrected; JUL 2026 is excluded
+   from "clean" comparisons (stale prior auctions).
+5. The downside (overpriced-path) signal is exploratory, not established.
+
+Injection experiment (the next research effort; no new path-selection rules):
+- Development months: NOV 2025, DEC 2025, JAN 2026, MAR 2026, MAY 2026,
+  JUL 2026 (all have delivery-month DAM disclosure for the hindsight variant).
+  APR and JUN 2026 are held for confirmation; FEB 2026 stays closed and
+  unscored; AUG-SEP 2026 lack full delivery-month injections.
+- Identical across variants: the delivery month's CRR model and contingency
+  list, monitored elements and ratings, N-1 screening, the 100-day binding
+  history used for element values, the hot-never filter, the candidate path
+  universe (two prior auctions, >= $0.25, no DC ties), expected clearing, and
+  scoring. Only the injections change:
+  V1 year-ago injections (current baseline);
+  V2 V1 corrected for structural drift known at asof: load scaled by forecast
+     zone (30 days to asof vs a year earlier) and fleet changes (resources in
+     the 90 days before asof-60 but absent from the analog month added at
+     their recent hourly profile; analog resources absent from that window
+     removed), balanced by gas;
+  V3 V2 plus delivery-month weather: zonal load, wind and solar set to the
+     delivery month's day-ahead forecast levels by hour (hindsight weather),
+     balanced by gas;
+  V4 the delivery month's actual DAM injections (hindsight upper bound).
+  V5 diagnostic: the delivery month's actual DAM binding constraints and
+     shadow prices mapped to model branches, valued through the model's shift
+     factors - tests the path mapping and constraint-to-value conversion with
+     perfect knowledge of what bound.
+- Metrics per variant: top-100 predicted elements that bound in the delivery
+  month and their share of congestion $; AUC of 95th-percentile loading (bound
+  vs not); rank correlation of path value with payout and of (value - expected
+  clearing) with (payout - clearing); top and bottom decile excess payout;
+  and a physics book under the m150cap3 rule ranked against 1,000 random
+  baskets.
+- Reading: if V4 (and V5) cannot materially improve these, injection quality
+  is not the bottleneck and weather forecasting will not rescue the engine;
+  attention moves to constraint definitions, dispatch and loading-to-price.
