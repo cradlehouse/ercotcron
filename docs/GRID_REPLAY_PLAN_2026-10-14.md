@@ -513,3 +513,23 @@ built (11 books, not 15).
 NOV $150k pot (paper, sealed separately as paper_2026-11_PeakWD_pot150):
 union of the NOV market <=$3 and random baskets, equal MW per path, max
 authorised <= $150k. Path list kept in the archive only (public repo).
+
+## Addendum: winter and late months, and the physics veto (15 Oct 2026, before any is built)
+
+Tim approved (15 Oct): run JAN 2026 (as of 2025-12-07), DEC 2025 (2025-11-02)
+and NOV 2025 (2025-10-12) now, and OCT 2026 (2026-09-06; scored once October
+DAM prices are complete). FEB 2026 stays the unscored holdout; OCT 2025 is
+skipped (the AUG 2025 auction is not in the data). NOV 2025-JAN 2026 were
+tuning months for the line-level precision check (which elements bind), but
+their path payouts against auction prices were not examined in this work.
+Analog-month zonal forecasts (NP3-560) backfilled for Oct 2024-Jan 2025 first.
+
+Slate changes for these months (focused slate):
+- Physics veto: candidates whose physics edge (phys_base value - expected
+  clearing) is in the bottom 20% are removed. market_veto = the market signal
+  without them (rules m125cap3 / m150cap3); vetorand__control = 60 seeded
+  random paths from the vetoed pool at 1.5x expected clearing. Compared with
+  market and random__control, this measures whether physics adds value as a
+  filter.
+- phys_windy and phys_recent now produce books (the earlier name mismatch is
+  fixed).

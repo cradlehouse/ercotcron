@@ -117,9 +117,18 @@ RULES = {
 }
 WEATHER = ("base", "lull", "windy", "cold")
 # after JUL (plan addendum): the $3 cap and counterflow are the default; a smaller slate
-FOCUS_SIGNALS = ("phys_base", "phys_windy", "phys_recent", "anch25_base", "hist100", "market")
+FOCUS_SIGNALS = (
+    "phys_base",
+    "phys_windy",
+    "phys_recent",
+    "anch25_base",
+    "hist100",
+    "market",
+    "market_veto",
+)
 FOCUS_RULES = ("m125cap3", "m150cap3")
-FOCUS_CONTROLS = ("random__control", "cf_phys__keep75", "cf_random__keep75")
+FOCUS_CONTROLS = ("random__control", "vetorand__control", "cf_phys__keep75", "cf_random__keep75")
+VETO_Q = 0.2  # physics veto: drop the candidates in the bottom 20% of physics edge
 CF_BAND, CF_KEEP = (-3.0, -0.25), 0.75
 ZONE = {
     "LZ_HOUSTON": "Houston",
@@ -822,6 +831,15 @@ def main() -> int:
         k: (min(d[k][0] for d in wx), v[1]) for k, v in wx[0].items() if all(k in d for d in wx)
     }
     sig["phys_base"] = dict(phys["phys_base"])  # physics $ as the whole value: comparison only
+    sig["phys_windy"] = dict(phys["phys_windy"])
+    sig["phys_recent"] = dict(phys["phys_recent"])
+    # physics as a veto: paths whose physics edge (value - expected clearing) is in
+    # the bottom VETO_Q of candidates are dropped from the market and random baskets
+    edges = {k: v - ec for k, (v, ec) in phys["phys_base"].items()}
+    cut = float(np.quantile(list(edges.values()), VETO_Q)) if edges else None
+    vetoed = {k for k, e in edges.items() if cut is not None and e <= cut}
+    sig["market_veto"] = {k: v for k, v in sig["market"].items() if k not in vetoed}
+    print(f"physics veto: {len(vetoed)} of {len(edges)} candidates (edge <= {cut})", flush=True)
     # auction-anchored: the market's value tilted by physics. z = the path's
     # physics value standardised across candidates, clipped to +-2.
     for name in ANCHORED:
@@ -911,6 +929,21 @@ def main() -> int:
             ratio=None,
         )
         for (src, snk), ec in rng.sample(pool, min(MAX_BIDS, len(pool)))
+    ]
+    pool_v = [x for x in pool if x[0] not in vetoed]
+    rng_v = random.Random(int(hashlib.sha256((args.delivery + "veto").encode()).hexdigest(), 16))
+    books["vetorand__control"] = [
+        dict(
+            source=src,
+            sink=snk,
+            tou=args.tou,
+            mw=MW,
+            limit=round(1.5 * ec, 2),
+            exp_value=None,
+            exp_clear=round(ec, 4),
+            ratio=None,
+        )
+        for (src, snk), ec in rng_v.sample(pool_v, min(MAX_BIDS, len(pool_v)))
     ]
     if args.focused:
         books = {
