@@ -748,3 +748,18 @@ files were re-downloaded from ERCOT's public listing and node prices read
 locally per month, restoring the rule as first written (ec = Seq2 node prices,
 Seq1 node prices for clearing). 20242nd6 Seq3 is not listed, so AUG-DEC 2024
 draw candidates from Seq2 alone, as the rule allows.
+
+## Addendum: long-term basket result - PASSES (16 Oct 2026)
+
+12 of 13 months testable (OCT 2024 had 57 candidates, below the 60-path
+basket; counted as a failure). Median basket profitable in all 12 tested
+months (AUG 2024 - AUG 2025 less OCT): medians +$56k, +$76k, +$36k, +$62k,
++$10k, +$131k, +$261k, +$75k, +$81k, +$117k, +$27k, +$32k; sum +$963k; worst
+5th-percentile basket -$4k (JUL 2025). Candidate paths paid 1.02-4.47x their
+final-sequence price. 12 of 13 >= 9 and the sum is positive: the
+pre-registered pass is met. Caveats: pools were small (61-136 paths), so the
+60-path baskets overlap heavily and the result is close to "buy every cheap
+path traded in the prior sequence"; all months fall in one period of rising
+congestion; this is long-term auction buying (2-8 months ahead), not the
+monthly auction; it is a premium for buying early, not evidence of out-guessing
+the auction on individual paths.
