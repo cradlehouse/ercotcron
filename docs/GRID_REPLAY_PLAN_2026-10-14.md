@@ -712,3 +712,21 @@ winter, sell in summer) is not supported. Across all ten months buyers of
 expensive paths won NOV, DEC, JAN, APR, JUN, AUG and sellers won MAR, MAY, JUL,
 SEP - month-to-month alternation since MAR, noted as a curiosity to check for a
 data artifact, not a pattern to trade.
+
+## Addendum: diversified cheap-path basket on untested 2024-25 months (16 Oct 2026, before any run)
+
+The monthly-auction results before SEP 2025 have expired from ERCOT's public
+listing (it keeps 12), so the basket is tested on the long-term auctions, which
+price each delivery month in sequences up to ~2 years ahead. Delivery months:
+AUG 2024 - AUG 2025 (13 months, none used in any earlier test; DAM prices from
+26 Jul 2024).
+Rule (the basket that held up on the monthly auctions): candidates = PeakWD
+OBL BUY single-month paths awarded for the month in the two sequences before the
+last one (Seq3, Seq2; Seq2 alone where Seq3 is missing), no DC ties /
+LARDVFT*; reference price ec = the Seq2 clearing (source - sink) for that month;
+keep 0.25 <= ec <= 3. Basket = 60 random candidates, at most 2 per source and
+per sink, 5 MW, limit 1.5 x ec; a bid clears if the Seq1 clearing <= limit, and
+pays (month's average DAM spread sink - source - Seq1 clearing) x 5 MW x hours.
+1,000 seeded baskets per month.
+Pass: the median basket is profitable in at least 9 of 13 months AND the sum
+of monthly medians is positive. Report the worst month (5th percentile) too.
