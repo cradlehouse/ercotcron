@@ -730,3 +730,21 @@ pays (month's average DAM spread sink - source - Seq1 clearing) x 5 MW x hours.
 1,000 seeded baskets per month.
 Pass: the median basket is profitable in at least 9 of 13 months AND the sum
 of monthly medians is positive. Report the worst month (5th percentile) too.
+Amendment before any result was computed: the long-term node-price table
+(crr_point_prices) is incomplete for these auctions (most nodes and some months
+missing - an ingestion gap to fix separately), so path prices come from the
+award records instead (crr_awards.clearing_price equals source - sink exactly
+where both exist). Consequences: ec = the path's Seq2 award price; a path is a
+candidate only if it was also awarded in Seq1 for the month, since only then is
+its Seq1 price known (this restricts the pool to paths someone bought in the
+final sequence). Everything else unchanged.
+Second amendment, before any profit was computed: the award-price version
+left only 11-28 candidates a month (too few for a 60-path basket), so no result
+exists for it. Root cause found: the production ingest keys crr_point_prices on
+(auction, settlement point, time of use) without the calendar period, so each
+long-term auction keeps one month per node and overwrites the rest (a
+production bug, to be fixed with Tim's go). For this test the original long-term
+files were re-downloaded from ERCOT's public listing and node prices read
+locally per month, restoring the rule as first written (ec = Seq2 node prices,
+Seq1 node prices for clearing). 20242nd6 Seq3 is not listed, so AUG-DEC 2024
+draw candidates from Seq2 alone, as the rule allows.
