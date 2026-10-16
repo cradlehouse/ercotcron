@@ -607,13 +607,14 @@ def main() -> int:
         ).fetchall()
         price = defaultdict(dict)
         nodes = sorted({x for p in cands for x in p})
-        for sp, d, he, pr in c.execute(
-            """select settlement_point, delivery_date, hour_ending, price from dam_spp
-                where settlement_point = any(%s) and delivery_date between %s and %s""",
-            (nodes, hist0, asof - timedelta(days=1)),
-        ):
-            if tou_of(d, he) == args.tou:
-                price[sp][(d, he)] = float(pr)
+        for i in range(0, len(nodes), 100):  # batches: one big query can time out
+            for sp, d, he, pr in c.execute(
+                """select settlement_point, delivery_date, hour_ending, price from dam_spp
+                    where settlement_point = any(%s) and delivery_date between %s and %s""",
+                (nodes[i : i + 100], hist0, asof - timedelta(days=1)),
+            ):
+                if tou_of(d, he) == args.tou:
+                    price[sp][(d, he)] = float(pr)
     hours_hist = len({k for v in price.values() for k in v})
 
     pos_idx = {n: k for k, n in enumerate(idxs)}
