@@ -689,3 +689,14 @@ S3h (overpriced vs recent history) -$223k. The $3+ pool paid 1.02-1.25x its
 price in NOV-JAN and 0.82-0.90x in MAR, MAY, JUL. A seasonal pattern (sell
 expensive paths outside winter) was noticed after seeing these results and is
 not yet tested; collateral not modelled.
+
+## Addendum: seasonal sell-side confirmation (16 Oct 2026, before any run)
+
+Hypothesis (formed on the development months): outside winter, selling the
+most expensive popular paths earns a premium. Test: book S5 exactly as defined
+in the sell-side addendum (60 most expensive PeakWD OBL paths with last
+clearing >= $5, offer clears only at >= 0.8 x last price, 2 per source/sink,
+5 MW, no DC ties), run unchanged on APR, JUN, AUG and SEP 2026 (not used in
+the sell-side development run). Pass = total profit > 0 AND the book beats the
+random median (1,000 baskets) in at least 3 of the 4 months. FEB stays closed;
+no winter months are tested.
