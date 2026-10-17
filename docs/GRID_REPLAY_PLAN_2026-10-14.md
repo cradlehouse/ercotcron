@@ -763,3 +763,13 @@ path traded in the prior sequence"; all months fall in one period of rising
 congestion; this is long-term auction buying (2-8 months ahead), not the
 monthly auction; it is a premium for buying early, not evidence of out-guessing
 the auction on individual paths.
+
+## Addendum: long-term basket extended to SEP 2025 - JUN 2026 (17 Oct 2026, before any run)
+
+Tim asked (17 Oct) to run the same long-term basket rule, unchanged, on the
+next ten delivery months: SEP-DEC 2025 (2025 2nd6 sequences) and JAN-JUN 2026
+(2026 1st6 sequences). Same pass bar scaled: median basket profitable in at
+least 7 of 10 months and the sum of medians positive. Note: these months were
+used in the monthly-auction tests, so their market outcome is partly known
+(e.g. monthly buy baskets lost in JAN 2026); the long-term rule itself has
+never been run on them. Node prices are read from the original ERCOT files.
