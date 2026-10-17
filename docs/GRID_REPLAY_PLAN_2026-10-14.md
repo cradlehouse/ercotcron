@@ -797,3 +797,13 @@ once Seq1 posts, then payout month by month as DAM prices arrive.
   2027-04: 4f9b225bd0a9a231a4140eade1a1c1ce3ea856b7eae6063587f35ef778f5e51b
   2027-05: 25eb5074811b579f756d74236a5ff149aa635218a9c2ddeb5b611f0e55769dde
   2027-06: d87d05bc3ae06cfc9c101e7e2c9618eed8c13626e2cfe8fd205402518a7356a7
+
+## Addendum: long-term basket on the remaining months (17 Oct 2026)
+
+Run at Tim's request, same rule. 2025 2nd6 strip: JUL +$27k, AUG +$32k (both
+identical to the first test), SEP +$14k, OCT -$14k, NOV +$12k, DEC -$61k.
+2026 1st6 strip: JAN +$2k, FEB +$15k, MAR +$120k, APR +$147k, MAY +$42k,
+JUN +$77k. With the earlier test and JUL-SEP 2026: 25 complete months scored
+(AUG 2024 - SEP 2026, less OCT 2024), median basket profitable in 23, sum of
+medians about +$1.49M; losses OCT 2025 and DEC 2025, weakest months OCT-JAN.
+FEB 2026 has now been scored for this rule, so it is no longer a holdout for it.
