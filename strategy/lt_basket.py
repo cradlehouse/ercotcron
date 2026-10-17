@@ -306,9 +306,79 @@ def evaluate(c, y, half):
     return summary
 
 
+def paper(c, y, half, budget):
+    """Build the strip's book exactly as freeze() would have (one seeded basket a
+    month, MW sized to the budget), then score it: fills at the final sequence,
+    cost, and DAM payout (months in progress on the hours so far)."""
+    today = date.today()
+    res, tot = {}, dict(cost=0.0, payout=0.0)
+    for yy, m in months_of(y, half):
+        ym = f"{yy}-{m:02d}"
+        days = month_days(yy, m)
+        if days[0] < date(2024, 7, 27) or days[0] >= today:
+            res[ym] = {"status": "no DAM prices" if days[0] < date(2024, 7, 27) else "not started"}
+            continue
+        s1 = node_prices(c, seq(y, half, 1), f"{MON[m - 1]}_{yy}")
+        _s2, pool = pool_for(c, y, half, m)
+        pool = [p for p in pool if p[0] in s1 and p[1] in s1]
+        if len(pool) < K:
+            res[ym] = {"status": f"only {len(pool)} candidates - no book"}
+            continue
+        sel = draw(pool, random.Random(f"{ym}|ltforward"))
+        hrs = peak_hours(yy, m)
+        mw = math.floor(budget / (sum(LIMIT_X * ec for _a, _b, ec in sel) * hrs) * 10) / 10
+        won = [(a, b, s1[a] - s1[b]) for a, b, ec in sel if s1[a] - s1[b] <= LIMIT_X * ec]
+        nodes = sorted({x for a, b, _ in won for x in (a, b)})
+        pr = defaultdict(dict)
+        for i in range(0, len(nodes), 100):
+            for sp, dd, he, p in c.execute(
+                "select settlement_point, delivery_date, hour_ending, price from dam_spp "
+                "where settlement_point = any(%s) and delivery_date between %s and %s",
+                (nodes[i : i + 100], days[0], min(days[-1], today)),
+            ):
+                if tou_of(dd, he) == TOU:
+                    pr[sp][(dd, he)] = float(p)
+        nh = len({h for v in pr.values() for h in v})
+        cost = sum(p1 for _a, _b, p1 in won) * mw * nh
+        paid = 0.0
+        for a, b, _p1 in won:
+            v = [pr[b][h] - pr[a][h] for h in pr.get(a, {}) if h in pr.get(b, {})]
+            if v:
+                paid += statistics.mean(v) * mw * nh
+        status = "complete" if nh >= 0.95 * hrs else f"in progress ({nh} of {hrs} peak hours)"
+        res[ym] = dict(
+            status=status,
+            bids=len(sel),
+            cleared=len(won),
+            mw=mw,
+            cost=round(cost),
+            payout=round(paid),
+            profit=round(paid - cost),
+        )
+        tot["cost"] += cost
+        tot["payout"] += paid
+        r = res[ym]
+        print(
+            f"{ym} [{status}]: {r['cleared']}/{r['bids']} bids cleared at {mw} MW; cost ${r['cost']:,}; "
+            f"paid ${r['payout']:,}; profit ${r['profit']:,}",
+            flush=True,
+        )
+    print(
+        f"strip {y} {half}: cost ${tot['cost']:,.0f}; paid ${tot['payout']:,.0f}; "
+        f"profit ${tot['payout'] - tot['cost']:,.0f}",
+        flush=True,
+    )
+    return dict(
+        months=res,
+        cost=round(tot["cost"]),
+        payout=round(tot["payout"]),
+        profit=round(tot["payout"] - tot["cost"]),
+    )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=("score", "freeze", "evaluate"))
+    ap.add_argument("mode", choices=("score", "freeze", "evaluate", "paper"))
     ap.add_argument("--strip", required=True, help="e.g. 2026-2nd or 2027-1st")
     ap.add_argument("--budget", type=float, default=25000)
     ap.add_argument("--n", type=int, default=1000)
@@ -320,6 +390,12 @@ def main() -> int:
             res = score(c, int(y), half, args.n)
             (ARCHIVE / "out" / "experiment").mkdir(parents=True, exist_ok=True)
             (ARCHIVE / "out" / "experiment" / f"lt_basket_{args.strip}.json").write_text(
+                json.dumps(res, indent=1)
+            )
+        elif args.mode == "paper":
+            res = paper(c, int(y), half, args.budget)
+            (ARCHIVE / "out" / "experiment").mkdir(parents=True, exist_ok=True)
+            (ARCHIVE / "out" / "experiment" / f"lt_paper_{args.strip}.json").write_text(
                 json.dumps(res, indent=1)
             )
         elif args.mode == "freeze":

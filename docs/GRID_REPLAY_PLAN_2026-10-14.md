@@ -807,3 +807,17 @@ JUN +$77k. With the earlier test and JUL-SEP 2026: 25 complete months scored
 (AUG 2024 - SEP 2026, less OCT 2024), median basket profitable in 23, sum of
 medians about +$1.49M; losses OCT 2025 and DEC 2025, weakest months OCT-JAN.
 FEB 2026 has now been scored for this rule, so it is no longer a holdout for it.
+
+## Addendum: paper books at $25k maximum spend a month, every strip (17 Oct 2026)
+
+Each strip's book built exactly as the 2027 forward book (one seeded 60-path
+basket a month, MW sized so the maximum spend is $25k), then scored at the
+final sequence's prices and DAM payouts:
+  2024 2nd6 (AUG-DEC, no OCT book): spent $26k, profit +$34k
+  2025 1st6: spent $28k, profit +$103k
+  2025 2nd6: spent $26k, profit -$3k (DEC -$12k)
+  2026 1st6: spent $39k, profit +$59k
+  2026 2nd6 to date (JUL-SEP complete, OCT 192 of 352 hours): spent $30k,
+    profit +$31k (AUG +$8k, SEP +$12k, OCT +$5k so far)
+Actual spend runs at 10-40% of the $25k ceiling: bids clear below their limits
+and 55-85% of bids fill.
