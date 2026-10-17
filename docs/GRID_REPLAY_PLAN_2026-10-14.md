@@ -773,3 +773,27 @@ least 7 of 10 months and the sum of medians positive. Note: these months were
 used in the monthly-auction tests, so their market outcome is partly known
 (e.g. monthly buy baskets lost in JAN 2026); the long-term rule itself has
 never been run on them. Node prices are read from the original ERCOT files.
+
+## Addendum: long-term basket - JUL-DEC 2026 so far, and the JAN-JUN 2027 forward book (17 Oct 2026)
+
+Same rule as the 2024-25 test, read from the now-complete node prices.
+2026 2nd6 strip (final sequence held APR 2026), median of 1,000 baskets at 5 MW:
+JUL +$53k (cost $67k), AUG +$67k ($52k), SEP +$57k ($69k), OCT +$43k on
+192 of 352 peak hours ($28k so far); NOV and DEC not started. 96-100% of baskets
+profitable in every month scored.
+
+Forward paper book, 2027 1st6 strip (final sequence 2027.1st6 Seq1, bid window
+expected about 20-22 OCT 2026, results about 5 NOV): one seeded 60-path basket
+per month, limit 1.5 x Seq2 price, MW sized so the maximum spend is at most
+$25k a month ($142k in total for six months; 0.5-0.7 MW per path). Frozen
+17 Oct 2026 before any Seq1 result existed; sealed in the archive as
+lt_2027-1st, manifest SHA-256 ed04ac878ee11e77d1eba4cd284b7851a98fa4cb311e2b6b7a012d458e954bbc. Per-month sheet SHA-256s are in the
+manifest; the sheets themselves are published here after the bid window closes.
+Evaluation: `strategy/lt_basket.py evaluate --strip 2027-1st` - fills and cost
+once Seq1 posts, then payout month by month as DAM prices arrive.
+  2027-01: 5d8d543e7ad41731d85f29545586954c23564040dccf654e7491dc6e59fcdace
+  2027-02: e3e02d3a0d27bb81a74aeef81aa605f6002da0adada103c554ccac601a4490c6
+  2027-03: 2786c02167d8ef90baf763caa896548623464db561c2ec3af8e0be6e5021c586
+  2027-04: 4f9b225bd0a9a231a4140eade1a1c1ce3ea856b7eae6063587f35ef778f5e51b
+  2027-05: 25eb5074811b579f756d74236a5ff149aa635218a9c2ddeb5b611f0e55769dde
+  2027-06: d87d05bc3ae06cfc9c101e7e2c9618eed8c13626e2cfe8fd205402518a7356a7
