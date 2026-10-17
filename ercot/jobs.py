@@ -11,7 +11,19 @@ from datetime import UTC, datetime, timedelta
 
 import httpx
 
-from . import config, crr, db, fundamentals, ingest, outage_plan, products, weather
+from . import (
+    config,
+    crr,
+    dam_constraints,
+    dam_disclosure,
+    db,
+    forecast_vintages,
+    fundamentals,
+    ingest,
+    outage_plan,
+    products,
+    weather,
+)
 from .client import ErcotClient
 from .ingest import Result
 
@@ -175,6 +187,29 @@ JOBS: dict[str, Job] = {
         run=lambda c: outage_plan.ingest_planned_outage_cap(c),
         description="Planned outage capacity plan (NP3-161), one edition a day",
         trigger={"hour": "18", "minute": "37"},
+    ),
+    "dam_constraints": Job(
+        name="dam_constraints",
+        # DAM results post ~13:30 CT for the next operating day; a 4-day
+        # lookback upserts, so a missed run heals itself the next day.
+        run=lambda c: dam_constraints.ingest_dam_constraints(c),
+        description="DAM binding constraints and shadow prices (NP4-191), last 4 days",
+        trigger={"hour": "14", "minute": "13"},
+    ),
+    "dam_disclosure": Job(
+        name="dam_disclosure",
+        # ERCOT posts each 60-day disclosure ~00:45-01:30 CT; 07:25 leaves room
+        # for a late posting and stays clear of the 08:40/08:50 CRR jobs.
+        run=lambda c: dam_disclosure.ingest_dam_disclosure(c),
+        description="60-day DAM disclosure awards (NP3-966), new postings",
+        trigger={"hour": "7", "minute": "25"},
+    ),
+    "load_fcast_560": Job(
+        name="load_fcast_560",
+        # The 09:30 edition is the last before the 10:00 DAM deadline.
+        run=lambda c: forecast_vintages.ingest_forecast_vintage(c, "NP3-560-CD"),
+        description="Zonal load forecast (NP3-560) as of the DAM deadline, one edition a day",
+        trigger={"hour": "10", "minute": "17"},
     ),
     "paper_score": Job(
         name="paper_score",

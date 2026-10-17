@@ -35,9 +35,12 @@ All times America/Chicago (see below for why). Defined in `ercot/jobs.py`.
 | `dam` | 11:47, 18:47 | day-ahead SPP, today and tomorrow |
 | `partitions` | daily 03:10 | create monthly partitions three months ahead |
 | `products` | daily 04:15 | rebuild the `node_graph` + `grid_geo` artifacts the site serves |
+| `dam_disclosure` | daily 07:25 | 60-day DAM disclosure (NP3-966): resource, virtual and PTP awards for each newly posted operating day |
 | `crr` | daily 08:40 | CRR monthly auction results, newest 2 auctions |
 | `crr_lt` | daily 08:50 | CRR long-term auction results, newest 2 |
 | `paper_score` | daily 09:05 | score open paper-trade batches against posted results |
+| `load_fcast_560` | daily 10:17 | zonal load forecast (NP3-560) edition posted 09:30, kept in `ercot_forecast_vintages` |
+| `dam_constraints` | daily 14:13 | DAM binding constraints and shadow prices (NP4-191), 4-day upsert lookback |
 | `points` | Mon 09:00 | settlement point catalogue refresh |
 
 ## Why the pieces are shaped this way
